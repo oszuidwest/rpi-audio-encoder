@@ -15,4 +15,4 @@ Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This proje
 `sudo apt install ffmpeg supervisor -y`
 
 ## Set-up ffmpeg
-wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/stream.conf -O /etc/supervisor/conf.d/stream.conf
+`wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/stream.conf -O /etc/supervisor/conf.d/stream.conf`    
