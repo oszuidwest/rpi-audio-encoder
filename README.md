@@ -5,7 +5,7 @@ Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This proje
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 32-bit
-- Run 'sudo raspi-config' to set timezone, Wi-Fi country and expand the filesystem
+- Run `sudo raspi-config` to set timezone, Wi-Fi country and expand the filesystem
 - Follow the guide on https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ to set-up the HiFiBerry
 
 ## Clean-up image
@@ -18,4 +18,4 @@ Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This proje
 `sudo apt install ffmpeg supervisor -y`
 
 ## Set-up ffmpeg
-`wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/stream.conf -O /etc/supervisor/conf.d/stream.conf`    
+`wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/stream.conf -O /etc/supervisor/conf.d/stream.conf`
