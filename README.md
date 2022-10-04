@@ -1,7 +1,7 @@
 # rpi-encoder
 Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This project tries to explore that.
 
-⚠️ Highly experimental. Don't prod this now. Maybe ever. ⚠️
+⚠️ This is somewhat experimental. Don't prod this now. ⚠️
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 32-bit
