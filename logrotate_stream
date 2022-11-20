@@ -1,0 +1,8 @@
+/var/log/supervisor/ffmpeg*.log {
+  daily
+  rotate 30
+  copytruncate
+  nocompress
+  missingok
+  notifempty
+}
