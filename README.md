@@ -22,3 +22,6 @@ Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This proje
 
 ## Set-up log rotation
 `wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/logrotate_stream -O /etc/logrotate.d/stream`
+
+## Create logdir
+`mkdir /var/log/ffmpeg/`
