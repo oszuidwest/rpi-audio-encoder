@@ -4,7 +4,7 @@ Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This proje
 ⚠️ This is somewhat experimental. Don't prod this now. ⚠️
 
 # How to prepare the Rapsberry Pi
-- Install Raspberry Pi OS Lite 11 (bullseye) 32-bit
+- Install Raspberry Pi OS Lite 11 (bullseye) 64-bit
 - Run `sudo raspi-config` to set timezone, Wi-Fi country and expand the filesystem
 - Follow the guide on https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ to set-up the HiFiBerry
 
