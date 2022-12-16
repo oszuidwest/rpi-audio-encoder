@@ -65,8 +65,8 @@ fi
 # Check if logrotate should be installed
 if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt-get install ffmpeg supervisor logrotate
+  apt install ffmpeg supervisor logrotate
 else
   # Install ffmpeg and supervisor
-  apt-get install ffmpeg supervisor
+  apt install ffmpeg supervisor
 fi
