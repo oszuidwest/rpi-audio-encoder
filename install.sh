@@ -1,16 +1,5 @@
 #!/bin/bash
 
-# Default values for variables
-do_updates=${do_updates:-y}
-save_output=${save_output:-y}
-log_file=${log_file:-/var/log/ffmpeg/stream.log}
-log_rotation=${log_rotation:-y}
-output_format=${output_format:-ogg/flac}
-icecast_host=${icecast_host:-localhost}
-icecast_port=${icecast_port:-8000}
-icecast_password=${icecast_password:-hackme}
-icecast_mountpoint=${icecast_mountpoint:-studio}
-
 # Ask user for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " do_updates
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " save_output
@@ -21,6 +10,17 @@ read -p "Hostname or IP address of Icecast server (default: localhost) " icecast
 read -p "Port of Icecast server (default: 8080) " icecast_port
 read -p "Password for Icecast server (default: hackme) " icecast_password
 read -p "Mountpoint of Icecast server (default: studio) " icecast_mountpoint
+
+# If the user enters an empty string, use the default value
+do_updates=${do_updates:-y}
+save_output=${save_output:-y}
+log_file=${log_file:-/var/log/ffmpeg/stream.log}
+log_rotation=${log_rotation:-y}
+output_format=${output_format:-ogg/flac}
+icecast_host=${icecast_host:-localhost}
+icecast_port=${icecast_port:-8000}
+icecast_password=${icecast_password:-hackme}
+icecast_mountpoint=${icecast_mountpoint:-studio}
 
 # Perform validation on input
 if [ "$do_updates" != "y" ] && [ "$do_updates" != "n" ]; then
