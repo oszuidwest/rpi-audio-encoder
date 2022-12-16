@@ -33,6 +33,11 @@ if [ "$save_output" != "y" ] && [ "$save_output" != "n" ]; then
   exit 1
 fi
 
+if ! [[ "$log_file" =~ ^/[^/ ]+/[^/ ]+$ ]]; then
+  echo "Invalid path for log_file. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
+  exit 1
+fi
+
 if [ "$log_rotation" != "y" ] && [ "$log_rotation" != "n" ]; then
   echo "Invalid input for log_rotation. Only 'y' or 'n' are allowed."
   exit 1
