@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Default values for variables
-do_updates=y
-save_output=y
-log_file=/var/log/ffmpeg/stream.log
-log_rotation=y
-output_format=ogg/flac
-icecast_host=localhost
-icecast_port=8080
-icecast_password=hackme
-icecast_mountpoint=studio
+do_updates=${do_updates:-y}
+save_output=${save_output:-y}
+log_file=${log_file:-/var/log/ffmpeg/stream.log}
+log_rotation=${log_rotation:-y}
+output_format=${output_format:-ogg/flac}
+icecast_host=${icecast_host:-localhost}
+icecast_port=${icecast_port:-8000}
+icecast_password=${icecast_password:-hackme}
+icecast_mountpoint=${icecast_mountpoint:-studio}
 
 # Ask user for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " do_updates
