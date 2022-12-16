@@ -54,14 +54,19 @@ if ! [[ "$icecast_port" =~ ^[0-9]+$ ]] || [ "$icecast_port" -lt 1 ] || [ "$iceca
   exit 1
 fi
 
-# If all validation has passed, execute the script with the given variables
-echo "Executing script with the following settings:"
-echo "do_updates = $do_updates"
-echo "save_output = $save_output"
-echo "log_file = $log_file"
-echo "log_rotation = $log_rotation"
-echo "output_format = $output_format"
-echo "icecast_host = $icecast_host"
-echo "icecast_port = $icecast_port"
-echo "icecast_password = $icecast_password"
-echo "icecast_mountpoint = $icecast_mountpoint"
+# Check if the do_updates variable is set to "y"
+if [ "$do_updates" = "y" ]; then
+  # If it is, run the apt update, upgrade, and autoremove commands with the -y flag to automatically answer yes to prompts
+  apt update -y
+  apt upgrade -y
+  apt autoremove -y
+fi
+
+# Check if logrotate should be installed
+if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
+  # Install ffmpeg, supervisor and logrotate
+  apt-get install ffmpeg supervisor logrotate
+else
+  # Install ffmpeg and supervisor
+  apt-get install ffmpeg supervisor
+fi
