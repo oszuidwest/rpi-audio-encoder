@@ -81,8 +81,6 @@ if [ "$save_output" = "y" ]; then
   fi
 fi
 
-#!/bin/bash
-
 # Check if save_output is 'y' and log_rotation is 'y'
 if [ "$save_output" == "y" ] && [ "$log_rotation" == "y" ]; then
   # If is is, configure logrotate
