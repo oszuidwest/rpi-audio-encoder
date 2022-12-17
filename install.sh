@@ -95,3 +95,23 @@ $log_file {
 }
 EOF
 fi
+
+# Let ffmpeg write to /dev/null if the user doesn't want logging
+if [ "$save_output" = "y" ]; then
+  log_path=$log_file
+else
+  log_path="/dev/null"
+fi
+
+# Create the configuration file for supervisor
+cat << EOF > /etc/supervisor/conf.d/stream.conf
+[program:encoder]
+command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a flac -content_type 'audio/ogg' -f ogg icecast://xxx:xxx@xx.xx.xx.xx:xxxx/xxxx
+autostart=true
+autorestart=true
+startretries=9999999999999999999999999999999999999999999999999
+redirect_stderr=true
+stdout_logfile_maxbytes=0MB
+stdout_logfile_backups=0
+stdout_logfile=$log_path
+EOF
