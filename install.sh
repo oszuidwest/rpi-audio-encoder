@@ -48,7 +48,6 @@ if [ "$output_format" != "mp3" ] && [ "$output_format" != "ogg/vorbis" ] && [ "$
   exit 1
 fi
 
-# Check if the given port number is a valid port number (1 to 65535)
 if ! [[ "$icecast_port" =~ ^[0-9]+$ ]] || [ "$icecast_port" -lt 1 ] || [ "$icecast_port" -gt 65535 ]; then
   echo "Invalid port number for icecast_port. Please enter a valid port number (1 to 65535)."
   exit 1
@@ -65,10 +64,10 @@ fi
 # Check if logrotate should be installed
 if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt install ffmpeg supervisor logrotate
+  apt install ffmpeg supervisor logrotate -y
 else
   # Install ffmpeg and supervisor
-  apt install ffmpeg supervisor
+  apt install ffmpeg supervisor -y
 fi
 
 # Check if 'save_output' is set to 'y'
