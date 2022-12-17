@@ -70,3 +70,30 @@ else
   # Install ffmpeg and supervisor
   apt install ffmpeg supervisor
 fi
+
+# Check if 'save_output' is set to 'y'
+if [ "$save_output" = "y" ]; then
+  # Parse the value of 'log_file' to just the directory
+  log_dir=$(dirname "$log_file")
+  # If the directory doesn't exist, create it
+  if [ ! -d "$log_dir" ]; then
+    mkdir -p "$log_dir"
+  fi
+fi
+
+#!/bin/bash
+
+# Check if save_output is 'y' and log_rotation is 'y'
+if [ "$save_output" == "y" ] && [ "$log_rotation" == "y" ]; then
+  # If is is, configure logrotate
+  cat > /etc/logrotate.d/stream <<EOF
+$log_file {
+  daily
+  rotate 30
+  copytruncate
+  nocompress
+  missingok
+  notifempty
+}
+EOF
+fi
