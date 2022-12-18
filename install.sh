@@ -108,15 +108,25 @@ else
   LOG_PATH="/dev/null"
 fi
 
-# Set the audio codec, content type, and output format (hardcoded for now)
-AUDIO_CODEC='flac'
-CONTENT_TYPE='audio/ogg'
-OUTPUT_FORMAT='ogg'
+# Set the ffmpeg variables based on the value of OUTPUT_FORMAT
+if [ "$OUTPUT_FORMAT" = "mp3" ]; then
+  FF_AUDIO_CODEC='libmp3lame -qscale:a 0'
+  FF_CONTENT_TYPE='audio/mpeg'
+  FF_OUTPUT_FORMAT='mp3'
+elif [ "$OUTPUT_FORMAT" = "ogg/vorbis" ]; then
+  FF_AUDIO_CODEC='libvorbis -qscale:a 10'
+  FF_CONTENT_TYPE='audio/ogg'
+  FF_OUTPUT_FORMAT='ogg'
+elif [ "$OUTPUT_FORMAT" = "ogg/flac" ]; then
+  FF_AUDIO_CODEC='flac'
+  FF_CONTENT_TYPE='audio/ogg'
+  FF_OUTPUT_FORMAT='ogg'
+fi
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
 [program:encoder]
-command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $AUDIO_CODEC -content_type $CONTENT_TYPE -vn -f $OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
+command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
 autostart=true
 autorestart=true
 startretries=9999999999999999999999999999999999999999999999999
