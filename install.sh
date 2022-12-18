@@ -48,20 +48,69 @@ if [ "$output_format" != "mp3" ] && [ "$output_format" != "ogg/vorbis" ] && [ "$
   exit 1
 fi
 
-# Check if the given port number is a valid port number (1 to 65535)
 if ! [[ "$icecast_port" =~ ^[0-9]+$ ]] || [ "$icecast_port" -lt 1 ] || [ "$icecast_port" -gt 65535 ]; then
   echo "Invalid port number for icecast_port. Please enter a valid port number (1 to 65535)."
   exit 1
 fi
 
-# If all validation has passed, execute the script with the given variables
-echo "Executing script with the following settings:"
-echo "do_updates = $do_updates"
-echo "save_output = $save_output"
-echo "log_file = $log_file"
-echo "log_rotation = $log_rotation"
-echo "output_format = $output_format"
-echo "icecast_host = $icecast_host"
-echo "icecast_port = $icecast_port"
-echo "icecast_password = $icecast_password"
-echo "icecast_mountpoint = $icecast_mountpoint"
+# Check if the do_updates variable is set to "y"
+if [ "$do_updates" = "y" ]; then
+  # If it is, run the apt update, upgrade, and autoremove commands with the -y flag to automatically answer yes to prompts
+  apt update -y
+  apt upgrade -y
+  apt autoremove -y
+fi
+
+# Check if logrotate should be installed
+if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
+  # Install ffmpeg, supervisor and logrotate
+  apt install ffmpeg supervisor logrotate -y
+else
+  # Install ffmpeg and supervisor
+  apt install ffmpeg supervisor -y
+fi
+
+# Check if 'save_output' is set to 'y'
+if [ "$save_output" = "y" ]; then
+  # Parse the value of 'log_file' to just the directory
+  log_dir=$(dirname "$log_file")
+  # If the directory doesn't exist, create it
+  if [ ! -d "$log_dir" ]; then
+    mkdir -p "$log_dir"
+  fi
+fi
+
+# Check if save_output is 'y' and log_rotation is 'y'
+if [ "$save_output" == "y" ] && [ "$log_rotation" == "y" ]; then
+  # If is is, configure logrotate
+  cat > /etc/logrotate.d/stream <<EOF
+$log_file {
+  daily
+  rotate 30
+  copytruncate
+  nocompress
+  missingok
+  notifempty
+}
+EOF
+fi
+
+# Let ffmpeg write to /dev/null if the user doesn't want logging
+if [ "$save_output" = "y" ]; then
+  log_path=$log_file
+else
+  log_path="/dev/null"
+fi
+
+# Create the configuration file for supervisor
+cat << EOF > /etc/supervisor/conf.d/stream.conf
+[program:encoder]
+command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a flac -content_type 'audio/ogg' -f ogg icecast://xxx:xxx@xx.xx.xx.xx:xxxx/xxxx
+autostart=true
+autorestart=true
+startretries=9999999999999999999999999999999999999999999999999
+redirect_stderr=true
+stdout_logfile_maxbytes=0MB
+stdout_logfile_backups=0
+stdout_logfile=$log_path
+EOF
