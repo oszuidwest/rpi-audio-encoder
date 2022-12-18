@@ -1,66 +1,66 @@
 #!/bin/bash
 
 # Ask user for input for variables
-read -p "Do you want to perform all OS updates? (default: y) " do_updates
-read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " save_output
+read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
+read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
 
 # Only ask the user for the log file and log rotation if they want to save the output
-if [ "$save_output" = "y" ]; then
-read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " log_file
-read -p "Do you want log rotation (daily)? (default: y) " log_rotation
+if [ "$SAVE_OUTPUT" = "y" ]; then
+read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
+read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
 fi
 
 # Always ask these
-read -p "Choose output format: mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " output_format
-read -p "Hostname or IP address of Icecast server (default: localhost) " icecast_host
-read -p "Port of Icecast server (default: 8080) " icecast_port
-read -p "Password for Icecast server (default: hackme) " icecast_password
-read -p "Mountpoint of Icecast server (default: studio) " icecast_mountpoint
+read -p "Choose output format: mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
+read -p "Hostname or IP address of Icecast server (default: localhost) " ICECAST_HOST
+read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
+read -p "Password for Icecast server (default: hackme) " ICECAST_PASSWORD
+read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
 
 # If the user enters an empty string, use the default value
-do_updates=${do_updates:-y}
-save_output=${save_output:-y}
-log_file=${log_file:-/var/log/ffmpeg/stream.log}
-log_rotation=${log_rotation:-y}
-output_format=${output_format:-ogg/flac}
-icecast_host=${icecast_host:-localhost}
-icecast_port=${icecast_port:-8000}
-icecast_password=${icecast_password:-hackme}
-icecast_mountpoint=${icecast_mountpoint:-studio}
+DO_UPDATES=${DO_UPDATES:-y}
+SAVE_OUTPUT=${SAVE_OUTPUT:-y}
+LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
+LOG_ROTATION=${LOG_ROTATION:-y}
+OUTPUT_FORMAT=${OUTPUT_FORMAT:-ogg/flac}
+ICECAST_HOST=${ICECAST_HOST:-localhost}
+ICECAST_PORT=${ICECAST_PORT:-8000}
+ICECAST_PASSWORD=${ICECAST_PASSWORD:-hackme}
+ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
 
 # Perform validation on input
-if [ "$do_updates" != "y" ] && [ "$do_updates" != "n" ]; then
-  echo "Invalid input for do_updates. Only 'y' or 'n' are allowed."
+if [ "$DO_UPDATES" != "y" ] && [ "$DO_UPDATES" != "n" ]; then
+  echo "Invalid input for DO_UPDATES. Only 'y' or 'n' are allowed."
   exit 1
 fi
 
-if [ "$save_output" != "y" ] && [ "$save_output" != "n" ]; then
-  echo "Invalid input for save_output. Only 'y' or 'n' are allowed."
+if [ "$SAVE_OUTPUT" != "y" ] && [ "$SAVE_OUTPUT" != "n" ]; then
+  echo "Invalid input for SAVE_OUTPUT. Only 'y' or 'n' are allowed."
   exit 1
 fi
 
-if ! [[ "$log_file" =~ ^/.+/.+$ ]]; then
-  echo "Invalid path for log_file. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
+if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
+  echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
   exit 1
 fi
 
-if [ "$log_rotation" != "y" ] && [ "$log_rotation" != "n" ]; then
-  echo "Invalid input for log_rotation. Only 'y' or 'n' are allowed."
+if [ "$LOG_ROTATION" != "y" ] && [ "$LOG_ROTATION" != "n" ]; then
+  echo "Invalid input for LOG_ROTATION. Only 'y' or 'n' are allowed."
   exit 1
 fi
 
-if [ "$output_format" != "mp3" ] && [ "$output_format" != "ogg/vorbis" ] && [ "$output_format" != "ogg/flac" ]; then
-  echo "Invalid input for output_format. Only 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
+if [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
+  echo "Invalid input for OUTPUT_FORMAT. Only 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
 fi
 
-if ! [[ "$icecast_port" =~ ^[0-9]+$ ]] || [ "$icecast_port" -lt 1 ] || [ "$icecast_port" -gt 65535 ]; then
-  echo "Invalid port number for icecast_port. Please enter a valid port number (1 to 65535)."
+if ! [[ "$ICECAST_PORT" =~ ^[0-9]+$ ]] || [ "$ICECAST_PORT" -lt 1 ] || [ "$ICECAST_PORT" -gt 65535 ]; then
+  echo "Invalid port number for ICECAST_PORT. Please enter a valid port number (1 to 65535)."
   exit 1
 fi
 
-# Check if the do_updates variable is set to "y"
-if [ "$do_updates" = "y" ]; then
+# Check if the DO_UPDATES variable is set to "y"
+if [ "$DO_UPDATES" = "y" ]; then
   # If it is, run the apt update, upgrade, and autoremove commands with the -y flag to automatically answer yes to prompts
   apt --quiet --quiet --yes update
   apt --quiet --quiet --yes upgrade
@@ -68,7 +68,7 @@ if [ "$do_updates" = "y" ]; then
 fi
 
 # Check if logrotate should be installed
-if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
+if [ "$SAVE_OUTPUT" = "y" ] && [ "$LOG_ROTATION" = "y" ]; then
   # Install ffmpeg, supervisor and logrotate
   apt  --quiet --quiet --yes install ffmpeg supervisor logrotate
 else
@@ -76,21 +76,21 @@ else
   apt  --quiet --quiet --yes  install ffmpeg supervisor
 fi
 
-# Check if 'save_output' is set to 'y'
-if [ "$save_output" = "y" ]; then
-  # Parse the value of 'log_file' to just the directory
-  log_dir=$(dirname "$log_file")
+# Check if 'SAVE_OUTPUT' is set to 'y'
+if [ "$SAVE_OUTPUT" = "y" ]; then
+  # Parse the value of 'LOG_FILE' to just the directory
+  LOG_DIR=$(dirname "$LOG_FILE")
   # If the directory doesn't exist, create it
-  if [ ! -d "$log_dir" ]; then
-    mkdir -p "$log_dir"
+  if [ ! -d "$LOG_DIR" ]; then
+    mkdir -p "$LOG_DIR"
   fi
 fi
 
-# Check if save_output is 'y' and log_rotation is 'y'
-if [ "$save_output" == "y" ] && [ "$log_rotation" == "y" ]; then
+# Check if SAVE_OUTPUT is 'y' and LOG_ROTATION is 'y'
+if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # If is is, configure logrotate
   cat > /etc/logrotate.d/stream <<EOF
-$log_file {
+$LOG_FILE {
   daily
   rotate 30
   copytruncate
@@ -102,21 +102,26 @@ EOF
 fi
 
 # Let ffmpeg write to /dev/null if the user doesn't want logging
-if [ "$save_output" = "y" ]; then
-  log_path=$log_file
+if [ "$SAVE_OUTPUT" = "y" ]; then
+  LOG_PATH=$LOG_FILE
 else
-  log_path="/dev/null"
+  LOG_PATH="/dev/null"
 fi
+
+# Set the audio codec, content type, and output format (hardcoded for now)
+AUDIO_CODEC='flac'
+CONTENT_TYPE='audio/ogg'
+OUTPUT_FORMAT='ogg'
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
 [program:encoder]
-command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a flac -content_type 'audio/ogg' -f ogg icecast://source:$icecast_password@$icecast_host:$icecast_port/$icecast_mountpoint
+command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $AUDIO_CODEC -content_type $CONTENT_TYPE -vn -f $OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
 autostart=true
 autorestart=true
 startretries=9999999999999999999999999999999999999999999999999
 redirect_stderr=true
 stdout_logfile_maxbytes=0MB
 stdout_logfile_backups=0
-stdout_logfile=$log_path
+stdout_logfile=$LOG_PATH
 EOF
