@@ -61,7 +61,7 @@ fi
 
 # Check if the DO_UPDATES variable is set to "y"
 if [ "$DO_UPDATES" = "y" ]; then
-  # If it is, run the apt update, upgrade, and autoremove commands with the -y flag to automatically answer yes to prompts
+  # If it is, run the apt update, upgrade, and autoremove commands with the --yes flag to automatically answer yes to prompts
   apt --quiet --quiet --yes update
   apt --quiet --quiet --yes upgrade
   apt --quiet --quiet --yes autoremove
@@ -70,10 +70,10 @@ fi
 # Check if logrotate should be installed
 if [ "$SAVE_OUTPUT" = "y" ] && [ "$LOG_ROTATION" = "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt  --quiet --quiet --yes install ffmpeg supervisor logrotate
+  apt --quiet --quiet --yes install ffmpeg supervisor logrotate
 else
   # Install ffmpeg and supervisor
-  apt  --quiet --quiet --yes  install ffmpeg supervisor
+  apt --quiet --quiet --yes install ffmpeg supervisor
 fi
 
 # Check if 'SAVE_OUTPUT' is set to 'y'
