@@ -62,18 +62,18 @@ fi
 # Check if the do_updates variable is set to "y"
 if [ "$do_updates" = "y" ]; then
   # If it is, run the apt update, upgrade, and autoremove commands with the -y flag to automatically answer yes to prompts
-  apt update -y
-  apt upgrade -y
-  apt autoremove -y
+  apt --quiet --quiet --yes update
+  apt --quiet --quiet --yes upgrade
+  apt --quiet --quiet --yes autoremove
 fi
 
 # Check if logrotate should be installed
 if [ "$save_output" = "y" ] && [ "$log_rotation" = "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt install ffmpeg supervisor logrotate -y
+  apt  --quiet --quiet --yes install ffmpeg supervisor logrotate
 else
   # Install ffmpeg and supervisor
-  apt install ffmpeg supervisor -y
+  apt  --quiet --quiet --yes  install ffmpeg supervisor
 fi
 
 # Check if 'save_output' is set to 'y'
@@ -111,7 +111,7 @@ fi
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
 [program:encoder]
-command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a flac -content_type 'audio/ogg' -f ogg icecast://xxx:xxx@xx.xx.xx.xx:xxxx/xxxx
+command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a flac -content_type 'audio/ogg' -f ogg icecast://source:$icecast_password@$icecast_host:$icecast_port/$icecast_mountpoint
 autostart=true
 autorestart=true
 startretries=9999999999999999999999999999999999999999999999999
