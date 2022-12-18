@@ -3,8 +3,14 @@
 # Ask user for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " do_updates
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " save_output
+
+# Only ask the user for the log file and log rotation if they want to save the output
+if [ "$save_output" = "y" ]; then
 read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " log_file
 read -p "Do you want log rotation (daily)? (default: y) " log_rotation
+fi
+
+# Always ask these
 read -p "Choose output format: mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " output_format
 read -p "Hostname or IP address of Icecast server (default: localhost) " icecast_host
 read -p "Port of Icecast server (default: 8080) " icecast_port
