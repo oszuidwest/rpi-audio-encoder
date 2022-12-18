@@ -33,8 +33,8 @@ if [ "$save_output" != "y" ] && [ "$save_output" != "n" ]; then
   exit 1
 fi
 
-if ! [[ "$log_file" =~ ^/[^/ ]+/[^/ ]+$ ]]; then
-  echo "Invalid path for log_file. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
+if ! [[ "$log_file" =~ ^/.+$ ]]; then
+  echo "Invalid path for log_file. Please enter a valid path to a file or directory (e.g. /var/log/ffmpeg/stream.log)."
   exit 1
 fi
 
