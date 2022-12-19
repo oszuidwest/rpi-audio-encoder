@@ -110,11 +110,11 @@ fi
 
 # Set the ffmpeg variables based on the value of OUTPUT_FORMAT
 if [ "$OUTPUT_FORMAT" = "mp2" ]; then
-  FF_AUDIO_CODEC='libtwolame -b:a 384k'
+  FF_AUDIO_CODEC='libtwolame -b:a 384k -psymodel 4'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp2'
 elif [ "$OUTPUT_FORMAT" = "mp3" ]; then
-  FF_AUDIO_CODEC='libmp3lame -b:a 320k'
+  FF_AUDIO_CODEC='libmp3lame -b:a 320k -q 0'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp3'
 elif [ "$OUTPUT_FORMAT" = "ogg/vorbis" ]; then
