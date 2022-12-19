@@ -22,8 +22,8 @@ read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " 
 
 # Only ask the user for the log file and log rotation if they want to save the output
 if [ "$SAVE_OUTPUT" = "y" ]; then
-read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
-read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
+  read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
+  read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
 fi
 
 # Always ask these
