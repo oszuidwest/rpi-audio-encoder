@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Start with a clean terminal
+clear
+
+# Are we running on a supported platform?
+if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
+  tput bold # set text to bold
+  tput setaf 1 # set text color to red
+  tput blink # set text to blink
+  echo "** NOT RUNNING ON A RASPBERRY PI 4 **"
+  tput sgr0 # reset terminal attributes
+  tput setaf 3 # set text color to yellow
+  read -p "This script is only tested on a Raspberry Pi 4. Press enter to continue anyway..."
+  tput sgr0 # reset terminal attributes 
+exit 1
+fi
+
 # Ask user for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
