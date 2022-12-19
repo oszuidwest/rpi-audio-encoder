@@ -11,7 +11,7 @@ read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
 fi
 
 # Always ask these
-read -p "Choose output format: mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
+read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
 read -p "Hostname or IP address of Icecast server (default: localhost) " ICECAST_HOST
 read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
 read -p "Password for Icecast server (default: hackme) " ICECAST_PASSWORD
@@ -49,8 +49,8 @@ if [ "$LOG_ROTATION" != "y" ] && [ "$LOG_ROTATION" != "n" ]; then
   exit 1
 fi
 
-if [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
-  echo "Invalid input for OUTPUT_FORMAT. Only 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
+if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
+  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
 fi
 
@@ -109,7 +109,11 @@ else
 fi
 
 # Set the ffmpeg variables based on the value of OUTPUT_FORMAT
-if [ "$OUTPUT_FORMAT" = "mp3" ]; then
+if [ "$OUTPUT_FORMAT" = "mp2" ]; then
+  FF_AUDIO_CODEC='libtwolame -b:a 384k'
+  FF_CONTENT_TYPE='audio/mpeg'
+  FF_OUTPUT_FORMAT='mp2'
+elif [ "$OUTPUT_FORMAT" = "mp3" ]; then
   FF_AUDIO_CODEC='libmp3lame -b:a 320k'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp3'
