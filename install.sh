@@ -16,11 +16,11 @@ if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
 exit 1
 fi
 
-# Ask user for input for variables
+# Ask for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
 
-# Only ask the user for the log file and log rotation if they want to save the output
+# Only ask for the log file and log rotation if save output is enabled
 if [ "$SAVE_OUTPUT" = "y" ]; then
   read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
   read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
@@ -33,7 +33,7 @@ read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
 read -p "Password for Icecast server (default: hackme) " ICECAST_PASSWORD
 read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
 
-# If the user enters an empty string, use the default value
+# If there is an empty string, use the default value
 DO_UPDATES=${DO_UPDATES:-y}
 SAVE_OUTPUT=${SAVE_OUTPUT:-y}
 LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
