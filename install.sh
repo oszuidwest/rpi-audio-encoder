@@ -20,7 +20,7 @@ fi
 read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
 
-# Only ask for the log file and log rotation if save output is enabled
+# Only ask for the log file and log rotation if SAVE_OUTPUT is y
 if [ "$SAVE_OUTPUT" = "y" ]; then
   read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
   read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
