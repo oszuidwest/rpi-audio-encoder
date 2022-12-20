@@ -117,7 +117,7 @@ $LOG_FILE {
 EOF
 fi
 
-# Let ffmpeg write to /dev/null if the user doesn't want logging
+# Let ffmpeg write to /dev/null if logging is disabled
 if [ "$SAVE_OUTPUT" = "y" ]; then
   LOG_PATH=$LOG_FILE
 else
