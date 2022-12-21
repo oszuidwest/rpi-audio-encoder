@@ -17,9 +17,9 @@ awk '{printf "%.0f", $1}')
 if [[ $mean_volume =~ ^-([0-9]+) ]]; then
   # Compare the mean_volume to the threshold to determine if it is silent
   if [[ $mean_volume -lt $THRESHOLD ]]; then
-    echo "silent (mean volume was $mean_volume) dB"
+    echo "silent (mean volume was $mean_volume dB)"
   else
-    echo "not silent (mean volume was $mean_volume) dB"
+    echo "not silent (mean volume was $mean_volume dB)"
   fi
 else
   # If the regular expression does not match, bail
