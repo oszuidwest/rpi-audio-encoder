@@ -5,15 +5,8 @@ clear
 
 # Are we running on a supported platform?
 if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
-  tput bold # set text to bold
-  tput setaf 1 # set text color to red
-  tput blink # set text to blink
-  echo "** NOT RUNNING ON A RASPBERRY PI 4 **"
-  tput sgr0 # reset terminal attributes
-  tput setaf 3 # set text color to yellow
-  read -p "This script is only tested on a Raspberry Pi 4. Press enter to continue anyway..."
-  tput sgr0 # reset terminal attributes 
-exit 1
+  echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
+  read -p $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
 fi
 
 # Ask for input for variables
@@ -105,7 +98,7 @@ fi
 # Check if SAVE_OUTPUT is 'y' and LOG_ROTATION is 'y'
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # If is is, configure logrotate
-  cat > /etc/logrotate.d/stream <<EOF
+  cat << EOF > /etc/logrotate.d/stream
 $LOG_FILE {
   daily
   rotate 30
@@ -145,13 +138,41 @@ fi
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
-[program:encoder]
-command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
-autostart=true
-autorestart=true
-startretries=9999999999999999999999999999999999999999999999999
-redirect_stderr=true
-stdout_logfile_maxbytes=0MB
-stdout_logfile_backups=0
-stdout_logfile=$LOG_PATH
+  [program:encoder]
+  command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
+  autostart=true
+  autorestart=true
+  startretries=9999999999999999999999999999999999999999999999999
+  redirect_stderr=true
+  stdout_logfile_maxbytes=0MB
+  stdout_logfile_backups=0
+  stdout_logfile=$LOG_PATH
 EOF
+
+# Verify installation. Set a flag to track whether any checks failed
+INSTALL_FAILED=false
+
+# Check the installation of ffmpeg
+if ! command -v ffmpeg &> /dev/null; then
+  INSTALL_FAILED=true
+fi
+
+# Check the installation of supervisor
+if ! command -v supervisord &> /dev/null; then
+  echo -e "\033[31mWe could not verify the correctness of the installation. supervisor is not installed.\033[0m"
+  INSTALL_FAILED=true
+fi
+
+# Check if the configuration file exists
+if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
+  echo -e "\033[31mWe could not verify the correctness of the installation. /etc/supervisor/conf.d/stream.conf does not exist.\033[0m"
+  INSTALL_FAILED=true
+fi
+
+# If any checks failed, exit with an error code
+if $INSTALL_FAILED; then
+  exit 1
+else
+  # All checks passed, display success message
+  echo -e "\033[32mInstallation checks passed. You can now reboot this device and streaming should start automatically.\033[0m"
+fi
