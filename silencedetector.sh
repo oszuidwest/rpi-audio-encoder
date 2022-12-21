@@ -11,7 +11,7 @@ mean_volume=$(ffmpeg -hide_banner -f alsa -channels 2 -sample_rate 48000 -hide_b
 grep -oP '(?<=mean_volume: ).*(?= dB)')
 
 # Verify that the mean_volume extraction works. It should be a number that starts with the "-" sign
-if [[ $mean_volume =~ ^-([0-9]+) ]]; then
+if [[ $mean_volume =~ ^-([0-9.]+) ]]; then
   # Compare the mean_volume to the threshold to determine if it is silent
   if [[ $mean_volume -lt $THRESHOLD ]]; then
     echo "silent"
