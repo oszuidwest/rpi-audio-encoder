@@ -8,10 +8,13 @@ DURATION=5
 mean_volume=$(ffmpeg -hide_banner -f alsa -channels 2 -sample_rate 48000 -hide_banner -i default:CARD=sndrpihifiberry -t "$DURATION" -f wav -af "volumedetect" -f null /dev/null 2>&1 | \
 
 # Extract the mean_volume value from the output of ffmpeg
-grep -oP '(?<=mean_volume: ).*(?= dB)')
+grep -oP '(?<=mean_volume: ).*(?= dB)') | \
+
+# Round it because bash doesn't support floating-point arithmetic
+awk '{sub(/./, "", $0)}1')
 
 # Verify that the mean_volume extraction works. It should be a number that starts with the "-" sign
-if [[ $mean_volume =~ ^-([0-9.]+) ]]; then
+if [[ $mean_volume =~ ^-([0-9]+) ]]; then
   # Compare the mean_volume to the threshold to determine if it is silent
   if [[ $mean_volume -lt $THRESHOLD ]]; then
     echo "silent"
