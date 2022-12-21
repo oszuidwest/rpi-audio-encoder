@@ -149,11 +149,24 @@ cat << EOF > /etc/supervisor/conf.d/stream.conf
   stdout_logfile=$LOG_PATH
 EOF
 
+# Configure the web interface (hardcoded for now)
+if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
+  sed -i '/\[supervisord\]/i\
+  [inet_http_server]\
+  port = 127.0.0.1:90\
+  username = user\
+  password = abc123\
+  ' /etc/supervisor/supervisord.conf
+  # Tidy up file after wrting to it
+  sed -i 's/^[ \t]*//' /etc/supervisor/supervisord.conf
+fi
+
 # Verify installation. Set a flag to track whether any checks failed
 INSTALL_FAILED=false
 
 # Check the installation of ffmpeg
 if ! command -v ffmpeg &> /dev/null; then
+  echo -e "\033[31mWe could not verify the correctness of the installation. ffmpeg is not installed.\033[0m"
   INSTALL_FAILED=true
 fi
 
