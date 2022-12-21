@@ -153,7 +153,7 @@ EOF
 if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
   sed -i '/\[supervisord\]/i\
   [inet_http_server]\
-  port = 127.0.0.1:90\
+  port = 0.0.0.0:90\
   username = user\
   password = abc123\
   ' /etc/supervisor/supervisord.conf
