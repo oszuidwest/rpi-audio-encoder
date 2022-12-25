@@ -1,8 +1,0 @@
-/var/log/ffmpeg/stream.log {
-  daily
-  rotate 30
-  copytruncate
-  nocompress
-  missingok
-  notifempty
-}
