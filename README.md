@@ -1,7 +1,7 @@
 # rpi-encoder
 This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. It uses a Rapsberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) as audio input. As encoder ffmpeg is used, which is combined with Supervisor to manage the process via a webinterface.
 
-![](https://web.archive.org/web/20221225231636if_/https://j6z7x9q7.rocketcdn.me/wp-content/uploads/2022/04/Stalen-behuizing-HiFiBerry-Pi4-Digi-1.jpg)
+<img src="hhttps://web.archive.org/web/20221225231636if_/https://j6z7x9q7.rocketcdn.me/wp-content/uploads/2022/04/Stalen-behuizing-HiFiBerry-Pi4-Digi-1.jpg" width=30% height=30%>
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 64-bit
