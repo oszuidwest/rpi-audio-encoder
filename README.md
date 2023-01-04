@@ -26,7 +26,7 @@ There are a couple of audio encoding configurations:
 - `mp2` sends MPEG-1 Audio Layer II audio on 384 kbit/s. This is considered the gold standard for compressed broadcast audio.
 - `mp3` sends MPEG-1 Audio Layer III audio on 320 kbit/s. This is the highest quality mp3 possible.
 - `ogg/vorbis` sends OGG Vorbis audio on 500 kbit/s. This is the highest quality ogg/vorbis possible.
-- `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/. This is the highest possible uncompressed audio.
+- `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
 ## ⚠️ This is considered experimental ⚠️
 We run this in production, but there are known bugs. The biggest one is that ffmpeg doesn't seem to be able to stream after a reboot. You have to restart it via the web interface this first time after a reboot.
