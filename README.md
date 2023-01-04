@@ -1,37 +1,32 @@
-# rpi-encoder
-Can we replace our bulky rackmount audio encoder with a Raspberry Pi? This project tries to explore that.
+# rpi-audio-encoder
+This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. It uses a Rapsberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) as audio input. As encoder ffmpeg is used, which is combined with Supervisor to manage the process via a webinterface. It sends audio to an Icecast2 server.
 
-⚠️ This is somewhat experimental. Don't prod this now. ⚠️
+This encoder resides in the studio and is connected to an Optimod. It can stream to any Icecast server. Our server software to complete the audio stack can be found in [this respository](https://github.com/oszuidwest/liquidsoap-ubuntu).
+
+<img src="https://web.archive.org/web/20221225231636if_/https://j6z7x9q7.rocketcdn.me/wp-content/uploads/2022/04/Stalen-behuizing-HiFiBerry-Pi4-Digi-1.jpg" width=30% height=30%>
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 64-bit
 - Run `sudo raspi-config` to set timezone, Wi-Fi country and expand the filesystem
 - Follow the guide on https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ to set-up the HiFiBerry
+- Ensure you are root by running `sudo su`
+- Download and run the install script with the command `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`
 
-## Clean-up image
-`sudo apt remove bluez* build-essential bzip2 cifs-utils cpp dbus dmidecode dosfstools eject gcc gcc-7-base gcc-8-base gcc-9-base gdb gdisk iw libcamera-apps-lite manpages manpages-dev mksh ntfs-3g p7zip* pi-bluetooth vim-common vim-tiny wireless-regdb wireless-tools wpasupplicant xauth -y`
+# How to configure the audio processor
+- Connect the digital output of the audio processor to the input of the HiFiBerry
+- Ensure the processor is sending out 48khz 16-bits audio. The HiFiBerry can't resample. This is hardcoded.
+- If possible, configure the digital output to send SPDIF data. AES/EBU could work, but is not 100% the same standard.
 
-## Update everything that's left
-`sudo apt autoremove -y; sudo apt update -y; sudo apt upgrade -y; sudo apt dist-upgrade -y;`
+_This is an example for an Orban Optimod:_
 
-## Install tools 
-`sudo apt install ffmpeg supervisor logrotate -y`
+<img src="https://user-images.githubusercontent.com/6742496/210573724-966064f9-e8b9-4d28-a40c-29385b20daab.png" width=50% height=50%>
 
-## Set-up ffmpeg
-`wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/stream.conf -O /etc/supervisor/conf.d/stream.conf`
+# Audio presets
+There are a couple of audio encoding configurations:
+- `mp2` sends MPEG-1 Audio Layer II audio on 384 kbit/s. This is considered the gold standard for compressed broadcast audio.
+- `mp3` sends MPEG-1 Audio Layer III audio on 320 kbit/s. This is the highest quality mp3 possible.
+- `ogg/vorbis` sends OGG Vorbis audio on 500 kbit/s. This is the highest quality ogg/vorbis possible.
+- `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
-## Set-up log rotation
-`wget https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/logrotate_stream -O /etc/logrotate.d/stream`
-
-## Quick and dirty security on the web portal
-```
-sed -i '/\[supervisord\]/i\
-[inet_http_server]\
-port = 127.0.0.1:90\
-username = user\
-password = abc123\
-' /etc/supervisor/supervisord.conf
-```
-
-## Create logdir
-`mkdir /var/log/ffmpeg/`
+## ⚠️ This is considered experimental ⚠️
+We run this in production, but there are known bugs. The biggest one is that ffmpeg doesn't seem to be able to stream after a reboot. You have to restart it via the web interface this first time after a reboot.
