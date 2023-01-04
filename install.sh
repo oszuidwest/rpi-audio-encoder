@@ -20,6 +20,9 @@ if [ "$SAVE_OUTPUT" = "y" ]; then
 fi
 
 # Always ask these
+read -p "Choose a port for the web interface (default: 90) " WEB_PORT
+read -p "Choose a username for the web interface (default: admin) " WEB_USER
+read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
 read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
 read -p "Hostname or IP address of Icecast server (default: localhost) " ICECAST_HOST
 read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
@@ -32,6 +35,9 @@ SAVE_OUTPUT=${SAVE_OUTPUT:-y}
 LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
 LOG_ROTATION=${LOG_ROTATION:-y}
 OUTPUT_FORMAT=${OUTPUT_FORMAT:-ogg/flac}
+WEB_PORT=${WEB_PORT:-90}
+WEB_USER=${WEB_USER:-admin}
+WEB_PASSWORD=${WEB_PASSWORD:-encoder}
 ICECAST_HOST=${ICECAST_HOST:-localhost}
 ICECAST_PORT=${ICECAST_PORT:-8000}
 ICECAST_PASSWORD=${ICECAST_PASSWORD:-hackme}
@@ -60,6 +66,11 @@ fi
 
 if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
+  exit 1
+fi
+
+if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt 65535 ]; then
+  echo "Invalid port number for WEB_PORT. Please enter a valid port number (1 to 65535)."
   exit 1
 fi
 
@@ -151,12 +162,12 @@ EOF
 
 # Configure the web interface (hardcoded for now)
 if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
-  sed -i '/\[supervisord\]/i\
-  [inet_http_server]\
-  port = 0.0.0.0:90\
-  username = user\
-  password = abc123\
-  ' /etc/supervisor/supervisord.conf
+  sed -i "/\[supervisord\]/i\
+  [inet_http_server]\n\
+  port = 0.0.0.0:$WEB_PORT\n\
+  username = $WEB_USER\n\
+  password = $WEB_PASSWORD\n\
+  " /etc/supervisor/supervisord.conf
   # Tidy up file after wrting to it
   sed -i 's/^[ \t]*//' /etc/supervisor/supervisord.conf
 fi
