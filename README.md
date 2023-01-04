@@ -12,5 +12,14 @@ This encoder resides in the studio and is connected to an Optimod. It can stream
 - Ensure you are root by running `sudo su`
 - Download and run the install script with the command `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`
 
+# How to configure the audio processor
+- Connect the digital output of the audio processor to the input of the HiFiBerry
+- Ensure the processor is sending out 48khz 16-bits audio. The HiFiBerry can't resample.
+- If possible, configure the digital output to send SPDIF data. AES/EBU could work, but is not 100% the same standard.
+
+_This is an example for an Orban Optimod:_
+
+<img src="https://user-images.githubusercontent.com/6742496/210573724-966064f9-e8b9-4d28-a40c-29385b20daab.png" width=50% height=50%>
+
 ## ⚠️ This is considered experimental ⚠️
 We run this in production, but there are known bugs. The biggest one is that ffmpeg doesn't seem to be able to stream after a reboot. You have to restart it via the web interface this first time after a reboot.
