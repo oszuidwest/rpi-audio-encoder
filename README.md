@@ -21,7 +21,7 @@ _This is an example for an Orban Optimod:_
 
 <img src="https://user-images.githubusercontent.com/6742496/210573724-966064f9-e8b9-4d28-a40c-29385b20daab.png" width=50% height=50%>
 
-# Audio presets
+# Audio encoding presets
 There are a couple of audio encoding configurations:
 - `mp2` sends MPEG-1 Audio Layer II audio on 384 kbit/s. This is considered the gold standard for compressed broadcast audio.
 - `mp3` sends MPEG-1 Audio Layer III audio on 320 kbit/s. This is the highest quality mp3 possible.
