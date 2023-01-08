@@ -30,3 +30,6 @@ There are a couple of audio encoding configurations:
 
 ## ⚠️ This is considered experimental ⚠️
 We run this in production, but there are known bugs. The biggest one is that ffmpeg doesn't seem to be able to stream after a reboot. You have to restart it via the web interface this first time after a reboot.
+
+### Todo: experiment with SRT streaming
+In the future we would like to use SRT for streaming. The server side needs to be there first. It's being built in https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt-upstream
