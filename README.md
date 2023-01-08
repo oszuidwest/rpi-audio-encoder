@@ -3,7 +3,7 @@ This repository contains the audio streaming software for [ZuidWest FM](https://
 
 This encoder resides in the studio and is connected to an Optimod. It can stream to any Icecast server. Our server software to complete the audio stack can be found in [this respository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
-<img src="https://web.archive.org/web/20221225231636if_/https://j6z7x9q7.rocketcdn.me/wp-content/uploads/2022/04/Stalen-behuizing-HiFiBerry-Pi4-Digi-1.jpg" width=30% height=30%>
+<img src="https://user-images.githubusercontent.com/6742496/211200145-7b11db44-8c6e-4674-8163-55c706f45054.jpg" width=40% height=40%>
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 64-bit
