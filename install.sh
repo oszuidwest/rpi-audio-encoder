@@ -150,7 +150,8 @@ fi
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
   [program:encoder]
-  command=ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT
+  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT"
+  # We sleep 30 seconds before starting ffmpeg because the network of audio might not be available after a reboot
   autostart=true
   autorestart=true
   startretries=9999999999999999999999999999999999999999999999999
