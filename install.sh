@@ -3,7 +3,7 @@
 # Start with a clean terminal
 clear
 
-# Are we running on a supported platform?
+# Is this a supported platform?
 if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
   echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
   read -p $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
@@ -29,7 +29,7 @@ read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
 read -p "Password for Icecast server (default: hackme) " ICECAST_PASSWORD
 read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
 
-# If there is an empty string, use the default value
+# Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
 SAVE_OUTPUT=${SAVE_OUTPUT:-y}
 LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
@@ -151,7 +151,7 @@ fi
 cat << EOF > /etc/supervisor/conf.d/stream.conf
   [program:encoder]
   command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT"
-  # We sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
+  # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
   autostart=true
   autorestart=true
   startretries=9999999999999999999999999999999999999999999999999
@@ -161,7 +161,7 @@ cat << EOF > /etc/supervisor/conf.d/stream.conf
   stdout_logfile=$LOG_PATH
 EOF
 
-# Configure the web interface (hardcoded for now)
+# Configure the web interface
 if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
   sed -i "/\[supervisord\]/i\
   [inet_http_server]\n\
@@ -178,19 +178,19 @@ INSTALL_FAILED=false
 
 # Check the installation of ffmpeg
 if ! command -v ffmpeg &> /dev/null; then
-  echo -e "\033[31mWe could not verify the correctness of the installation. ffmpeg is not installed.\033[0m"
+  echo -e "\033[31mInstallation failed. ffmpeg is not installed.\033[0m"
   INSTALL_FAILED=true
 fi
 
 # Check the installation of supervisor
 if ! command -v supervisord &> /dev/null; then
-  echo -e "\033[31mWe could not verify the correctness of the installation. supervisor is not installed.\033[0m"
+  echo -e "\033[31mWInstallation failed. supervisor is not installed.\033[0m"
   INSTALL_FAILED=true
 fi
 
 # Check if the configuration file exists
 if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
-  echo -e "\033[31mWe could not verify the correctness of the installation. /etc/supervisor/conf.d/stream.conf does not exist.\033[0m"
+  echo -e "\033[31mInstallation failed. /etc/supervisor/conf.d/stream.conf does not exist.\033[0m"
   INSTALL_FAILED=true
 fi
 
