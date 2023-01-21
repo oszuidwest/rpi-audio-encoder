@@ -11,15 +11,24 @@ fi
 
 # Function that checks if a variable is y or n
 function var_is_y_or_n {
-  local var_name var
+  local var_name var invalid_vars first_time
+  first_time=1
   for var_name in "$@"
   do
     var="${!var_name}"
     if [ "$var" != "y" ] && [ "$var" != "n" ]; then
-      echo "Invalid input for $var_name. Only 'y' or 'n' are allowed."
-      exit 1
+      if [ "$first_time" -eq 1 ]; then
+        invalid_vars="$var_name"
+        first_time=0
+      else
+        invalid_vars="$invalid_vars, $var_name"
+      fi
     fi
   done
+  if [ -n "$invalid_vars" ]; then
+    echo "Invalid input for the following options: $invalid_vars. Only 'y' or 'n' are allowed."
+    exit 1
+  fi
 }
 
 # Ask for input for variables
