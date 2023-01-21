@@ -26,7 +26,7 @@ function var_is_y_or_n {
     fi
   done
   if [ -n "$invalid_vars" ]; then
-    echo "Invalid input for the following options: $invalid_vars. Only 'y' or 'n' are allowed."
+    echo "Invalid input for the following option(s): $invalid_vars. Only 'y' or 'n' are allowed."
     exit 1
   fi
 }
