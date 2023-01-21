@@ -9,12 +9,15 @@ if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
   read -p $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
 fi
 
+Copy code
 # Function that checks if a variable is y or n
 function var_is_y_or_n {
-  for var in "$@"
+  local var_name var
+  for var_name in "$@"
   do
+    var="${!var_name}"
     if [ "$var" != "y" ] && [ "$var" != "n" ]; then
-      echo "Invalid input for $var. Only 'y' or 'n' are allowed."
+      echo "Invalid input on $var_name. Only 'y' or 'n' are allowed."
       exit 1
     fi
   done
