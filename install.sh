@@ -9,7 +9,6 @@ if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
   read -p $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
 fi
 
-Copy code
 # Function that checks if a variable is y or n
 function var_is_y_or_n {
   local var_name var
@@ -60,16 +59,6 @@ ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
 # Perform validation on input
 var_is_y_or_n "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
 
-if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
-  echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
-  exit 1
-fi
-
-if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
-  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
-  exit 1
-fi
-
 if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt 65535 ]; then
   echo "Invalid port number for WEB_PORT. Please enter a valid port number (1 to 65535)."
   exit 1
@@ -77,6 +66,16 @@ fi
 
 if ! [[ "$ICECAST_PORT" =~ ^[0-9]+$ ]] || [ "$ICECAST_PORT" -lt 1 ] || [ "$ICECAST_PORT" -gt 65535 ]; then
   echo "Invalid port number for ICECAST_PORT. Please enter a valid port number (1 to 65535)."
+  exit 1
+fi
+
+if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
+  echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
+  exit 1
+fi
+
+if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
+  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
 fi
 
