@@ -17,7 +17,7 @@ function var_is_y_or_n {
   do
     var="${!var_name}"
     if [ "$var" != "y" ] && [ "$var" != "n" ]; then
-      echo "Invalid input on $var_name. Only 'y' or 'n' are allowed."
+      echo "Invalid input for $var_name. Only 'y' or 'n' are allowed."
       exit 1
     fi
   done
