@@ -11,13 +11,13 @@ fi
 
 # Function that checks if a variable is y or n
 function var_is_y_or_no {
-    for var in "$@"
-    do
-        if [ "$var" != "y" ] && [ "$var" != "n" ]; then
-            echo "Invalid input for $var. Only 'y' or 'n' are allowed."
-            exit 1
-        fi
-    done
+  for var in "$@"
+  do
+    if [ "$var" != "y" ] && [ "$var" != "n" ]; then
+      echo "Invalid input for $var. Only 'y' or 'n' are allowed."
+      exit 1
+    fi
+  done
 }
 
 # Ask for input for variables
