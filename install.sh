@@ -10,7 +10,7 @@ if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
 fi
 
 # Function that checks if a variable is y or n
-function var_is_y_or_no {
+function var_is_y_or_n {
   for var in "$@"
   do
     if [ "$var" != "y" ] && [ "$var" != "n" ]; then
@@ -55,7 +55,7 @@ ICECAST_PASSWORD=${ICECAST_PASSWORD:-hackme}
 ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
 
 # Perform validation on input
-var_is_y_or_no "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
+var_is_y_or_n "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
 
 if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
   echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
