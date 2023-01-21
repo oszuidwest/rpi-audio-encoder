@@ -9,6 +9,17 @@ if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
   read -p $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
 fi
 
+# Function that checks if a variable is y or n
+function var_is_y_or_no {
+    for var in "$@"
+    do
+        if [ "$var" != "y" ] && [ "$var" != "n" ]; then
+            echo "Invalid input for $var. Only 'y' or 'n' are allowed."
+            exit 1
+        fi
+    done
+}
+
 # Ask for input for variables
 read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
 read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
@@ -44,23 +55,10 @@ ICECAST_PASSWORD=${ICECAST_PASSWORD:-hackme}
 ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
 
 # Perform validation on input
-if [ "$DO_UPDATES" != "y" ] && [ "$DO_UPDATES" != "n" ]; then
-  echo "Invalid input for DO_UPDATES. Only 'y' or 'n' are allowed."
-  exit 1
-fi
-
-if [ "$SAVE_OUTPUT" != "y" ] && [ "$SAVE_OUTPUT" != "n" ]; then
-  echo "Invalid input for SAVE_OUTPUT. Only 'y' or 'n' are allowed."
-  exit 1
-fi
+var_is_y_or_no "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
 
 if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
   echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
-  exit 1
-fi
-
-if [ "$LOG_ROTATION" != "y" ] && [ "$LOG_ROTATION" != "n" ]; then
-  echo "Invalid input for LOG_ROTATION. Only 'y' or 'n' are allowed."
   exit 1
 fi
 
