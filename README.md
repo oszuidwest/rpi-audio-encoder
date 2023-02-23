@@ -28,5 +28,5 @@ There are a couple of audio encoding configurations:
 - `ogg/vorbis` sends OGG Vorbis audio on 500 kbit/s. This is the highest quality ogg/vorbis possible.
 - `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
-### Todo: experiment with SRT streaming
-In the future we would like to use SRT for streaming. The server side needs to be there first. It's being built in https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt-upstream
+### Experimental SRT streaming
+In the future we would like to use SRT for streaming. This is integrated on experimental basis now. The server side needs to be there too. It's being built in https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt-upstream
