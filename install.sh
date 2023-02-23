@@ -171,7 +171,7 @@ fi
 if [ "$OUTPUT_SERVER" = "1" ]; then
   FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT'
 else
-  FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&streamid=$STREAM_PASSWORD&passphrase=foxtrot-uniform-charlie-kilo' #TODO: make passphrase not hardcoded
+  FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_PASSWORD&passphrase=foxtrot-uniform-charlie-kilo' #TODO: make passphrase not hardcoded
 fi
 
 # Create the configuration file for supervisor
