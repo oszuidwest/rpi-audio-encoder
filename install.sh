@@ -90,6 +90,11 @@ if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
   exit 1
 fi
 
+if [ "$OUTPUT_SERVER" != "1" ] && [ "$OUTPUT_SERVER" != "2" ]; then
+  echo "Invalid value for OUTPUT_SERVER. Only '1' for Icecast or '2' for SRT are allowed."
+  exit 1
+fi
+
 if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
@@ -165,7 +170,7 @@ fi
 
 # Define output server for ffmpeg based on OUTPUT_SERVER
 if [ "$OUTPUT_SERVER" = "1" ]; then
-  FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT"'
+  FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT'
 else
   FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316'
 fi
