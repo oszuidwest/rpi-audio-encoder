@@ -50,11 +50,7 @@ read -p "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" 
 read -p "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
 read -p "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
 read -p "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
-
-# Only ask for a mountpoint if the output server is Icecast
-if [ "$OUTPUT_SERVER" = "1" ]; then
-  read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
-fi
+read -p "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
 
 # Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
@@ -69,7 +65,7 @@ WEB_PASSWORD=${WEB_PASSWORD:-encoder}
 STREAM_HOST=${STREAM_HOST:-localhost}
 STREAM_PORT=${STREAM_PORT:-8000}
 STREAM_PASSWORD=${STREAM_PASSWORD:-hackme}
-ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
+STREAM_MOUNTPOINT=${STREAM_MOUNTPOINT:-studio}
 
 # Perform validation on input
 var_is_y_or_n "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
@@ -169,9 +165,9 @@ fi
 
 # Define output server for ffmpeg based on OUTPUT_SERVER
 if [ "$OUTPUT_SERVER" = "1" ]; then
-  FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT'
+  FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$STREAM_MOUNTPOINT'
 else
-  FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_PASSWORD&passphrase=foxtrot-uniform-charlie-kilo' #TODO: make passphrase not hardcoded
+  FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD'
 fi
 
 # Create the configuration file for supervisor
