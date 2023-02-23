@@ -47,9 +47,9 @@ read -p "Choose a username for the web interface (default: admin) " WEB_USER
 read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
 read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
 read -p "Hostname or IP address of Icecast server (default: localhost) " ICECAST_HOST
-read -p "Port of Icecast server (default: 8080) " ICECAST_PORT
-read -p "Password for Icecast server (default: hackme) " ICECAST_PASSWORD
-read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
+read -p "Port of Icecast or SRT server (default: 8080) " ICECAST_PORT
+read -p "Password for Icecast or SRT server (default: hackme) " ICECAST_PASSWORD
+read -p "Mountpoint of Icecast server (default: studio) - not needed for SRT " ICECAST_MOUNTPOINT #TODO: Put this behind a flag
 
 # Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
@@ -159,7 +159,7 @@ fi
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
   [program:encoder]
-  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT icecast://source:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT/$ICECAST_MOUNTPOINT"
+  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT srt://$ICECAST_HOST:$ICECAST_PORT?pkt_size=1316"
   # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
   autostart=true
   autorestart=true
