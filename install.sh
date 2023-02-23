@@ -46,9 +46,9 @@ read -p "Choose a port for the web interface (default: 90) " WEB_PORT
 read -p "Choose a username for the web interface (default: admin) " WEB_USER
 read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
 read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
-read -p "Hostname or IP address of Icecast server (default: localhost) " ICECAST_HOST
-read -p "Port of Icecast or SRT server (default: 8080) " ICECAST_PORT
-read -p "Password for Icecast or SRT server (default: hackme) " ICECAST_PASSWORD
+read -p "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
+read -p "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
+read -p "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
 read -p "Mountpoint of Icecast server (default: studio) - not needed for SRT " ICECAST_MOUNTPOINT #TODO: Put this behind a flag
 
 # Set defaults
@@ -60,9 +60,9 @@ OUTPUT_FORMAT=${OUTPUT_FORMAT:-ogg/flac}
 WEB_PORT=${WEB_PORT:-90}
 WEB_USER=${WEB_USER:-admin}
 WEB_PASSWORD=${WEB_PASSWORD:-encoder}
-ICECAST_HOST=${ICECAST_HOST:-localhost}
-ICECAST_PORT=${ICECAST_PORT:-8000}
-ICECAST_PASSWORD=${ICECAST_PASSWORD:-hackme}
+STREAM_HOST=${STREAM_HOST:-localhost}
+STREAM_PORT=${STREAM_PORT:-8000}
+STREAM_PASSWORD=${STREAM_PASSWORD:-hackme}
 ICECAST_MOUNTPOINT=${ICECAST_MOUNTPOINT:-studio}
 
 # Perform validation on input
@@ -73,8 +73,8 @@ if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt
   exit 1
 fi
 
-if ! [[ "$ICECAST_PORT" =~ ^[0-9]+$ ]] || [ "$ICECAST_PORT" -lt 1 ] || [ "$ICECAST_PORT" -gt 65535 ]; then
-  echo "Invalid port number for ICECAST_PORT. Please enter a valid port number (1 to 65535)."
+if ! [[ "$STREAM_PORT" =~ ^[0-9]+$ ]] || [ "$STREAM_PORT" -lt 1 ] || [ "$STREAM_PORT" -gt 65535 ]; then
+  echo "Invalid port number for STREAM_PORT. Please enter a valid port number (1 to 65535)."
   exit 1
 fi
 
@@ -156,10 +156,14 @@ elif [ "$OUTPUT_FORMAT" = "ogg/flac" ]; then
   FF_OUTPUT_FORMAT='ogg'
 fi
 
+# WIP Set the ffmpeg output server based on the value of FF_OUTPUT_SERVER
+# icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT"
+# srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316"
+
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
   [program:encoder]
-  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT srt://$ICECAST_HOST:$ICECAST_PORT?pkt_size=1316"
+  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT $FF_OUTPUT_SERVER"
   # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
   autostart=true
   autorestart=true
