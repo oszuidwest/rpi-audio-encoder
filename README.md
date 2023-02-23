@@ -29,4 +29,10 @@ There are a couple of audio encoding configurations:
 - `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
 ### Experimental SRT streaming
-In the future we would like to use SRT for streaming. This is integrated on experimental basis now. The server side needs to be there too. It's being built in https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt-upstream
+In the future we would like to use SRT for streaming. This is integrated on experimental basis now. The server side needs to be there too. For now Liquidsoap is not ready to receive SRT streams, but you can user the SRT sample tools. For example start a server on macOS and save the stream to `test.mp3`:
+
+```
+brew install srt
+srt-live-transmit "srt://:5001?mode=listener&streamid=studio&passphrase=foxtrot-uniform-charlie-kilo" file://con > test.mp3
+```
+
