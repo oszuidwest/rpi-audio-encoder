@@ -46,10 +46,16 @@ read -p "Choose a port for the web interface (default: 90) " WEB_PORT
 read -p "Choose a username for the web interface (default: admin) " WEB_USER
 read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
 read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
+read -p "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
 read -p "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
 read -p "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
 read -p "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
-read -p "Mountpoint of Icecast server (default: studio) - not needed for SRT " ICECAST_MOUNTPOINT #TODO: Put this behind a flag
+
+# Only ask for a mountpoint if the output server is Icecast
+if [ "$OUTPUT_SERVER" = "1" ]; then
+  read -p "Mountpoint of Icecast server (default: studio) " ICECAST_MOUNTPOINT
+fi
+
 
 # Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
@@ -57,6 +63,7 @@ SAVE_OUTPUT=${SAVE_OUTPUT:-y}
 LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
 LOG_ROTATION=${LOG_ROTATION:-y}
 OUTPUT_FORMAT=${OUTPUT_FORMAT:-ogg/flac}
+OUTPUT_SERVER=${OUTPUT_SERVER:-1}
 WEB_PORT=${WEB_PORT:-90}
 WEB_USER=${WEB_USER:-admin}
 WEB_PASSWORD=${WEB_PASSWORD:-encoder}
@@ -156,9 +163,12 @@ elif [ "$OUTPUT_FORMAT" = "ogg/flac" ]; then
   FF_OUTPUT_FORMAT='ogg'
 fi
 
-# WIP Set the ffmpeg output server based on the value of FF_OUTPUT_SERVER
-# icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT"
-# srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316"
+# Define output server for ffmpeg based on OUTPUT_SERVER
+if [ "$OUTPUT_SERVER" = "1" ]; then
+  FF_OUTPUT_SERVER='icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$ICECAST_MOUNTPOINT"'
+else
+  FF_OUTPUT_SERVER='srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316'
+fi
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf
