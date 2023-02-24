@@ -36,3 +36,7 @@ brew install srt
 srt-live-transmit "srt://:5001?mode=listener&streamid=studio&passphrase=foxtrot-uniform-charlie-kilo" file://con > test.mp3
 ```
 
+For more about SRT:
+- SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
+- SRT deployment guide: https://www.vmix.com/download/srt_alliance_deployment_guide.pdf
+- SRT 101 video: https://www.youtube.com/watch?v=e5YLItNG3lA 
