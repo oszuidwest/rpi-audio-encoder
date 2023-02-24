@@ -5,8 +5,8 @@ clear
 
 # Is this a supported platform?
 if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
-  echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
-  echo -e "\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m"
+  echo -e "\033[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\033[0m"
+  echo -e "\033[3m\033[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\033[0m"
 fi
 
 # Function that checks if a variable is y or n
