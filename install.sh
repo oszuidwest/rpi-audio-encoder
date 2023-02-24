@@ -32,25 +32,25 @@ function var_is_y_or_n {
 }
 
 # Ask for input for variables
-read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
-read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
+read -rp "Do you want to perform all OS updates? (default: y) " DO_UPDATES
+read -rp "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
 
 # Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
 if [ "$SAVE_OUTPUT" = "y" ]; then
-  read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
-  read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
+  read -rp "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
+  read -rp "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
 fi
 
 # Always ask these
-read -p "Choose a port for the web interface (default: 90) " WEB_PORT
-read -p "Choose a username for the web interface (default: admin) " WEB_USER
-read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
-read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
-read -p "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
-read -p "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
-read -p "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
-read -p "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
-read -p "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
+read -rp "Choose a port for the web interface (default: 90) " WEB_PORT
+read -rp "Choose a username for the web interface (default: admin) " WEB_USER
+read -rp "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
+read -rp "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
+read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
+read -rp "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
+read -rp "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
+read -rp "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
+read -rp "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
 
 # Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
