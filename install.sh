@@ -6,7 +6,7 @@ clear
 # Is this a supported platform?
 if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
   echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
-  read -p -r $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m'
+  echo -e "\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press enter to continue anyway...\e[0m"
 fi
 
 # Function that checks if a variable is y or n
@@ -32,25 +32,25 @@ function var_is_y_or_n {
 }
 
 # Ask for input for variables
-read -p -r "Do you want to perform all OS updates? (default: y) " DO_UPDATES
-read -p -r "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
+read -p "Do you want to perform all OS updates? (default: y) " DO_UPDATES
+read -p "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
 
 # Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
 if [ "$SAVE_OUTPUT" = "y" ]; then
-  read -p -r "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
-  read -p -r "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
+  read -p "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
+  read -p "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
 fi
 
 # Always ask these
-read -p -r "Choose a port for the web interface (default: 90) " WEB_PORT
-read -p -r "Choose a username for the web interface (default: admin) " WEB_USER
-read -p -r "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
-read -p -r "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
-read -p -r "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
-read -p -r "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
-read -p -r "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
-read -p -r "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
-read -p -r "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
+read -p "Choose a port for the web interface (default: 90) " WEB_PORT
+read -p "Choose a username for the web interface (default: admin) " WEB_USER
+read -p "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
+read -p "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
+read -p "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
+read -p "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
+read -p "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
+read -p "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
+read -p "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
 
 # Set defaults
 DO_UPDATES=${DO_UPDATES:-y}
