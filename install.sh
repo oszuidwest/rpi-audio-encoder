@@ -11,18 +11,11 @@ fi
 
 # Function that checks if a variable is y or n
 function var_is_y_or_n {
-  local var_name var invalid_vars first_time
-  first_time=1
-  for var_name in "$@"
-  do
+  local invalid_vars=""
+  for var_name in "$@"; do
     var="${!var_name}"
-    if [ "$var" != "y" ] && [ "$var" != "n" ]; then
-      if [ "$first_time" -eq 1 ]; then
-        invalid_vars="$var_name"
-        first_time=0
-      else
-        invalid_vars="$invalid_vars, $var_name"
-      fi
+    if [[ "$var" != "y" && "$var" != "n" ]]; then
+      invalid_vars+="$var_name "
     fi
   done
   if [ -n "$invalid_vars" ]; then
@@ -46,7 +39,7 @@ read -rp "Choose a port for the web interface (default: 90) " WEB_PORT
 read -rp "Choose a username for the web interface (default: admin) " WEB_USER
 read -rp "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
 read -rp "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
-read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1)" OUTPUT_SERVER
+read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1) " OUTPUT_SERVER
 read -rp "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
 read -rp "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
 read -rp "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
@@ -68,7 +61,7 @@ STREAM_PASSWORD=${STREAM_PASSWORD:-hackme}
 STREAM_MOUNTPOINT=${STREAM_MOUNTPOINT:-studio}
 
 # Perform validation on input
-var_is_y_or_n "$DO_UPDATES" "$SAVE_OUTPUT" "$LOG_ROTATION"
+var_is_y_or_n DO_UPDATES SAVE_OUTPUT LOG_ROTATION
 
 if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt 65535 ]; then
   echo "Invalid port number for WEB_PORT. Please enter a valid port number (1 to 65535)."
