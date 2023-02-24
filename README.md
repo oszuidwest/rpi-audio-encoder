@@ -1,5 +1,5 @@
 # rpi-audio-encoder
-This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. It uses a Rapsberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) as audio input. As encoder ffmpeg is used, which is combined with Supervisor to manage the process via a webinterface. It sends audio to an Icecast2 server.
+This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. It uses a Rapsberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) as audio input. As encoder ffmpeg is used, which is combined with Supervisor to manage the process via a webinterface. It sends audio to an Icecast2 or SRT server.
 
 This encoder resides in the studio and is connected to an Optimod. It can stream to any Icecast or SRT server. Our server software to complete the audio stack can be found in [this respository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
