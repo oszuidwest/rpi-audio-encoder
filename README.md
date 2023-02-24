@@ -3,7 +3,7 @@ This repository contains the audio streaming software for [ZuidWest FM](https://
 
 This encoder resides in the studio and is connected to an Optimod. It can stream to any Icecast or SRT server. Our server software to complete the audio stack can be found in [this respository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
-<img src="https://user-images.githubusercontent.com/6742496/211200145-7b11db44-8c6e-4674-8163-55c706f45054.jpg" width=40% height=40%>
+<img src="https://user-images.githubusercontent.com/6742496/221062672-7a073a71-3aa3-40c2-bf2f-e46a3988b0b4.png" width=60% height=60%>
 
 # How to prepare the Rapsberry Pi
 - Install Raspberry Pi OS Lite 11 (bullseye) 64-bit
@@ -29,7 +29,7 @@ There are a couple of audio encoding configurations:
 - `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
 ### Experimental SRT streaming
-In the future we would like to use SRT for streaming. This is integrated on experimental basis now. The server side needs to be there too. For now Liquidsoap (our server software) is not ready to receive SRT streams, but you can user the SRT sample tools. For example start a server on macOS and save the stream to `test.mp3`:
+In the future we would like to use SRT for streaming. This is integrated on experimental basis now. The server side needs to be there too. For now Liquidsoap (our server software) is not ready to receive SRT streams, but you can use the SRT sample tools. For example start a server on macOS and save the stream to `test.mp3`:
 
 ```
 brew install srt
