@@ -29,7 +29,7 @@ There are a couple of audio encoding configurations:
 - `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
 ### Experimental SRT support
-In the future we would like to use SRT for streaming. This is integrated on experimental basis now. It's working in FFmpeg, but the server side (Liquidsoap) is still in beta. A working SRT implementation of the server software [can be found here]([url](https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt)) and will be merged when Liquidsoap 2.2.0 is out of beta.
+In the future we would like to use SRT for streaming. This is integrated on experimental basis now. It's working in FFmpeg, but the server side (Liquidsoap) is still in beta. A working SRT implementation of the server software [can be found here](https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt) and will be merged when Liquidsoap 2.2.0 is out of beta.
 
 For more about SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
