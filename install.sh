@@ -3,14 +3,16 @@
 # Start with a clean terminal
 clear
 
-# Is this a supported platform?
-if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
-  echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
-  read -rp $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press Enter to continue anyway...\e[0m\n'
-fi
+# Function that checks if this a supported platform
+function check_platform() {
+  if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
+    echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
+    read -rp $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press Enter to continue anyway...\e[0m\n'
+  fi
+}
 
 # Function that checks if a variable is y or n
-function var_is_y_or_n {
+function validate_y_or_n() {
   local invalid_vars=""
   for var_name in "$@"; do
     var="${!var_name}"
@@ -23,6 +25,28 @@ function var_is_y_or_n {
     exit 1
   fi
 }
+
+# Function that checks if a port is valid
+function validate_port() {
+  local var_name="$1"
+  local port="${!var_name}"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo "Invalid port number for $var_name. Please enter a valid port number (1 to 65535)."
+    exit 1
+  fi
+}
+
+# Function that checks if a file path is valid
+function validate_file_path() {
+  local var_name="$1"
+  local path="${!var_name}"
+  if ! [[ "$path" =~ ^/.+/.+$ ]]; then
+    echo "Invalid path for $var_name. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
+    exit 1
+  fi
+}
+
+check_platform
 
 # Ask for input for variables
 read -rp "Do you want to perform all OS updates? (default: y): " -i "y" DO_UPDATES
@@ -46,29 +70,17 @@ read -rp "Password for Icecast or SRT server (default: hackme) " -i "hackme" STR
 read -rp "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " -i "studio" STREAM_MOUNTPOINT
 
 # Perform validation on input
-var_is_y_or_n DO_UPDATES SAVE_OUTPUT LOG_ROTATION
+validate_y_or_n DO_UPDATES SAVE_OUTPUT LOG_ROTATION
+validate_port WEB_PORT
+validate_port STREAM_PORT
+validate_file_path LOG_FILE
 
-if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt 65535 ]; then
-  echo "Invalid port number for WEB_PORT. Please enter a valid port number (1 to 65535)."
-  exit 1
-fi
-
-if ! [[ "$STREAM_PORT" =~ ^[0-9]+$ ]] || [ "$STREAM_PORT" -lt 1 ] || [ "$STREAM_PORT" -gt 65535 ]; then
-  echo "Invalid port number for STREAM_PORT. Please enter a valid port number (1 to 65535)."
-  exit 1
-fi
-
-if ! [[ "$LOG_FILE" =~ ^/.+/.+$ ]]; then
-  echo "Invalid path for LOG_FILE. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
-  exit 1
-fi
-
-if [ "$OUTPUT_SERVER" != "1" ] && [ "$OUTPUT_SERVER" != "2" ]; then
+if ! [[ "$OUTPUT_SERVER" =~ ^[12]$ ]]; then
   echo "Invalid value for OUTPUT_SERVER. Only '1' for Icecast or '2' for SRT are allowed."
   exit 1
 fi
 
-if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_FORMAT" != "ogg/vorbis" ] && [ "$OUTPUT_FORMAT" != "ogg/flac" ]; then
+if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|ogg/flac)$ ]]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
 fi
