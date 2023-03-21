@@ -25,40 +25,25 @@ function var_is_y_or_n {
 }
 
 # Ask for input for variables
-read -rp "Do you want to perform all OS updates? (default: y) " DO_UPDATES
-read -rp "Do you want to save the output of ffmpeg in a log file? (default: y) " SAVE_OUTPUT
+read -rp "Do you want to perform all OS updates? (default: y): " -i "y" DO_UPDATES
+read -rp "Do you want to save the output of ffmpeg in a log file? (default: y): " -i "y" SAVE_OUTPUT
 
 # Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
-if [ "$SAVE_OUTPUT" = "y" ]; then
-  read -rp "Which log file? (default: /var/log/ffmpeg/stream.log) " LOG_FILE
-  read -rp "Do you want log rotation (daily)? (default: y) " LOG_ROTATION
+if [ "${SAVE_OUTPUT:-y}" = "y" ]; then
+  read -rp "Which log file? (default: /var/log/ffmpeg/stream.log): " -i "/var/log/ffmpeg/stream.log" LOG_FILE
+  read -rp "Do you want log rotation (daily)? (default: y): " -i "y" LOG_ROTATION
 fi
 
 # Always ask these
-read -rp "Choose a port for the web interface (default: 90) " WEB_PORT
-read -rp "Choose a username for the web interface (default: admin) " WEB_USER
-read -rp "Choose a password for the web interface (default: encoder) " WEB_PASSWORD
-read -rp "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " OUTPUT_FORMAT
-read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1) " OUTPUT_SERVER
-read -rp "Hostname or IP address of Icecast or SRT server (default: localhost) " STREAM_HOST
-read -rp "Port of Icecast or SRT server (default: 8080) " STREAM_PORT
-read -rp "Password for Icecast or SRT server (default: hackme) " STREAM_PASSWORD
-read -rp "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " STREAM_MOUNTPOINT
-
-# Set defaults
-DO_UPDATES=${DO_UPDATES:-y}
-SAVE_OUTPUT=${SAVE_OUTPUT:-y}
-LOG_FILE=${LOG_FILE:-/var/log/ffmpeg/stream.log}
-LOG_ROTATION=${LOG_ROTATION:-y}
-OUTPUT_FORMAT=${OUTPUT_FORMAT:-ogg/flac}
-OUTPUT_SERVER=${OUTPUT_SERVER:-1}
-WEB_PORT=${WEB_PORT:-90}
-WEB_USER=${WEB_USER:-admin}
-WEB_PASSWORD=${WEB_PASSWORD:-encoder}
-STREAM_HOST=${STREAM_HOST:-localhost}
-STREAM_PORT=${STREAM_PORT:-8000}
-STREAM_PASSWORD=${STREAM_PASSWORD:-hackme}
-STREAM_MOUNTPOINT=${STREAM_MOUNTPOINT:-studio}
+read -rp "Choose a port for the web interface (default: 90) " -i "90" WEB_PORT
+read -rp "Choose a username for the web interface (default: admin) " -i "admin" WEB_USER
+read -rp "Choose a password for the web interface (default: encoder) " -i "encoder" WEB_PASSWORD
+read -rp "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " -i "ogg/flac" OUTPUT_FORMAT
+read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1) " -i "1" OUTPUT_SERVER
+read -rp "Hostname or IP address of Icecast or SRT server (default: localhost) " -i "localhost" STREAM_HOST
+read -rp "Port of Icecast or SRT server (default: 8080) " -i "8080" STREAM_PORT
+read -rp "Password for Icecast or SRT server (default: hackme) " -i "hackme" STREAM_PASSWORD
+read -rp "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " -i "studio" STREAM_MOUNTPOINT
 
 # Perform validation on input
 var_is_y_or_n DO_UPDATES SAVE_OUTPUT LOG_ROTATION
@@ -89,24 +74,24 @@ if [ "$OUTPUT_FORMAT" != "mp2" ] && [ "$OUTPUT_FORMAT" != "mp3" ] && [ "$OUTPUT_
 fi
 
 # Check if the DO_UPDATES variable is set to 'y'
-if [ "$DO_UPDATES" = "y" ]; then
+if [ "$DO_UPDATES" == "y" ]; then
   # If it is, run the apt update, upgrade, and autoremove commands with the --yes flag to automatically answer yes to prompts
-  apt --quiet --quiet --yes update >/dev/null 2>&1
-  apt --quiet --quiet --yes upgrade >/dev/null 2>&1
-  apt --quiet --quiet --yes autoremove >/dev/null 2>&1
+  apt -qq --yes update >/dev/null 2>&1
+  apt -qq --yes upgrade >/dev/null 2>&1
+  apt -qq --yes autoremove >/dev/null 2>&1
 fi
 
 # Check if logrotate should be installed
-if [ "$SAVE_OUTPUT" = "y" ] && [ "$LOG_ROTATION" = "y" ]; then
+if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt --quiet --quiet --yes install ffmpeg supervisor logrotate >/dev/null 2>&1
+  apt -qq --yes install ffmpeg supervisor logrotate >/dev/null 2>&1
 else
   # Install ffmpeg and supervisor
-  apt --quiet --quiet --yes install ffmpeg supervisor >/dev/null 2>&1
+  apt -qq --yes install ffmpeg supervisor >/dev/null 2>&1
 fi
 
 # Check if 'SAVE_OUTPUT' is set to 'y'
-if [ "$SAVE_OUTPUT" = "y" ]; then
+if [ "$SAVE_OUTPUT" == "y" ]; then
   # Parse the value of 'LOG_FILE' to just the directory
   LOG_DIR=$(dirname "$LOG_FILE")
   # If the directory doesn't exist, create it
@@ -131,33 +116,33 @@ EOF
 fi
 
 # Let ffmpeg write to /dev/null if logging is disabled
-if [ "$SAVE_OUTPUT" = "y" ]; then
-  LOG_PATH=$LOG_FILE
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  LOG_PATH="$LOG_FILE"
 else
   LOG_PATH="/dev/null"
 fi
 
 # Set the ffmpeg variables based on the value of OUTPUT_FORMAT
-if [ "$OUTPUT_FORMAT" = "mp2" ]; then
+if [ "$OUTPUT_FORMAT" == "mp2" ]; then
   FF_AUDIO_CODEC='libtwolame -b:a 384k -psymodel 4'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp2'
-elif [ "$OUTPUT_FORMAT" = "mp3" ]; then
+elif [ "$OUTPUT_FORMAT" == "mp3" ]; then
   FF_AUDIO_CODEC='libmp3lame -b:a 320k -q 0'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp3'
-elif [ "$OUTPUT_FORMAT" = "ogg/vorbis" ]; then
+elif [ "$OUTPUT_FORMAT" == "ogg/vorbis" ]; then
   FF_AUDIO_CODEC='libvorbis -qscale:a 10'
   FF_CONTENT_TYPE='audio/ogg'
   FF_OUTPUT_FORMAT='ogg'
-elif [ "$OUTPUT_FORMAT" = "ogg/flac" ]; then
+elif [ "$OUTPUT_FORMAT" == "ogg/flac" ]; then
   FF_AUDIO_CODEC='flac'
   FF_CONTENT_TYPE='audio/ogg'
   FF_OUTPUT_FORMAT='ogg'
 fi
 
 # Define output server for ffmpeg based on OUTPUT_SERVER
-if [ "$OUTPUT_SERVER" = "1" ]; then
+if [ "$OUTPUT_SERVER" == "1" ]; then
   FF_OUTPUT_SERVER="icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$STREAM_MOUNTPOINT"
 else
   FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
