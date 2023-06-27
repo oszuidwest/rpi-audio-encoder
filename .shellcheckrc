@@ -1,0 +1,2 @@
+# Allow including of external files
+disable=SC1091
