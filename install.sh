@@ -151,31 +151,11 @@ if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
   sed -i 's/^[ \t]*//' /etc/supervisor/supervisord.conf
 fi
 
-# Verify installation. Set a flag to track whether any checks failed
-INSTALL_FAILED=false
-
-# Check the installation of ffmpeg
-if ! command -v ffmpeg &> /dev/null; then
-  echo -e "\033[31mInstallation failed. ffmpeg is not installed.\033[0m"
-  INSTALL_FAILED=true
-fi
-
-# Check the installation of supervisor
-if ! command -v supervisord &> /dev/null; then
-  echo -e "\033[31mWInstallation failed. supervisor is not installed.\033[0m"
-  INSTALL_FAILED=true
-fi
+# Check the installation of ffmpeg and supervisord
+check_required_command ffmpeg supervisord
 
 # Check if the configuration file exists
 if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
   echo -e "\033[31mInstallation failed. /etc/supervisor/conf.d/stream.conf does not exist.\033[0m"
-  INSTALL_FAILED=true
-fi
-
-# If any checks failed, exit with an error code
-if $INSTALL_FAILED; then
   exit 1
-else
-  # All checks passed, display success message
-  echo -e "\033[32mInstallation checks passed. You can now reboot this device and streaming should start automatically.\033[0m"
 fi
