@@ -1,52 +1,23 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Start with a clean terminal
 clear
 
-# Function that checks if this a supported platform
-function check_platform() {
-  if ! grep "Raspberry Pi 4" /proc/device-tree/model &> /dev/null; then
-    echo -e "\e[1;31;5m** NOT RUNNING ON A RASPBERRY PI 4 **\e[0m"
-    read -rp $'\e[3m\e[33mThis script is only tested on a Raspberry Pi 4. Press Enter to continue anyway...\e[0m\n'
-  fi
-}
+# Download the functions library
+curl -s -o /tmp/functions.sh https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh
 
-# Function that checks if a variable is y or n
-function validate_y_or_n() {
-  local invalid_vars=""
-  for var_name in "$@"; do
-    var="${!var_name}"
-    if [[ "$var" != "y" && "$var" != "n" ]]; then
-      invalid_vars+="$var_name "
-    fi
-  done
-  if [ -n "$invalid_vars" ]; then
-    echo "Invalid input for the following option(s): $invalid_vars. Only 'y' or 'n' are allowed."
-    exit 1
-  fi
-}
+# Source the functions file
+source /tmp/functions.sh
 
-# Function that checks if a port is valid
-function validate_port() {
-  local var_name="$1"
-  local port="${!var_name}"
-  if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-    echo "Invalid port number for $var_name. Please enter a valid port number (1 to 65535)."
-    exit 1
-  fi
-}
+# Set color variables
+set_colors
 
-# Function that checks if a file path is valid
-function validate_file_path() {
-  local var_name="$1"
-  local path="${!var_name}"
-  if ! [[ "$path" =~ ^/.+/.+$ ]]; then
-    echo "Invalid path for $var_name. Please enter a valid path to a file (e.g. /var/log/ffmpeg/stream.log)."
-    exit 1
-  fi
-}
+# Check if we are root
+are_we_root
 
-check_platform
+# Check if this is Linux
+is_this_linux
+is_this_os_64bit
 
 # Ask for input for variables
 read -rp "Do you want to perform all OS updates? (default: y): " -i "y" DO_UPDATES
