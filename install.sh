@@ -20,31 +20,25 @@ is_this_linux
 is_this_os_64bit
 
 # Ask for input for variables
-read -rp "Do you want to perform all OS updates? (default: y): " -i "y" DO_UPDATES
-read -rp "Do you want to save the output of ffmpeg in a log file? (default: y): " -i "y" SAVE_OUTPUT
+ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
+ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg in a log file? (y/n)" "y/n"
 
 # Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
 if [ "${SAVE_OUTPUT:-y}" = "y" ]; then
-  read -rp "Which log file? (default: /var/log/ffmpeg/stream.log): " -i "/var/log/ffmpeg/stream.log" LOG_FILE
-  read -rp "Do you want log rotation (daily)? (default: y): " -i "y" LOG_ROTATION
+  ask_user "LOG_FILE" "/var/log/ffmpeg/stream.log" "Which log file?" "str"
+  ask_user "LOG_ROTATION" "y" "Do you want log rotation (daily)?" "y/n"
 fi
 
 # Always ask these
-read -rp "Choose a port for the web interface (default: 90) " -i "90" WEB_PORT
-read -rp "Choose a username for the web interface (default: admin) " -i "admin" WEB_USER
-read -rp "Choose a password for the web interface (default: encoder) " -i "encoder" WEB_PASSWORD
-read -rp "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac (default: ogg/flac) " -i "ogg/flac" OUTPUT_FORMAT
-read -rp "Choose output server: type 1 for Icecast, type 2 for SRT (default: 1) " -i "1" OUTPUT_SERVER
-read -rp "Hostname or IP address of Icecast or SRT server (default: localhost) " -i "localhost" STREAM_HOST
-read -rp "Port of Icecast or SRT server (default: 8080) " -i "8080" STREAM_PORT
-read -rp "Password for Icecast or SRT server (default: hackme) " -i "hackme" STREAM_PASSWORD
-read -rp "Mountpoint for Icecast server or Stream ID for SRT server (default: studio) " -i "studio" STREAM_MOUNTPOINT
-
-# Perform validation on input
-validate_y_or_n DO_UPDATES SAVE_OUTPUT LOG_ROTATION
-validate_port WEB_PORT
-validate_port STREAM_PORT
-validate_file_path LOG_FILE
+ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
+ask_user "WEB_USER" "admin" "Choose a username for the web interface" "str"
+ask_user "WEB_PASSWORD" "encoder" "Choose a password for the web interface" "str"
+ask_user "OUTPUT_FORMAT" "ogg/flac" "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac" "str"
+ask_user "OUTPUT_SERVER" "1" "Choose output server: type 1 for Icecast, type 2 for SRT" "num"
+ask_user "STREAM_HOST" "localhost" "Hostname or IP address of Icecast or SRT server" "str"
+ask_user "STREAM_PORT" "8080" "Port of Icecast or SRT server" "num"
+ask_user "STREAM_PASSWORD" "hackme" "Password for Icecast or SRT server" "str"
+ask_user "STREAM_MOUNTPOINT" "studio" "Mountpoint for Icecast server or Stream ID for SRT server" "str"
 
 if ! [[ "$OUTPUT_SERVER" =~ ^[12]$ ]]; then
   echo "Invalid value for OUTPUT_SERVER. Only '1' for Icecast or '2' for SRT are allowed."
@@ -58,19 +52,16 @@ fi
 
 # Check if the DO_UPDATES variable is set to 'y'
 if [ "$DO_UPDATES" == "y" ]; then
-  # If it is, run the apt update, upgrade, and autoremove commands with the --yes flag to automatically answer yes to prompts
-  apt -qq --yes update >/dev/null 2>&1
-  apt -qq --yes upgrade >/dev/null 2>&1
-  apt -qq --yes autoremove >/dev/null 2>&1
+  update_os silent
 fi
 
 # Check if logrotate should be installed
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # Install ffmpeg, supervisor and logrotate
-  apt -qq --yes install ffmpeg supervisor logrotate >/dev/null 2>&1
+  install_packages silent ffmpeg supervisor logrotate
 else
   # Install ffmpeg and supervisor
-  apt -qq --yes install ffmpeg supervisor >/dev/null 2>&1
+  install_packages silent ffmpeg supervisor
 fi
 
 # Check if 'SAVE_OUTPUT' is set to 'y'
