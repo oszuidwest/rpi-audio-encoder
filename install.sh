@@ -24,7 +24,7 @@ ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
 ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg in a log file? (y/n)" "y/n"
 
 # Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
-if [ "${SAVE_OUTPUT:-y}" = "y" ]; then
+if [ "${SAVE_OUTPUT}" == "y" ]; then
   ask_user "LOG_FILE" "/var/log/ffmpeg/stream.log" "Which log file?" "str"
   ask_user "LOG_ROTATION" "y" "Do you want log rotation (daily)?" "y/n"
 fi
