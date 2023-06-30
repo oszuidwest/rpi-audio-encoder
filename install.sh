@@ -76,7 +76,7 @@ then
     echo -e "${BLUE}►► Expanding filesystem...${NC}"
     raspi-config --expand-rootfs > /dev/null
 else
-    echo -e "${YELLOW}►► Command raspi-config not found. Cannot expand filesystem (this might not be needed).${NC}"
+    echo -e "${YELLOW}!! Command raspi-config not found. Cannot expand filesystem (this might not be needed).${NC}"
 fi
 
 # Timezone configuration
