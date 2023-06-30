@@ -178,7 +178,5 @@ if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
 fi
 
 # Output 
-echo -e "\n"
-echo -e "${GREEN}Success!${NC} Reboot this device and the streaming should start!"
+echo -e "\n${GREEN}✓ Success!${NC} Reboot this device and the streaming should start!"
 echo -e "The web port is ${BOLD}$WEB_PORT${NC} and the default user is ${BOLD}$WEB_USER${NC}.\n"
-echo -e "\n\n"
