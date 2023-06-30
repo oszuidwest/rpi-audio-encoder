@@ -178,5 +178,7 @@ if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
 fi
 
 # Output 
-echo -e "\n${GREEN}✓ Success!${NC} Reboot this device and the streaming should start!"
-echo -e "The web port is ${BOLD}$WEB_PORT${NC} and the default user is ${BOLD}$WEB_USER${NC}.\n"
+echo -e "\n${GREEN}✓ Success!${NC}"
+echo -e "Reboot this device and streaming to ${BOLD}$STREAM_HOST${NC} should start!"
+echo -e "You can connect to it's IP in the brower on port ${BOLD}$WEB_PORT${NC}. 
+echo -e "The user is ${BOLD}$WEB_USER${NC} and the password you choice is ${BOLD}$WEB_PASSWORD${NC} \n"
