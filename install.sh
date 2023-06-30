@@ -70,8 +70,14 @@ if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|ogg/flac)$ ]]; then
 fi
 
 # Expand filesystem
-echo -e "${BLUE}►► Expanding filesystem...${NC}"
-raspi-config --expand-rootfs > /dev/null
+if command -v raspi-config > /dev/null
+then
+    # Expand filesystem
+    echo -e "${BLUE}►► Expanding filesystem...${NC}"
+    raspi-config --expand-rootfs > /dev/null
+else
+    echo -e "${YELLOW}►► Command raspi-config not found. Cannot expand filesystem (this might not be needed).${NC}"
+fi
 
 # Timezone configuration
 set_timezone Europe/Amsterdam
