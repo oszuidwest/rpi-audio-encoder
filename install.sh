@@ -36,7 +36,7 @@ cat << "EOF"
 EOF
 
 # Hi!
-echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n\n"
+echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
@@ -68,6 +68,13 @@ if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|ogg/flac)$ ]]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
 fi
+
+# Expand filesystem
+echo -e "${BLUE}►► Expanding filesystem...${NC}"
+raspi-config --expand-rootfs > /dev/null
+
+# Timezone configuration
+set_timezone Europe/Amsterdam
 
 # Check if the DO_UPDATES variable is set to 'y'
 if [ "$DO_UPDATES" == "y" ]; then
