@@ -22,6 +22,22 @@ are_we_root
 is_this_linux
 is_this_os_64bit
 
+# Check if we are running on a Raspberry Pi 3 or newer
+check_rpi_model 3
+
+# Something fancy for the sysadmin
+cat << "EOF"
+ ______     _     ___          __       _     ______ __  __ 
+|___  /    (_)   | \ \        / /      | |   |  ____|  \/  |
+   / /_   _ _  __| |\ \  /\  / /__  ___| |_  | |__  | \  / |
+  / /| | | | |/ _` | \ \/  \/ / _ \/ __| __| |  __| | |\/| |
+ / /_| |_| | | (_| |  \  /\  /  __/\__ \ |_  | |    | |  | |
+/_____\__,_|_|\__,_|   \/  \/ \___||___/\__| |_|    |_|  |_|
+EOF
+
+# Hi!
+echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n\n"
+
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
 ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg in a log file? (y/n)" "y/n"
@@ -155,7 +171,8 @@ fi
 check_required_command ffmpeg supervisord
 
 # Check if the configuration file exists
+# @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
 if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
-  echo -e "\033[31mInstallation failed. /etc/supervisor/conf.d/stream.conf does not exist.\033[0m"
+  echo -e "${RED}Installation failed. /etc/supervisor/conf.d/stream.conf does not exist.${NC}"
   exit 1
 fi
