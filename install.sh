@@ -40,10 +40,10 @@ os_name=$(grep '^NAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
 os_codename=$(grep '^UBUNTU_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
 
 if [[ "$os_name" == "Ubuntu" && "$os_codename" == "jammy" ]]; then
-    echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
+  echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 else
-    echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n"
-    exit 1
+  echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n"
+  exit 1
 fi
 
 # Ask for input for variables
@@ -84,6 +84,11 @@ set_timezone Europe/Amsterdam
 if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
+
+# Remove shit
+apt -y -qq remove snapd xauth xdg-user-dirs libx11-6 bluez avahi-daemon open-iscsi 
+apt -y -qq autoremove
+### DIRTY. REFACTOR THIS ^^^^
 
 # Check if logrotate should be installed
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
