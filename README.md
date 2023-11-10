@@ -11,6 +11,8 @@ This encoder resides in the studio and is connected to an Optimod. It can stream
 - Ensure you are root by running `sudo su`
 - Download and run the install script with the command `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`
 
+⚠️ There is a major problem with kernel verions 6.x and recording from a HifiBerry with FFmpeg. Linux versions that ship with kernel 6.0 do not work. We strongly suggest using Ubuntu 22.04 LTS with kernel 5.15. Raspbian 11 or 12 ship kernel 6.x and do not work. ⚠️ 
+
 # How to configure the audio processor
 - Connect the digital output of the audio processor to the input of the HiFiBerry
 - Ensure the processor is sending out 48khz 16-bits audio. The HiFiBerry can't resample. This is hardcoded.
