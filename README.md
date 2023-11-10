@@ -6,7 +6,7 @@ This encoder resides in the studio and is connected to an Optimod. It can stream
 <img src="https://user-images.githubusercontent.com/6742496/221062672-7a073a71-3aa3-40c2-bf2f-e46a3988b0b4.png" width=60% height=60%>
 
 # How to prepare the Rapsberry Pi
-- Install Raspberry Pi OS Lite 12 (Bookworm) 64-bit or Ubuntu 22.04 LTS 64-bit 
+- Install Ubuntu Server 22.04 LTS 64-bit 
 - Follow the guide on https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ to set-up the HiFiBerry
 - Ensure you are root by running `sudo su`
 - Download and run the install script with the command `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`
