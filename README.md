@@ -6,10 +6,12 @@ This encoder resides in the studio and is connected to an Optimod. It can stream
 <img src="https://user-images.githubusercontent.com/6742496/221062672-7a073a71-3aa3-40c2-bf2f-e46a3988b0b4.png" width=60% height=60%>
 
 # How to prepare the Rapsberry Pi
-- Install Raspberry Pi OS Lite 11 (bullseye) 64-bit or Ubuntu 22.04 LTS 64-bit 
+- Install Ubuntu Server 22.04 LTS 64-bit 
 - Follow the guide on https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ to set-up the HiFiBerry
 - Ensure you are root by running `sudo su`
 - Download and run the install script with the command `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`
+
+⚠️ There is a major problem with kernel verions 6.x and recording from a HifiBerry with FFmpeg. Linux versions that ship with kernel 6.0 do not work. We strongly suggest using Ubuntu 22.04 LTS with kernel 5.15. Raspbian 11 or 12 ship kernel 6.x and do not work. ⚠️ 
 
 # How to configure the audio processor
 - Connect the digital output of the audio processor to the input of the HiFiBerry
@@ -27,8 +29,8 @@ There are a couple of audio encoding configurations:
 - `ogg/vorbis` sends OGG Vorbis audio on 500 kbit/s. This is the highest quality ogg/vorbis possible.
 - `ogg/flac` sends FLAC audio in an OGG wrapper on ~1200 kbit/s. This is the highest possible uncompressed audio.
 
-### Experimental SRT support
-In the future we would like to use SRT for streaming. This is integrated on experimental basis now. It's working in FFmpeg, but the server side (Liquidsoap) is still in beta. A working SRT implementation of the server software [can be found here](https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt) and will be merged when Liquidsoap 2.2.0 is out of beta.
+### SRT support
+Besides Icecast we now support SRT for streaming. It's still in beta since we didn't do an endurance test yet. A working SRT implementation of the server software [can be found here](https://github.com/oszuidwest/liquidsoap-ubuntu/tree/srt).
 
 For more about SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
