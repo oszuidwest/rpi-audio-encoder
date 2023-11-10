@@ -42,7 +42,7 @@ os_codename=$(grep '^UBUNTU_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '
 if [[ "$os_name" == "Ubuntu" && "$os_codename" == "jammy" ]]; then
     echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 else
-    echo "Error: This script only supports Ubuntu 22.04 Jammy Jellyfish."
+    echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n"
     exit 1
 fi
 
