@@ -35,8 +35,16 @@ cat << "EOF"
 /_____\__,_|_|\__,_|   \/  \/ \___||___/\__| |_|    |_|  |_|
 EOF
 
-# Hi!
-echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
+# Hi! Let's check the OS
+os_name=$(grep '^NAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
+os_codename=$(grep '^UBUNTU_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
+
+if [[ "$os_name" == "Ubuntu" && "$os_codename" == "jammy" ]]; then
+    echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
+else
+    echo "Error: This script only supports Ubuntu 22.04 Jammy Jellyfish."
+    exit 1
+fi
 
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
@@ -67,16 +75,6 @@ fi
 if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|ogg/flac)$ ]]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
   exit 1
-fi
-
-# Expand filesystem
-if command -v raspi-config > /dev/null
-then
-    # Expand filesystem
-    echo -e "${BLUE}►► Expanding filesystem...${NC}"
-    raspi-config --expand-rootfs > /dev/null
-else
-    echo -e "${YELLOW}!! Command raspi-config not found. Cannot expand filesystem (this might not be needed).${NC}"
 fi
 
 # Timezone configuration
