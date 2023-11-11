@@ -85,11 +85,6 @@ if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
 
-# Remove shit
-apt -y -qq remove snapd xauth xdg-user-dirs libx11-6 bluez avahi-daemon open-iscsi 
-apt -y -qq autoremove
-### DIRTY. REFACTOR THIS ^^^^
-
 # Check if logrotate should be installed
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # Install ffmpeg, supervisor and logrotate
