@@ -137,7 +137,7 @@ if [ "$OUTPUT_FORMAT" == "mp2" ]; then
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp2'
 elif [ "$OUTPUT_FORMAT" == "mp3" ]; then
-  FF_AUDIO_CODEC='libmp3lame -b:a 320k0'
+  FF_AUDIO_CODEC='libmp3lame -b:a 320k'
   FF_CONTENT_TYPE='audio/mpeg'
   FF_OUTPUT_FORMAT='mp3'
 elif [ "$OUTPUT_FORMAT" == "ogg/vorbis" ]; then
