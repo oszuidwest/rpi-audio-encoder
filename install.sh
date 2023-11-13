@@ -5,7 +5,7 @@ clear
 
 # Download the functions library
 if ! curl -s -o /tmp/functions.sh https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh; then
-  echo -e  "*** Failed to download functions library. Please check your network connection! ***"
+  echo -e  "*** Failed to download functions library. Please check your network connection! ***" >&2
   exit 1
 fi
 
@@ -42,7 +42,13 @@ os_codename=$(grep '^UBUNTU_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '
 if [[ "$os_name" == "Ubuntu" && "$os_codename" == "jammy" ]]; then
   echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 else
-  echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n"
+  echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n" >&2
+  exit 1
+fi
+
+# Check if the HiFiBerry is configured
+if ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
+  echo -e "${RED}No HiFiBerry card configured in the config.txt file. Exiting...${NC}\n" >&2
   exit 1
 fi
 
@@ -184,7 +190,7 @@ check_required_command ffmpeg supervisord
 # Check if the configuration file exists
 # @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
 if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
-  echo -e "${RED}Installation failed. /etc/supervisor/conf.d/stream.conf does not exist.${NC}"
+  echo -e "${RED}Installation failed. /etc/supervisor/conf.d/stream.conf does not exist.${NC}" >&2
   exit 1
 fi
 
