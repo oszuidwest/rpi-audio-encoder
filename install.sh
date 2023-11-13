@@ -47,9 +47,11 @@ else
 fi
 
 # Check if the HiFiBerry is configured
-if ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
-  echo -e "${RED}No HiFiBerry card configured in the config.txt file. Exiting...${NC}\n" >&2
-  exit 1
+if [ ! -f "/boot/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
+  if [ ! -f "/boot/firmware/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/firmware/config.txt"; then
+    echo -e "${RED}No HiFiBerry card configured in the config.txt file. Exiting...${NC}\n" >&2
+    exit 1
+  fi
 fi
 
 # Ask for input for variables
