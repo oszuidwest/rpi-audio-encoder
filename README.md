@@ -11,7 +11,11 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 - Gain root access with `sudo su`.
 - Download and execute the install script using `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`.
 
-⚠️ Note: A [significant issue exists with kernel versions 6.x when recording from a HiFiBerry using FFmpeg](https://github.com/raspberrypi/linux/issues/5709). Linux distributions with kernel 6.0 or newer are incompatible. We highly recommend Ubuntu 22.04 LTS with kernel 5.15. Raspbian 11 or 12, which ship with kernel 6.x, are not suitable. ⚠️ 
+⚠️ Note: A [significant issue exists with kernel versions 6.x when recording from a HiFiBerry using FFmpeg](https://github.com/raspberrypi/linux/issues/5709). Linux distributions with kernel 6.0 or newer are incompatible. We highly recommend Ubuntu 22.04 Server LTS with kernel 5.15. Raspbian 11 or 12, which ship with kernel 6.x, are not suitable. ⚠️ 
+
+# Post installation clean-up for Ubuntu 22.04 Server LTS 
+- You probably don't need WiFi. Disable it by adding `dtoverlay=disable-wifi` to `/boot/firmware/config.txt`
+- You probably don't need there tools. `apt remove bolt bluez ntfs-3g rsyslog telnet`
 
 # Configuring the Audio Processor
 - Connect the digital output of the audio processor to the HiFiBerry's input.
