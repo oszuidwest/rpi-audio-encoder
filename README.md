@@ -16,6 +16,7 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 # Post installation clean-up for Ubuntu 22.04 Server LTS 
 - You probably don't need WiFi. Disable it by adding `dtoverlay=disable-wifi` to `/boot/firmware/config.txt`
 - You probably don't need tools for Thunderbolt, Bluetooth, NTFS, Remote Syslogs and Telnet. Remove them with `apt remove bolt bluez ntfs-3g rsyslog telnet`
+- You probably don't need LXD for managing containerized applications and virtual machines. Remove it with `snap remove lxd`
 
 You can also speed-up booting by removing `optional: true` from eth0 in `/etc/netplan/50-cloud-init.yaml`.
 
