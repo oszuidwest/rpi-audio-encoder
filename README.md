@@ -37,7 +37,7 @@ Included audio encoding presets, limited to Icecast's support:
 - `ogg/flac`: Streams FLAC audio in an OGG wrapper at ~1200 kbit/s, representing the pinnacle of uncompressed audio quality.
 
 ### SRT Support
-In addition to Icecast, SRT streaming is supported. While stable, endurance testing is pending. Although Icecast support may eventually be phased out, SRT is currently being evaluated for reliability.
+In addition to Icecast, SRT streaming is supported. Icecast support may eventually be phased out. SRT had been thoroughly evaluated for reliability.
 
 Additional information on SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
