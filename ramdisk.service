@@ -4,11 +4,11 @@ After=local-fs.target
 
 [Service]
 Type=oneshot
-ExecStartPre=-/bin/mkdir -p /mnt/ramdisk /var/ramdisk_backup/
-ExecStart=-/bin/mount -t tmpfs -o size=100m tmpfs /mnt/ramdisk
-ExecStartPost=-/usr/bin/rsync -a /var/ramdisk_backup/ /mnt/ramdisk/
-ExecStop=-/usr/bin/rsync -a /mnt/ramdisk/ /var/ramdisk_backup/
-ExecStopPost=-/bin/umount /mnt/ramdisk
+ExecStartPre=/bin/mkdir -p /mnt/ramdisk /var/ramdisk_backup/
+ExecStart=/bin/mount -t tmpfs -o size=100m tmpfs /mnt/ramdisk
+ExecStartPost=/usr/bin/rsync -a /var/ramdisk_backup/ /mnt/ramdisk/
+ExecStop=/usr/bin/rsync -a --delete /mnt/ramdisk/ /var/ramdisk_backup/
+ExecStopPost=/bin/umount /mnt/ramdisk
 RemainAfterExit=yes
 
 [Install]
