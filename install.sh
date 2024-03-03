@@ -68,14 +68,14 @@ fi
 ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
 ask_user "WEB_USER" "admin" "Choose a username for the web interface" "str"
 ask_user "WEB_PASSWORD" "encoder" "Choose a password for the web interface" "str"
-ask_user "OUTPUT_FORMAT" "raw" "Choose output format: mp2, mp3, ogg/vorbis, or raw" "str"
+ask_user "OUTPUT_FORMAT" "wav" "Choose output format: mp2, mp3, ogg/vorbis, or wav" "str"
 ask_user "STREAM_HOST" "localhost" "Hostname or IP address of SRT server" "str"
 ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
 ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
 ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
 
 if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|raw)$ ]]; then
-  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'raw' are allowed."
+  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'wav' are allowed."
   exit 1
 fi
 
@@ -141,10 +141,10 @@ elif [ "$OUTPUT_FORMAT" == "ogg/vorbis" ]; then
   FF_AUDIO_CODEC='libvorbis -qscale:a 10'
   FF_CONTENT_TYPE='audio/ogg'
   FF_OUTPUT_FORMAT='ogg'
-elif [ "$OUTPUT_FORMAT" == "raw" ]; then
+elif [ "$OUTPUT_FORMAT" == "wav" ]; then
   FF_AUDIO_CODEC='pcm_s16le'
-  FF_CONTENT_TYPE='audio/raw'
-  FF_OUTPUT_FORMAT='s16le'
+  FF_CONTENT_TYPE='audio/x-wav'
+  FF_OUTPUT_FORMAT='wav'
 fi
 
 # Define output server for ffmpeg
