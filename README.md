@@ -34,7 +34,7 @@ Included audio encoding presets, limited to Icecast's support:
 - `mp2`: Streams MPEG-1 Audio Layer II audio at 384 kbit/s, regarded as the benchmark for compressed broadcast audio.
 - `mp3`: Streams MPEG-1 Audio Layer III audio at 320 kbit/s, the highest mp3 quality achievable.
 - `ogg/vorbis`: Streams OGG Vorbis audio at 500 kbit/s, the highest quality for ogg/vorbis.
-- `raw`: Streams uncompressed 16-bit Little Endian audio, the pinnacle of uncompressed audio quality.
+- `wav`: Streams uncompressed 16-bit Little Endian audio, the pinnacle of uncompressed audio quality.
 
 ### Icecast Support
 Looking for Icecast support? Check out [version 1.0](https://github.com/oszuidwest/rpi-audio-encoder/releases/tag/1.0.0). Icecast support was removed in version 2.0. SRT had been thoroughly evaluated for reliability.
