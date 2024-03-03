@@ -68,20 +68,14 @@ fi
 ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
 ask_user "WEB_USER" "admin" "Choose a username for the web interface" "str"
 ask_user "WEB_PASSWORD" "encoder" "Choose a password for the web interface" "str"
-ask_user "OUTPUT_FORMAT" "ogg/flac" "Choose output format: mp2, mp3, ogg/vorbis, or ogg/flac" "str"
-ask_user "OUTPUT_SERVER" "1" "Choose output server: type 1 for Icecast, type 2 for SRT" "num"
-ask_user "STREAM_HOST" "localhost" "Hostname or IP address of Icecast or SRT server" "str"
-ask_user "STREAM_PORT" "8080" "Port of Icecast or SRT server" "num"
-ask_user "STREAM_PASSWORD" "hackme" "Password for Icecast or SRT server" "str"
-ask_user "STREAM_MOUNTPOINT" "studio" "Mountpoint for Icecast server or Stream ID for SRT server" "str"
+ask_user "OUTPUT_FORMAT" "raw" "Choose output format: mp2, mp3, ogg/vorbis, or raw" "str"
+ask_user "STREAM_HOST" "localhost" "Hostname or IP address of SRT server" "str"
+ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
+ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
+ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
 
-if ! [[ "$OUTPUT_SERVER" =~ ^[12]$ ]]; then
-  echo "Invalid value for OUTPUT_SERVER. Only '1' for Icecast or '2' for SRT are allowed."
-  exit 1
-fi
-
-if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|ogg/flac)$ ]]; then
-  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'ogg/flac' are allowed."
+if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|raw)$ ]]; then
+  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'raw' are allowed."
   exit 1
 fi
 
@@ -147,18 +141,14 @@ elif [ "$OUTPUT_FORMAT" == "ogg/vorbis" ]; then
   FF_AUDIO_CODEC='libvorbis -qscale:a 10'
   FF_CONTENT_TYPE='audio/ogg'
   FF_OUTPUT_FORMAT='ogg'
-elif [ "$OUTPUT_FORMAT" == "ogg/flac" ]; then
-  FF_AUDIO_CODEC='flac'
-  FF_CONTENT_TYPE='audio/ogg'
-  FF_OUTPUT_FORMAT='ogg'
+elif [ "$OUTPUT_FORMAT" == "raw" ]; then
+  FF_AUDIO_CODEC='pcm_s16le'
+  FF_CONTENT_TYPE='audio/raw'
+  FF_OUTPUT_FORMAT='s16le'
 fi
 
-# Define output server for ffmpeg based on OUTPUT_SERVER
-if [ "$OUTPUT_SERVER" == "1" ]; then
-  FF_OUTPUT_SERVER="icecast://source:$STREAM_PASSWORD@$STREAM_HOST:$STREAM_PORT/$STREAM_MOUNTPOINT"
-else
-  FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
-fi
+# Define output server for ffmpeg
+FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf

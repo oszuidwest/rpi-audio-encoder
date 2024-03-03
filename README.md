@@ -1,7 +1,7 @@
 # rpi-audio-encoder
-This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. The setup involves a Raspberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) for audio input. The system uses FFmpeg as an encoder, integrated with Supervisor for process management via a web interface. It supports audio streaming to either an Icecast2 or SRT server.
+This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. The setup involves a Raspberry Pi 4 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) for audio input. The system uses FFmpeg as an encoder, integrated with Supervisor for process management via a web interface. It supports audio streaming to a SRT server.
 
-The encoder, stationed in the studio, connects to the digital output of an Orban Optimod, enabling streaming to any Icecast or SRT server. Companion server software to complete the audio stack is available in [this repository](https://github.com/oszuidwest/liquidsoap-ubuntu).
+The encoder, stationed in the studio, connects to the digital output of an Orban Optimod, enabling streaming to any SRT server. Companion server software to complete the audio stack is available in [this repository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
 <img src="https://user-images.githubusercontent.com/6742496/221062672-7a073a71-3aa3-40c2-bf2f-e46a3988b0b4.png" width=60% height=60%>
 
@@ -34,10 +34,10 @@ Included audio encoding presets, limited to Icecast's support:
 - `mp2`: Streams MPEG-1 Audio Layer II audio at 384 kbit/s, regarded as the benchmark for compressed broadcast audio.
 - `mp3`: Streams MPEG-1 Audio Layer III audio at 320 kbit/s, the highest mp3 quality achievable.
 - `ogg/vorbis`: Streams OGG Vorbis audio at 500 kbit/s, the highest quality for ogg/vorbis.
-- `ogg/flac`: Streams FLAC audio in an OGG wrapper at ~1200 kbit/s, representing the pinnacle of uncompressed audio quality.
+- `raw`: Streams uncompressed 16-bit Little Endian audio, the pinnacle of uncompressed audio quality.
 
-### SRT Support
-In addition to Icecast, SRT streaming is supported. Icecast support may eventually be phased out. SRT had been thoroughly evaluated for reliability.
+### Icecast Support
+Looking for Icecast support? Check out [version 1.0](https://github.com/oszuidwest/rpi-audio-encoder/releases/tag/1.0.0). Icecast support was removed in version 2.0. SRT had been thoroughly evaluated for reliability.
 
 Additional information on SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
