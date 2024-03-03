@@ -74,7 +74,7 @@ ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
 ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
 ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
 
-if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|raw)$ ]]; then
+if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg/vorbis|wav)$ ]]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg/vorbis', or 'wav' are allowed."
   exit 1
 fi
