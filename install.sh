@@ -1,30 +1,60 @@
 #!/usr/bin/env bash
 
-# Initialize the environment
+# Set-up the functions library
+FUNCTIONS_LIB_PATH="/tmp/functions.sh"
+FUNCTIONS_LIB_URL="https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh"
+
+# Set-up RAM disk
+RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
+RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
+RAMDISK_PATH="/mnt/ramdisk"
+
+# General Raspberry Pi configuration
+CONFIG_FILE_PATHS=("/boot/firmware/config.txt" "/boot/config.txt")
+FIRST_IP=$(hostname -I | awk '{print $1}')
+
+# Start with a clean terminal
 clear
-rm -f /tmp/functions.sh
-if ! curl -s -o /tmp/functions.sh https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh; then
-  echo "*** Failed to download functions library. Please check your network connection! ***"
+
+# Remove old functions library and download the latest version
+rm -f "$FUNCTIONS_LIB_PATH"
+if ! curl -s -o "$FUNCTIONS_LIB_PATH" "$FUNCTIONS_LIB_URL"; then
+  echo -e "*** Failed to download functions library. Please check your network connection! ***"
   exit 1
 fi
 
 # Source the functions file
-source /tmp/functions.sh
+# shellcheck source=/tmp/functions.sh
+source "$FUNCTIONS_LIB_PATH"
 
 # Set color variables
 set_colors
 
-# Check if we are root
+# Check if running as root
 are_we_root
 
 # Check if this is Linux
 is_this_linux
 is_this_os_64bit
 
-# Check if we are running on a Raspberry Pi 3 or newer
-check_rpi_model 3
+# Check if we are running on a Raspberry Pi 4 or newer
+check_rpi_model 4
 
-# Something fancy for the sysadmin
+# Determine the correct config file path
+CONFIG_FILE=""
+for path in "${CONFIG_FILE_PATHS[@]}"; do
+  if [ -f "$path" ]; then
+    CONFIG_FILE="$path"
+    break
+  fi
+done
+
+if [ -z "$CONFIG_FILE" ]; then
+  echo -e "${RED}Error: config.txt not found in known locations.${NC}"
+  exit 1
+fi
+
+# Banner
 cat << "EOF"
  ______     _     ___          __       _     ______ __  __ 
 |___  /    (_)   | \ \        / /      | |   |  ____|  \/  |
@@ -34,7 +64,7 @@ cat << "EOF"
 /_____\__,_|_|\__,_|   \/  \/ \___||___/\__| |_|    |_|  |_|
 EOF
 
-# Hi!
+# Greeting
 echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 
 # Check if the HiFiBerry is configured
@@ -140,6 +170,14 @@ fi
 
 # Define output server for ffmpeg
 FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
+
+# Add RAM disk
+echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
+rm -f "$RAMDISK_SERVICE_PATH" > /dev/null
+curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
+systemctl daemon-reload > /dev/null
+systemctl enable ramdisk > /dev/null
+systemctl start ramdisk
 
 # Create the configuration file for supervisor
 cat << EOF > /etc/supervisor/conf.d/stream.conf

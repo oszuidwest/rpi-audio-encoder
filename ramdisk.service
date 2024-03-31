@@ -1,0 +1,12 @@
+[Unit]
+Description=RAM disk for encoder logs
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/mkdir -p /mnt/ramdisk
+ExecStart=/bin/mount -t tmpfs -o size=256m tmpfs /mnt/ramdisk
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
