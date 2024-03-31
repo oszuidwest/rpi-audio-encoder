@@ -129,9 +129,9 @@ if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   cat << EOF > /etc/logrotate.d/stream
 $LOG_FILE {
   daily
-  rotate 30
+  rotate 14
   copytruncate
-  nocompress
+  compress
   missingok
   notifempty
 }
