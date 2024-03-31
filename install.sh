@@ -68,11 +68,9 @@ EOF
 echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 
 # Check if the HiFiBerry is configured
-if [ ! -f "/boot/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
-  if [ ! -f "/boot/firmware/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/firmware/config.txt"; then
-    echo -e "${RED}No HiFiBerry card configured in the config.txt file. Exiting...${NC}\n" >&2
-    exit 1
-  fi
+if ! grep -q "^dtoverlay=hifiberry" "$CONFIG_FILE"; then
+  echo -e "${RED}No HiFiBerry card configured in the $CONFIG_FILE file. Exiting...${NC}\n" >&2
+  exit 1
 fi
 
 # Ask for input for variables
@@ -110,10 +108,8 @@ fi
 
 # Check if logrotate should be installed
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
-  # Install ffmpeg, supervisor and logrotate
   install_packages silent ffmpeg supervisor logrotate
 else
-  # Install ffmpeg and supervisor
   install_packages silent ffmpeg supervisor
 fi
 
@@ -217,6 +213,6 @@ fi
 
 # Fin 
 echo -e "\n${GREEN}✓ Success!${NC}"
-echo -e "Reboot this device and streaming to ${BOLD}$STREAM_HOST${NC} should start."
-echo -e "You can connect to it's IP in the brower on port ${BOLD}$WEB_PORT${NC}."
+echo -e "Reboot this device and streaming to $STREAM_HOST should start."
+echo -e "You can connect to it's IP in the brower on ${BOLD}http://${FIRST_IP}:$WEB_PORT${NC}."
 echo -e "The user is ${BOLD}$WEB_USER${NC} and the password you choose is ${BOLD}$WEB_PASSWORD${NC}.\n"
