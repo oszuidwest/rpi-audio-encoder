@@ -6,12 +6,13 @@ FUNCTIONS_LIB_URL="https://raw.githubusercontent.com/oszuidwest/bash-functions/m
 
 # Set-up RAM disk
 RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
-RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
+RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/ramdisk/ramdisk.service"
 RAMDISK_PATH="/mnt/ramdisk"
 
 # Set-up FFmpeg and Supervisor
 LOGROTATE_CONFIG_PATH="/etc/logrotate.d/stream"
 STREAM_CONFIG_PATH="/etc/supervisor/conf.d/stream.conf"
+STREAM_LOG_PATH="/var/log/ffmpeg/stream.log"
 SUPERVISOR_CONFIG_PATH="/etc/supervisor/supervisord.conf"
 
 # General Raspberry Pi configuration
@@ -80,13 +81,7 @@ fi
 
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
-ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg in a log file? (y/n)" "y/n"
-
-# Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
-if [ "${SAVE_OUTPUT}" == "y" ]; then
-  ask_user "LOG_FILE" "/var/log/ffmpeg/stream.log" "Which log file?" "str"
-  ask_user "LOG_ROTATION" "y" "Do you want log rotation (daily)?" "y/n"
-fi
+ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg to a log file? (y/n)" "y/n"
 
 # Always ask these
 ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
@@ -111,8 +106,8 @@ if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
 
-# Check if logrotate should be installed
-if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
+# Install dependencies
+if [ "$SAVE_OUTPUT" == "y" ]; then
   install_packages silent ffmpeg supervisor logrotate
 else
   install_packages silent ffmpeg supervisor
@@ -120,19 +115,18 @@ fi
 
 # Check if 'SAVE_OUTPUT' is set to 'y'
 if [ "$SAVE_OUTPUT" == "y" ]; then
-  # Parse the value of 'LOG_FILE' to just the directory
-  LOG_DIR=$(dirname "$LOG_FILE")
+  # Parse the value of 'STREAM_LOG_PATH' to just the directory
+  STREAM_LOG_DIR=$(dirname "$STREAM_LOG_PATH")
   # If the directory doesn't exist, create it
-  if [ ! -d "$LOG_DIR" ]; then
-    mkdir -p "$LOG_DIR"
+  if [ ! -d "$STREAM_LOG_DIR" ]; then
+    mkdir -p "$STREAM_LOG_DIR"
   fi
 fi
 
-# Check if SAVE_OUTPUT is 'y' and LOG_ROTATION is 'y'
-if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
-  # If is is, configure logrotate
+# Set-up logrotate if logging is enabled
+if [ "$SAVE_OUTPUT" == "y" ]; then
   cat << EOF > $LOGROTATE_CONFIG_PATH
-$LOG_FILE {
+$STREAM_LOG_PATH {
   daily
   rotate 14
   copytruncate
@@ -145,7 +139,7 @@ fi
 
 # Let ffmpeg write to /dev/null if logging is disabled
 if [ "$SAVE_OUTPUT" == "y" ]; then
-  LOG_PATH="$LOG_FILE"
+  LOG_PATH="$STREAM_LOG_PATH"
 else
   LOG_PATH="/dev/null"
 fi
@@ -179,6 +173,14 @@ curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
 systemctl daemon-reload > /dev/null
 systemctl enable ramdisk > /dev/null
 systemctl start ramdisk
+
+# Put FFmpeg logs on RAM disk
+echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
+if [ -d "$STREAM_LOG_DIR" ]; then
+  echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
+  rm -rf "$STREAM_LOG_DIR"
+fi
+ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
 
 # Create the configuration file for supervisor
 cat << EOF > $STREAM_CONFIG_PATH
