@@ -34,16 +34,8 @@ cat << "EOF"
 /_____\__,_|_|\__,_|   \/  \/ \___||___/\__| |_|    |_|  |_|
 EOF
 
-# Hi! Let's check the OS
-os_name=$(grep '^NAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
-os_codename=$(grep '^UBUNTU_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
-
-if [[ "$os_name" == "Ubuntu" && "$os_codename" == "jammy" ]]; then
-  echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
-else
-  echo -e "${RED}This script only supports Ubuntu 22.04 LTS! Exiting...${NC}\n" >&2
-  exit 1
-fi
+# Hi!
+echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 
 # Check if the HiFiBerry is configured
 if [ ! -f "/boot/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
