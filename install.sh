@@ -9,6 +9,11 @@ RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
 RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
 RAMDISK_PATH="/mnt/ramdisk"
 
+# Set-up FFmpeg and Supervisor
+LOGROTATE_CONFIG_PATH="/etc/logrotate.d/stream"
+STREAM_CONFIG_PATH="/etc/supervisor/conf.d/stream.conf"
+SUPERVISOR_CONFIG_PATH="/etc/supervisor/supervisord.conf"
+
 # General Raspberry Pi configuration
 CONFIG_FILE_PATHS=("/boot/firmware/config.txt" "/boot/config.txt")
 FIRST_IP=$(hostname -I | awk '{print $1}')
@@ -126,7 +131,7 @@ fi
 # Check if SAVE_OUTPUT is 'y' and LOG_ROTATION is 'y'
 if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
   # If is is, configure logrotate
-  cat << EOF > /etc/logrotate.d/stream
+  cat << EOF > $LOGROTATE_CONFIG_PATH
 $LOG_FILE {
   daily
   rotate 14
@@ -176,7 +181,7 @@ systemctl enable ramdisk > /dev/null
 systemctl start ramdisk
 
 # Create the configuration file for supervisor
-cat << EOF > /etc/supervisor/conf.d/stream.conf
+cat << EOF > $STREAM_CONFIG_PATH
   [program:encoder]
   command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT '$FF_OUTPUT_SERVER'"
   # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
@@ -190,15 +195,15 @@ cat << EOF > /etc/supervisor/conf.d/stream.conf
 EOF
 
 # Configure the web interface
-if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
+if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
   sed -i "/\[supervisord\]/i\
   [inet_http_server]\n\
   port = 0.0.0.0:$WEB_PORT\n\
   username = $WEB_USER\n\
   password = $WEB_PASSWORD\n\
-  " /etc/supervisor/supervisord.conf
+  " $SUPERVISOR_CONFIG_PATH
   # Tidy up file after wrting to it
-  sed -i 's/^[ \t]*//' /etc/supervisor/supervisord.conf
+  sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
 fi
 
 # Check the installation of ffmpeg and supervisord
@@ -206,8 +211,8 @@ check_required_command ffmpeg supervisord
 
 # Check if the configuration file exists
 # @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
-if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
-  echo -e "${RED}Installation failed. /etc/supervisor/conf.d/stream.conf does not exist.${NC}" >&2
+if [ ! -f $STREAM_CONFIG_PATH ]; then
+  echo -e "${RED}Installation failed. $STREAM_CONFIG_PATH does not exist.${NC}" >&2
   exit 1
 fi
 
