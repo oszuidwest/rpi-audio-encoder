@@ -13,12 +13,13 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 
 ⚠️ Note: A [significant issue exists with kernel versions 6.0 - 6.5 when recording from a HiFiBerry using FFmpeg](https://github.com/raspberrypi/linux/issues/5709). Linux distributions with kernel 6.0 to 6.5 are incompatible. We highly recommend Ubuntu 22.04 Server LTS with kernel 5.15 or Raspbian 12 with kernel 6.6 or newer.
 
-# Post installation clean-up for Ubuntu 22.04 Server LTS 
+# Post installation clean-up
 - You probably don't need WiFi. Disable it by adding `dtoverlay=disable-wifi` to `/boot/firmware/config.txt`
 - You probably don't need tools for Thunderbolt, Bluetooth, NTFS, Remote Syslogs and Telnet. Remove them with `apt remove bolt bluez ntfs-3g rsyslog telnet`
-- You probably don't need LXD for managing containerized applications and virtual machines. Remove it with `snap remove lxd`
 
-You can also speed-up booting by removing `optional: true` from eth0 in `/etc/netplan/50-cloud-init.yaml`.
+On Ubuntu 22.04:
+- You probably don't need LXD for managing containerized applications and virtual machines. Remove it with `snap remove lxd`
+- You can speed-up booting by removing `optional: true` from eth0 in `/etc/netplan/50-cloud-init.yaml`.
 
 # Configuring the Audio Processor
 - Connect the digital output of the audio processor to the HiFiBerry's input.
