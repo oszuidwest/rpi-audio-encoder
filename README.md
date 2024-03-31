@@ -38,7 +38,7 @@ Included audio encoding presets, limited to Icecast's support:
 - `wav`: Streams uncompressed 16-bit Little Endian audio, the pinnacle of uncompressed audio quality.
 
 ### Icecast Support
-Icecast support was removed in version 2.0. SRT has been thoroughly evaluated for reliability. [Version 1.0](https://github.com/oszuidwest/rpi-audio-encoder/releases/tag/1.0.0) with support for Icecast is still available for download.
+Icecast support was removed in version 2.0. SRT has been thoroughly evaluated for reliability. [Version 1.1](https://github.com/oszuidwest/rpi-audio-encoder/releases/tag/1.1.0) with support for Icecast is still available for download.
 
 Additional information on SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
