@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-# Start with a clean terminal
+# Initialize the environment
 clear
-
-# Download the functions library
+rm -f /tmp/functions.sh
 if ! curl -s -o /tmp/functions.sh https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh; then
-  echo -e  "*** Failed to download functions library. Please check your network connection! ***" >&2
+  echo "*** Failed to download functions library. Please check your network connection! ***"
   exit 1
 fi
 
