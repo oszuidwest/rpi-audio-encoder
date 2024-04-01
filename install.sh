@@ -1,30 +1,60 @@
 #!/usr/bin/env bash
 
-# Initialize the environment
+# Set-up the functions library
+FUNCTIONS_LIB_PATH="/tmp/functions.sh"
+FUNCTIONS_LIB_URL="https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh"
+
+# Set-up RAM disk
+RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
+RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
+RAMDISK_PATH="/mnt/ramdisk"
+
+# Set-up FFmpeg and Supervisor
+LOGROTATE_CONFIG_PATH="/etc/logrotate.d/stream"
+STREAM_CONFIG_PATH="/etc/supervisor/conf.d/stream.conf"
+STREAM_LOG_PATH="/var/log/ffmpeg/stream.log"
+SUPERVISOR_CONFIG_PATH="/etc/supervisor/supervisord.conf"
+
+# General Raspberry Pi configuration
+CONFIG_FILE_PATHS=("/boot/firmware/config.txt" "/boot/config.txt")
+FIRST_IP=$(hostname -I | awk '{print $1}')
+
+# Start with a clean terminal
 clear
-rm -f /tmp/functions.sh
-if ! curl -s -o /tmp/functions.sh https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh; then
-  echo "*** Failed to download functions library. Please check your network connection! ***"
+
+# Remove old functions library and download the latest version
+rm -f "$FUNCTIONS_LIB_PATH"
+if ! curl -s -o "$FUNCTIONS_LIB_PATH" "$FUNCTIONS_LIB_URL"; then
+  echo -e "*** Failed to download functions library. Please check your network connection! ***"
   exit 1
 fi
 
 # Source the functions file
-source /tmp/functions.sh
+# shellcheck source=/tmp/functions.sh
+source "$FUNCTIONS_LIB_PATH"
 
-# Set color variables
+# Set color variables and perform initial checks
 set_colors
-
-# Check if we are root
 are_we_root
-
-# Check if this is Linux
 is_this_linux
 is_this_os_64bit
+check_rpi_model 4
 
-# Check if we are running on a Raspberry Pi 3 or newer
-check_rpi_model 3
+# Determine the correct config file path
+CONFIG_FILE=""
+for path in "${CONFIG_FILE_PATHS[@]}"; do
+  if [ -f "$path" ]; then
+    CONFIG_FILE="$path"
+    break
+  fi
+done
 
-# Something fancy for the sysadmin
+if [ -z "$CONFIG_FILE" ]; then
+  echo -e "${RED}Error: config.txt not found in known locations.${NC}"
+  exit 1
+fi
+
+# Banner
 cat << "EOF"
  ______     _     ___          __       _     ______ __  __ 
 |___  /    (_)   | \ \        / /      | |   |  ____|  \/  |
@@ -34,26 +64,18 @@ cat << "EOF"
 /_____\__,_|_|\__,_|   \/  \/ \___||___/\__| |_|    |_|  |_|
 EOF
 
-# Hi!
+# Greeting
 echo -e "${GREEN}⎎ Audio encoder set-up for Raspberry Pi${NC}\n"
 
 # Check if the HiFiBerry is configured
-if [ ! -f "/boot/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/config.txt"; then
-  if [ ! -f "/boot/firmware/config.txt" ] || ! grep -q "^dtoverlay=hifiberry" "/boot/firmware/config.txt"; then
-    echo -e "${RED}No HiFiBerry card configured in the config.txt file. Exiting...${NC}\n" >&2
-    exit 1
-  fi
+if ! grep -q "^dtoverlay=hifiberry" "$CONFIG_FILE"; then
+  echo -e "${RED}No HiFiBerry card configured in the $CONFIG_FILE file. Exiting...${NC}\n" >&2
+  exit 1
 fi
 
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
-ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg in a log file? (y/n)" "y/n"
-
-# Only ask for the log file and log rotation if SAVE_OUTPUT is 'y'
-if [ "${SAVE_OUTPUT}" == "y" ]; then
-  ask_user "LOG_FILE" "/var/log/ffmpeg/stream.log" "Which log file?" "str"
-  ask_user "LOG_ROTATION" "y" "Do you want log rotation (daily)?" "y/n"
-fi
+ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg to a log file? (y/n)" "y/n"
 
 # Always ask these
 ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
@@ -78,34 +100,31 @@ if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
 
-# Check if logrotate should be installed
-if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
-  # Install ffmpeg, supervisor and logrotate
+# Install dependencies
+if [ "$SAVE_OUTPUT" == "y" ]; then
   install_packages silent ffmpeg supervisor logrotate
 else
-  # Install ffmpeg and supervisor
   install_packages silent ffmpeg supervisor
 fi
 
 # Check if 'SAVE_OUTPUT' is set to 'y'
 if [ "$SAVE_OUTPUT" == "y" ]; then
-  # Parse the value of 'LOG_FILE' to just the directory
-  LOG_DIR=$(dirname "$LOG_FILE")
+  # Parse the value of 'STREAM_LOG_PATH' to just the directory
+  STREAM_LOG_DIR=$(dirname "$STREAM_LOG_PATH")
   # If the directory doesn't exist, create it
-  if [ ! -d "$LOG_DIR" ]; then
-    mkdir -p "$LOG_DIR"
+  if [ ! -d "$STREAM_LOG_DIR" ]; then
+    mkdir -p "$STREAM_LOG_DIR"
   fi
 fi
 
-# Check if SAVE_OUTPUT is 'y' and LOG_ROTATION is 'y'
-if [ "$SAVE_OUTPUT" == "y" ] && [ "$LOG_ROTATION" == "y" ]; then
-  # If is is, configure logrotate
-  cat << EOF > /etc/logrotate.d/stream
-$LOG_FILE {
+# Set-up logrotate if logging is enabled
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  cat << EOF > $LOGROTATE_CONFIG_PATH
+$STREAM_LOG_PATH {
   daily
-  rotate 30
+  rotate 14
   copytruncate
-  nocompress
+  compress
   missingok
   notifempty
 }
@@ -114,7 +133,7 @@ fi
 
 # Let ffmpeg write to /dev/null if logging is disabled
 if [ "$SAVE_OUTPUT" == "y" ]; then
-  LOG_PATH="$LOG_FILE"
+  LOG_PATH="$STREAM_LOG_PATH"
 else
   LOG_PATH="/dev/null"
 fi
@@ -141,14 +160,34 @@ fi
 # Define output server for ffmpeg
 FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
 
+# Add RAM disk
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
+  rm -f "$RAMDISK_SERVICE_PATH" > /dev/null
+  curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
+  systemctl daemon-reload > /dev/null
+  systemctl enable ramdisk > /dev/null
+  systemctl start ramdisk
+fi
+
+# Put FFmpeg logs on RAM disk
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
+  if [ -d "$STREAM_LOG_DIR" ]; then
+    echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
+    rm -rf "$STREAM_LOG_DIR"
+    ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
+  fi
+fi
+
 # Create the configuration file for supervisor
-cat << EOF > /etc/supervisor/conf.d/stream.conf
+cat << EOF > $STREAM_CONFIG_PATH
   [program:encoder]
   command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT '$FF_OUTPUT_SERVER'"
   # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
   autostart=true
   autorestart=true
-  startretries=9999999999999999999999999999999999999999999999999
+  startretries=999999999
   redirect_stderr=true
   stdout_logfile_maxbytes=0MB
   stdout_logfile_backups=0
@@ -156,15 +195,15 @@ cat << EOF > /etc/supervisor/conf.d/stream.conf
 EOF
 
 # Configure the web interface
-if ! grep -q "\[inet_http_server\]" /etc/supervisor/supervisord.conf; then
+if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
   sed -i "/\[supervisord\]/i\
   [inet_http_server]\n\
   port = 0.0.0.0:$WEB_PORT\n\
   username = $WEB_USER\n\
   password = $WEB_PASSWORD\n\
-  " /etc/supervisor/supervisord.conf
+  " $SUPERVISOR_CONFIG_PATH
   # Tidy up file after wrting to it
-  sed -i 's/^[ \t]*//' /etc/supervisor/supervisord.conf
+  sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
 fi
 
 # Check the installation of ffmpeg and supervisord
@@ -172,13 +211,12 @@ check_required_command ffmpeg supervisord
 
 # Check if the configuration file exists
 # @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
-if [ ! -f /etc/supervisor/conf.d/stream.conf ]; then
-  echo -e "${RED}Installation failed. /etc/supervisor/conf.d/stream.conf does not exist.${NC}" >&2
+if [ ! -f $STREAM_CONFIG_PATH ]; then
+  echo -e "${RED}Installation failed. $STREAM_CONFIG_PATH does not exist.${NC}" >&2
   exit 1
 fi
 
-# Fin 
+# Completion message
 echo -e "\n${GREEN}✓ Success!${NC}"
-echo -e "Reboot this device and streaming to ${BOLD}$STREAM_HOST${NC} should start."
-echo -e "You can connect to it's IP in the brower on port ${BOLD}$WEB_PORT${NC}."
-echo -e "The user is ${BOLD}$WEB_USER${NC} and the password you choose is ${BOLD}$WEB_PASSWORD${NC}.\n"
+echo -e "Reboot to start streaming to $STREAM_HOST. Web interface: http://${FIRST_IP}:$WEB_PORT."
+echo -e "User: ${BOLD}$WEB_USER${NC}, password: ${BOLD}$WEB_PASSWORD${NC}.\n"

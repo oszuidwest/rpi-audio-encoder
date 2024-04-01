@@ -2,10 +2,10 @@ name: linter
 
 on:
   pull_request:
-    paths:
-      - '**.sh'
   push:
-    paths:
+    branches: 
+      - main
+    paths: 
       - '**.sh'
 
 jobs:
