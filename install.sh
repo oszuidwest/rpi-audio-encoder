@@ -6,7 +6,7 @@ FUNCTIONS_LIB_URL="https://raw.githubusercontent.com/oszuidwest/bash-functions/m
 
 # Set-up RAM disk
 RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
-RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/ramdisk/ramdisk.service"
+RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
 RAMDISK_PATH="/mnt/ramdisk"
 
 # Set-up FFmpeg and Supervisor
