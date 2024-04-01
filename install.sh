@@ -33,17 +33,11 @@ fi
 # shellcheck source=/tmp/functions.sh
 source "$FUNCTIONS_LIB_PATH"
 
-# Set color variables
+# Set color variables and perform initial checks
 set_colors
-
-# Check if running as root
 are_we_root
-
-# Check if this is Linux
 is_this_linux
 is_this_os_64bit
-
-# Check if we are running on a Raspberry Pi 4 or newer
 check_rpi_model 4
 
 # Determine the correct config file path
@@ -167,20 +161,24 @@ fi
 FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
 
 # Add RAM disk
-echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
-rm -f "$RAMDISK_SERVICE_PATH" > /dev/null
-curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
-systemctl daemon-reload > /dev/null
-systemctl enable ramdisk > /dev/null
-systemctl start ramdisk
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
+  rm -f "$RAMDISK_SERVICE_PATH" > /dev/null
+  curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
+  systemctl daemon-reload > /dev/null
+  systemctl enable ramdisk > /dev/null
+  systemctl start ramdisk
+fi
 
 # Put FFmpeg logs on RAM disk
-echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
-if [ -d "$STREAM_LOG_DIR" ]; then
-  echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
-  rm -rf "$STREAM_LOG_DIR"
+if [ "$SAVE_OUTPUT" == "y" ]; then
+  echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
+  if [ -d "$STREAM_LOG_DIR" ]; then
+    echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
+    rm -rf "$STREAM_LOG_DIR"
+    ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
+  fi
 fi
-ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
 
 # Create the configuration file for supervisor
 cat << EOF > $STREAM_CONFIG_PATH
@@ -189,7 +187,7 @@ cat << EOF > $STREAM_CONFIG_PATH
   # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
   autostart=true
   autorestart=true
-  startretries=9999999999999999999999999999999999999999999999999
+  startretries=999999999
   redirect_stderr=true
   stdout_logfile_maxbytes=0MB
   stdout_logfile_backups=0
@@ -218,8 +216,7 @@ if [ ! -f $STREAM_CONFIG_PATH ]; then
   exit 1
 fi
 
-# Fin 
+# Completion message
 echo -e "\n${GREEN}✓ Success!${NC}"
-echo -e "Reboot this device and streaming to $STREAM_HOST should start."
-echo -e "You can connect to it's IP in the brower on ${BOLD}http://${FIRST_IP}:$WEB_PORT${NC}."
-echo -e "The user is ${BOLD}$WEB_USER${NC} and the password you choose is ${BOLD}$WEB_PASSWORD${NC}.\n"
+echo -e "Reboot to start streaming to $STREAM_HOST. Web interface: http://${FIRST_IP}:$WEB_PORT."
+echo -e "User: ${BOLD}$WEB_USER${NC}, password: ${BOLD}$WEB_PASSWORD${NC}.\n"
