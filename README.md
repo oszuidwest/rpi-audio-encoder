@@ -3,7 +3,7 @@ This repository contains the audio streaming software for [ZuidWest FM](https://
 
 The encoder, stationed in the studio, connects to the digital output of an Orban Optimod, enabling streaming to any SRT server. Companion server software to complete the audio stack is available in [this repository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
-<img src="https://user-images.githubusercontent.com/6742496/221062672-7a073a71-3aa3-40c2-bf2f-e46a3988b0b4.png" width=60% height=60%>
+<img src="https://github.com/oszuidwest/rpi-audio-encoder/assets/6742496/9070cb82-23be-4a31-8342-6607545d50eb" alt="Raspberry Pi and SRT logo" width=60% height=60%>
 
 # Preparing the Raspberry Pi
 - Install Ubuntu Server 22.04 LTS 64-bit or Raspbian 12 64-bit.
