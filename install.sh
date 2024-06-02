@@ -35,7 +35,7 @@ source "$FUNCTIONS_LIB_PATH"
 
 # Set color variables and perform initial checks
 set_colors
-are_we_root
+check_user_privileges privileged
 is_this_linux
 is_this_os_64bit
 check_rpi_model 4
