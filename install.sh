@@ -76,6 +76,10 @@ fi
 # Ask for input for variables
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
 ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg to a log file? (y/n)" "y/n"
+ask_user "ENABLE_HEARTBEAT" "n" "Do you want to integrate heartbeat monitoring via UptimeRobot (y/n)" "y/n"
+if [ "$ENABLE_HEARTBEAT" == "y" ]; then
+  ask_user "HEARTBEAT_URL" "https://heartbeat.uptimerobot.com/xxx" "Enter the URL to get every minute for heartbeat monitoring" "str"
+fi
 
 # Always ask these
 ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
@@ -204,6 +208,17 @@ if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
   " $SUPERVISOR_CONFIG_PATH
   # Tidy up file after wrting to it
   sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
+fi
+
+# Heartbeat monitoring
+if [ "$ENABLE_HEARTBEAT" == "y" ]; then
+  echo -e "${BLUE}►► Setting up heartbeat monitoring...${NC}"
+  HEARTBEAT_CRONJOB="* * * * * wget --spider $HEARTBEAT_URL > /dev/null 2>&1"
+  if ! crontab -l | grep -F -- "$HEARTBEAT_CRONJOB" > /dev/null; then
+    (crontab -l 2>/dev/null; echo "$HEARTBEAT_CRONJOB") | crontab -
+  else
+    echo -e "${YELLOW}Heartbeat monitoring cronjob already exists. No changes made.${NC}"
+  fi
 fi
 
 # Check the installation of ffmpeg and supervisord
