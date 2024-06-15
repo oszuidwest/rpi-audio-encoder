@@ -6,7 +6,7 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 <img src="https://github.com/oszuidwest/rpi-audio-encoder/assets/6742496/9070cb82-23be-4a31-8342-6607545d50eb" alt="Raspberry Pi and SRT logo" width=60% height=60%>
 
 # Preparing the Raspberry Pi
-- Install Ubuntu Server 22.04 LTS 64-bit or Raspbian 12 64-bit.
+- Install Ubuntu Server 22.04 LTS 64-bit or Raspbian 12 64-bit. Ubuntu 24.04 is untested but will propbably work too.
 - Follow the guide at https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ for HiFiBerry setup.
 - Gain root access with `sudo su`.
 - Download and execute the install script using `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`.
