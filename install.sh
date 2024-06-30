@@ -162,7 +162,7 @@ elif [ "$OUTPUT_FORMAT" == "wav" ]; then
 fi
 
 # Define output server for ffmpeg
-FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
+FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&oheadbw=100&maxbw=-1&latency=5000000&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
 
 # Add RAM disk
 if [ "$SAVE_OUTPUT" == "y" ]; then
