@@ -222,7 +222,7 @@ if [ "$ENABLE_HEARTBEAT" == "y" ]; then
 fi
 
 # Check the installation of ffmpeg and supervisord
-check_required_command ffmpeg supervisord
+require_tool ffmpeg supervisord
 
 # Check if the configuration file exists
 # @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
