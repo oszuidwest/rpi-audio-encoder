@@ -158,7 +158,7 @@ elif [ "$OUTPUT_FORMAT" == "ogg" ]; then
 elif [ "$OUTPUT_FORMAT" == "wav" ]; then
   FF_AUDIO_CODEC='pcm_s16le'
   FF_CONTENT_TYPE='audio/x-wav'
-  FF_OUTPUT_FORMAT='wav'
+  FF_OUTPUT_FORMAT='matroska'
 fi
 
 # Define output server for ffmpeg
