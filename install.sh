@@ -161,9 +161,6 @@ elif [ "$OUTPUT_FORMAT" == "wav" ]; then
   FF_OUTPUT_FORMAT='matroska'
 fi
 
-# Define output server for ffmpeg
-FF_OUTPUT_SERVER="srt://$STREAM_HOST:$STREAM_PORT?pkt_size=1316&oheadbw=100&maxbw=-1&latency=10000000&mode=caller&transtype=live&streamid=$STREAM_MOUNTPOINT&passphrase=$STREAM_PASSWORD"
-
 # Add RAM disk
 if [ "$SAVE_OUTPUT" == "y" ]; then
   echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
@@ -186,27 +183,36 @@ fi
 
 # Create the configuration file for supervisor
 cat << EOF > $STREAM_CONFIG_PATH
-  [program:encoder]
-  command=bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i default:CARD=sndrpihifiberry -codec:a $FF_AUDIO_CODEC -content_type $FF_CONTENT_TYPE -vn -f $FF_OUTPUT_FORMAT '$FF_OUTPUT_SERVER'"
-  # Sleep 30 seconds before starting ffmpeg because the network or audio might not be available after a reboot. Works for now, should dig in the exact cause in the future.
-  autostart=true
-  autorestart=true
-  startretries=999999999
-  redirect_stderr=true
-  stdout_logfile_maxbytes=0MB
-  stdout_logfile_backups=0
-  stdout_logfile=$LOG_PATH
+[program:encoder]
+command=/bin/bash -c "sleep 30 && OUTPUT_URL='srt://%(ENV_OUTPUT_HOST)s:%(ENV_OUTPUT_PORT)s?pkt_size=1316&oheadbw=100&maxbw=-1&latency=%(ENV_OUTPUT_LATENCY)s&mode=caller&transtype=live&streamid=%(ENV_OUTPUT_STREAMID)s&passphrase=%(ENV_OUTPUT_PASSPHRASE)s' && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i '%(ENV_INPUT_DEVICE)s' -codec:a %(ENV_CODEC)s -content_type %(ENV_CONTENT_TYPE)s -vn -f %(ENV_FORMAT)s \"\$OUTPUT_URL\""
+environment=
+    INPUT_DEVICE='default:CARD=sndrpihifiberry',
+    CODEC='$FF_AUDIO_CODEC',
+    CONTENT_TYPE='$FF_CONTENT_TYPE',
+    FORMAT='$FF_OUTPUT_FORMAT',
+    OUTPUT_HOST='$STREAM_HOST',
+    OUTPUT_PORT='$STREAM_PORT',
+    OUTPUT_LATENCY='10000000',
+    OUTPUT_STREAMID='$STREAM_MOUNTPOINT',
+    OUTPUT_PASSPHRASE='$STREAM_PASSWORD'
+autostart=true
+autorestart=true
+startretries=999999999
+redirect_stderr=true
+stdout_logfile_maxbytes=0MB
+stdout_logfile_backups=0
+stdout_logfile=$LOG_PATH
 EOF
 
 # Configure the web interface
 if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
   sed -i "/\[supervisord\]/i\
-  [inet_http_server]\n\
-  port = 0.0.0.0:$WEB_PORT\n\
-  username = $WEB_USER\n\
-  password = $WEB_PASSWORD\n\
-  " $SUPERVISOR_CONFIG_PATH
-  # Tidy up file after wrting to it
+[inet_http_server]\n\
+port = 0.0.0.0:$WEB_PORT\n\
+username = $WEB_USER\n\
+password = $WEB_PASSWORD\n\
+" $SUPERVISOR_CONFIG_PATH
+  # Tidy up file after writing to it
   sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
 fi
 
