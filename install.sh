@@ -184,7 +184,7 @@ fi
 # Create the configuration file for supervisor
 cat << EOF > $STREAM_CONFIG_PATH
 [program:encoder]
-command=/bin/bash -c "sleep 30 && OUTPUT_URL='srt://%(ENV_OUTPUT_HOST)s:%(ENV_OUTPUT_PORT)s?pkt_size=1316&oheadbw=100&maxbw=-1&latency=%(ENV_OUTPUT_LATENCY)s&mode=caller&transtype=live&streamid=%(ENV_OUTPUT_STREAMID)s&passphrase=%(ENV_OUTPUT_PASSPHRASE)s' && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i '%(ENV_INPUT_DEVICE)s' -codec:a %(ENV_CODEC)s -content_type %(ENV_CONTENT_TYPE)s -vn -f %(ENV_FORMAT)s \"\$OUTPUT_URL\""
+command=/bin/bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i '%(ENV_INPUT_DEVICE)s' -codec:a %(ENV_CODEC)s -content_type %(ENV_CONTENT_TYPE)s -vn -f %(ENV_FORMAT)s 'srt://%(ENV_OUTPUT_HOST)s:%(ENV_OUTPUT_PORT)s?pkt_size=1316&oheadbw=100&maxbw=-1&latency=%(ENV_OUTPUT_LATENCY)s&mode=caller&transtype=live&streamid=%(ENV_OUTPUT_STREAMID)s&passphrase=%(ENV_OUTPUT_PASSPHRASE)s'"
 environment=
     INPUT_DEVICE='default:CARD=sndrpihifiberry',
     CODEC='$FF_AUDIO_CODEC',
