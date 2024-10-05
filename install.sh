@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Set-up the functions library
 FUNCTIONS_LIB_PATH="/tmp/functions.sh"
@@ -53,6 +54,9 @@ if [ -z "$CONFIG_FILE" ]; then
   echo -e "${RED}Error: config.txt not found in known locations.${NC}"
   exit 1
 fi
+
+# Check if the required tools are installed
+require_tool curl awk grep sed systemctl
 
 # Banner
 cat << "EOF"
