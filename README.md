@@ -6,20 +6,14 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 <img src="https://github.com/oszuidwest/rpi-audio-encoder/assets/6742496/9070cb82-23be-4a31-8342-6607545d50eb" alt="Raspberry Pi and SRT logo" width=60% height=60%>
 
 # Preparing the Raspberry Pi
-- Install Ubuntu Server 22.04 LTS 64-bit or Raspbian 12 64-bit. Ubuntu 24.04 is untested but will propbably work too.
+- Install Raspberry Pi OS Bookworm (64-bit).
 - Follow the guide at https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ for HiFiBerry setup.
 - Gain root access with `sudo su`.
 - Download and execute the install script using `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`.
 
-⚠️ **Warning:** There is a known issue with Raspberry Pi 4 and kernels newer than 5.1x. HiFiBerry cannot be used as a capture device with FFmpeg on these kernels. It works fine on Raspberry Pi 5. If using a Raspberry Pi 4, install Ubuntu 22.04 Server LTS with kernel 5.15. See the [upstream bug](https://github.com/raspberrypi/linux/issues/5709) for more details.
-
 # Post installation clean-up
 - You probably don't need WiFi. Disable it by adding `dtoverlay=disable-wifi` to `/boot/firmware/config.txt`
 - You probably don't need tools for Thunderbolt, Bluetooth, NTFS, Remote Syslogs and Telnet. Remove them with `apt remove bolt bluez ntfs-3g rsyslog telnet`
-
-On Ubuntu 22.04:
-- You probably don't need LXD for managing containerized applications and virtual machines. Remove it with `snap remove lxd`
-- You can speed-up booting by removing `optional: true` from eth0 in `/etc/netplan/50-cloud-init.yaml`.
 
 # Configuring the Audio Processor
 - Connect the digital output of the audio processor to the HiFiBerry's input.
