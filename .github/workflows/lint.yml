@@ -1,18 +1,21 @@
-name: linter
-
+name: Bash linter
 on:
-  pull_request:
   push:
-    branches: 
+    branches:
       - main
-    paths: 
+    paths:
+      - '**.sh'
+  pull_request:
+    paths:
       - '**.sh'
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Run ShellCheck
         uses: azohra/shell-linter@latest
