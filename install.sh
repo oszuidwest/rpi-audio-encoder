@@ -224,8 +224,8 @@ fi
 if [ "$ENABLE_HEARTBEAT" == "y" ]; then
   echo -e "${BLUE}►► Setting up heartbeat monitoring...${NC}"
   HEARTBEAT_CRONJOB="* * * * * wget --spider $HEARTBEAT_URL > /dev/null 2>&1"
-  if ! crontab -l | grep -F -- "$HEARTBEAT_CRONJOB" > /dev/null; then
-    (crontab -l 2>/dev/null; echo "$HEARTBEAT_CRONJOB") | crontab -
+  if ! (crontab -l 2>/dev/null || true) | grep -F -- "$HEARTBEAT_CRONJOB" > /dev/null; then
+    (crontab -l 2>/dev/null || true; echo "$HEARTBEAT_CRONJOB") | crontab -
   else
     echo -e "${YELLOW}Heartbeat monitoring cronjob already exists. No changes made.${NC}"
   fi
