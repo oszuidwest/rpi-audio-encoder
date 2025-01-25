@@ -1,5 +1,5 @@
 # rpi-audio-encoder
-This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) in the Netherlands. The setup involves a Raspberry Pi 4 or 5 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) or [HiFiBerry DAC+ ADC](https://www.hifiberry.com/shop/boards/dealing-with-blocked-p5-holes-8/) for audio input. The system uses FFmpeg as an encoder, integrated with Supervisor for process management via a web interface. It supports audio streaming to a SRT server.
+This repository contains the audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radio Rucphen](https://www.rucphenrtv.nl/) in the Netherlands. The setup involves a Raspberry Pi 4 or 5 and a [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) or [HiFiBerry DAC+ ADC](https://www.hifiberry.com/shop/boards/dealing-with-blocked-p5-holes-8/) for audio input. The system uses FFmpeg as an encoder, integrated with Supervisor for process management via a web interface. It supports audio streaming to a SRT server.
 
 The encoder, stationed in the studio, connects to the digital output of an Orban Optimod, enabling streaming to any SRT server. Companion server software to complete the audio stack is available in [this repository](https://github.com/oszuidwest/liquidsoap-ubuntu).
 
@@ -31,10 +31,8 @@ Included audio encoding presets:
 - `ogg`: Streams OGG Vorbis audio at 500 kbit/s, the highest quality for ogg/vorbis.
 - `wav`: Streams uncompressed 16-bit Little Endian audio, the pinnacle of uncompressed audio quality.
 
-### Icecast Support
-Icecast support was removed in version 2.0. SRT has been thoroughly evaluated for reliability. [Version 1.1](https://github.com/oszuidwest/rpi-audio-encoder/releases/tag/1.1.0) with support for Icecast is still available for download.
-
-Additional information on SRT:
+### No More Icecast Support
+Icecast support was removed in 2024. SRT has been thoroughly evaluated for reliability. Additional information on SRT:
 - SRT overview: https://datatracker.ietf.org/meeting/107/materials/slides-107-dispatch-srt-overview-01
 - SRT deployment guide: https://www.vmix.com/download/srt_alliance_deployment_guide.pdf
 - SRT 101 video: https://www.youtube.com/watch?v=e5YLItNG3lA
