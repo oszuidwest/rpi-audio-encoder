@@ -129,7 +129,7 @@ fi
 
 # Set-up logrotate if logging is enabled
 if [ "$SAVE_OUTPUT" == "y" ]; then
-  cat << EOF > $LOGROTATE_CONFIG_PATH
+  cat << EOF > "$LOGROTATE_CONFIG_PATH"
 $STREAM_LOG_PATH {
   daily
   rotate 14
@@ -180,15 +180,18 @@ fi
 # Put FFmpeg logs on RAM disk
 if [ "$SAVE_OUTPUT" == "y" ]; then
   echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
-  if [ -d "$STREAM_LOG_DIR" ]; then
+  # Remove existing directory or symlink safely
+  if [ -L "$STREAM_LOG_DIR" ]; then
+    rm -f "$STREAM_LOG_DIR"
+  elif [ -d "$STREAM_LOG_DIR" ]; then
     echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
     rm -rf "$STREAM_LOG_DIR"
-    ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
   fi
+  ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
 fi
 
 # Create the configuration file for supervisor
-cat << EOF > $STREAM_CONFIG_PATH
+cat << EOF > "$STREAM_CONFIG_PATH"
 [program:encoder]
 command=/bin/bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i '%(ENV_INPUT_DEVICE)s' -codec:a %(ENV_CODEC)s -content_type %(ENV_CONTENT_TYPE)s -vn -f %(ENV_FORMAT)s 'srt://%(ENV_OUTPUT_HOST)s:%(ENV_OUTPUT_PORT)s?pkt_size=1316&oheadbw=100&maxbw=-1&latency=%(ENV_OUTPUT_LATENCY)s&mode=caller&transtype=live&streamid=%(ENV_OUTPUT_STREAMID)s&passphrase=%(ENV_OUTPUT_PASSPHRASE)s'"
 environment=
@@ -209,24 +212,26 @@ stdout_logfile_maxbytes=0MB
 stdout_logfile_backups=0
 stdout_logfile=$LOG_PATH
 EOF
+chmod 600 "$STREAM_CONFIG_PATH"
 
 # Configure the web interface
-if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
+if ! grep -q "\[inet_http_server\]" "$SUPERVISOR_CONFIG_PATH"; then
   sed -i "/\[supervisord\]/i\
 [inet_http_server]\n\
 port = 0.0.0.0:$WEB_PORT\n\
 username = $WEB_USER\n\
 password = $WEB_PASSWORD\n\
-" $SUPERVISOR_CONFIG_PATH
+" "$SUPERVISOR_CONFIG_PATH"
   # Tidy up file after writing to it
-  sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
+  sed -i 's/^[ \t]*//' "$SUPERVISOR_CONFIG_PATH"
+  chmod 600 "$SUPERVISOR_CONFIG_PATH"
 fi
 
 # Heartbeat monitoring
 if [ "$ENABLE_HEARTBEAT" == "y" ]; then
   echo -e "${BLUE}►► Setting up heartbeat monitoring...${NC}"
-  HEARTBEAT_CRONJOB="* * * * * wget --spider $HEARTBEAT_URL > /dev/null 2>&1"
-  if ! (crontab -l 2>/dev/null || true) | grep -F -- "$HEARTBEAT_CRONJOB" > /dev/null; then
+  HEARTBEAT_CRONJOB="* * * * * wget --spider '$HEARTBEAT_URL' > /dev/null 2>&1"
+  if ! (crontab -l 2>/dev/null || true) | grep -F -- "$HEARTBEAT_URL" > /dev/null; then
     (crontab -l 2>/dev/null || true; echo "$HEARTBEAT_CRONJOB") | crontab -
   else
     echo -e "${YELLOW}Heartbeat monitoring cronjob already exists. No changes made.${NC}"
@@ -238,7 +243,7 @@ require_tool ffmpeg supervisord
 
 # Check if the configuration file exists
 # @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
-if [ ! -f $STREAM_CONFIG_PATH ]; then
+if [ ! -f "$STREAM_CONFIG_PATH" ]; then
   echo -e "${RED}Installation failed. $STREAM_CONFIG_PATH does not exist.${NC}" >&2
   exit 1
 fi
