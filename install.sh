@@ -90,15 +90,51 @@ ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
 ask_user "WEB_USER" "admin" "Choose a username for the web interface" "str"
 ask_user "WEB_PASSWORD" "encoder" "Choose a password for the web interface" "str"
 ask_user "OUTPUT_FORMAT" "wav" "Choose output format: mp2, mp3, ogg, or wav" "str"
-ask_user "STREAM_HOST" "localhost" "Hostname or IP address of SRT server" "str"
-ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
-ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
-ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
 
+# Validate OUTPUT_FORMAT early so we can use FF_OUTPUT_FORMAT in the tee muxer
 if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg|wav)$ ]]; then
   echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg', or 'wav' are allowed."
   exit 1
 fi
+
+# Determine output format for tee muxer
+case "$OUTPUT_FORMAT" in
+  mp2) FF_OUTPUT_FORMAT='mp2' ;;
+  mp3) FF_OUTPUT_FORMAT='mp3' ;;
+  ogg) FF_OUTPUT_FORMAT='ogg' ;;
+  wav) FF_OUTPUT_FORMAT='matroska' ;;
+esac
+
+# Collect configuration for SRT outputs
+declare -a SRT_OUTPUTS
+OUTPUT_COUNT=0
+ADD_OUTPUT="y"
+
+while [ "$ADD_OUTPUT" == "y" ]; do
+  ((OUTPUT_COUNT++))
+  echo -e "\n${BLUE}=== Configuration for output $OUTPUT_COUNT ===${NC}"
+  ask_user "STREAM_HOST" "localhost" "Hostname or IP address of SRT server" "str"
+  ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
+  ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
+  ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
+
+  # Build SRT URL (escape & for tee muxer)
+  srt_url="srt://${STREAM_HOST}:${STREAM_PORT}?pkt_size=1316\\&oheadbw=100\\&maxbw=-1\\&latency=10000000\\&mode=caller\\&transtype=live\\&streamid=${STREAM_MOUNTPOINT}\\&passphrase=${STREAM_PASSWORD}"
+  SRT_OUTPUTS+=("[f=${FF_OUTPUT_FORMAT}:onfail=ignore]${srt_url}")
+
+  ask_user "ADD_OUTPUT" "n" "Do you want to add another output? (y/n)" "y/n"
+done
+
+echo -e "\n${GREEN}Configured $OUTPUT_COUNT SRT output(s)${NC}"
+
+# Build tee muxer output string
+TEE_OUTPUT=""
+for i in "${!SRT_OUTPUTS[@]}"; do
+  if [ "$i" -gt 0 ]; then
+    TEE_OUTPUT+="|"
+  fi
+  TEE_OUTPUT+="${SRT_OUTPUTS[$i]}"
+done
 
 # Timezone configuration
 set_timezone Europe/Amsterdam
@@ -146,24 +182,13 @@ else
   LOG_PATH="/dev/null"
 fi
 
-# Set the ffmpeg variables based on the value of OUTPUT_FORMAT
-if [ "$OUTPUT_FORMAT" == "mp2" ]; then
-  FF_AUDIO_CODEC='libtwolame -b:a 384k -psymodel 4'
-  FF_CONTENT_TYPE='audio/mpeg'
-  FF_OUTPUT_FORMAT='mp2'
-elif [ "$OUTPUT_FORMAT" == "mp3" ]; then
-  FF_AUDIO_CODEC='libmp3lame -b:a 320k'
-  FF_CONTENT_TYPE='audio/mpeg'
-  FF_OUTPUT_FORMAT='mp3'
-elif [ "$OUTPUT_FORMAT" == "ogg" ]; then
-  FF_AUDIO_CODEC='libvorbis -qscale:a 10'
-  FF_CONTENT_TYPE='audio/ogg'
-  FF_OUTPUT_FORMAT='ogg'
-elif [ "$OUTPUT_FORMAT" == "wav" ]; then
-  FF_AUDIO_CODEC='pcm_s16le'
-  FF_CONTENT_TYPE='audio/x-wav'
-  FF_OUTPUT_FORMAT='matroska'
-fi
+# Set the ffmpeg audio codec based on OUTPUT_FORMAT
+case "$OUTPUT_FORMAT" in
+  mp2) FF_AUDIO_CODEC='libtwolame -b:a 384k -psymodel 4' ;;
+  mp3) FF_AUDIO_CODEC='libmp3lame -b:a 320k' ;;
+  ogg) FF_AUDIO_CODEC='libvorbis -qscale:a 10' ;;
+  wav) FF_AUDIO_CODEC='pcm_s16le' ;;
+esac
 
 # Add RAM disk
 if [ "$SAVE_OUTPUT" == "y" ]; then
@@ -188,17 +213,7 @@ fi
 # Create the configuration file for supervisor
 cat << EOF > $STREAM_CONFIG_PATH
 [program:encoder]
-command=/bin/bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i '%(ENV_INPUT_DEVICE)s' -codec:a %(ENV_CODEC)s -content_type %(ENV_CONTENT_TYPE)s -vn -f %(ENV_FORMAT)s 'srt://%(ENV_OUTPUT_HOST)s:%(ENV_OUTPUT_PORT)s?pkt_size=1316&oheadbw=100&maxbw=-1&latency=%(ENV_OUTPUT_LATENCY)s&mode=caller&transtype=live&streamid=%(ENV_OUTPUT_STREAMID)s&passphrase=%(ENV_OUTPUT_PASSPHRASE)s'"
-environment=
-    INPUT_DEVICE='default:CARD=sndrpihifiberry',
-    CODEC='$FF_AUDIO_CODEC',
-    CONTENT_TYPE='$FF_CONTENT_TYPE',
-    FORMAT='$FF_OUTPUT_FORMAT',
-    OUTPUT_HOST='$STREAM_HOST',
-    OUTPUT_PORT='$STREAM_PORT',
-    OUTPUT_LATENCY='10000000',
-    OUTPUT_STREAMID='$STREAM_MOUNTPOINT',
-    OUTPUT_PASSPHRASE='$STREAM_PASSWORD'
+command=/bin/bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i 'default:CARD=sndrpihifiberry' -codec:a $FF_AUDIO_CODEC -vn -f tee -use_fifo 1 '$TEE_OUTPUT'"
 autostart=true
 autorestart=true
 startretries=999999999
@@ -243,5 +258,5 @@ fi
 
 # Completion message
 echo -e "\n${GREEN}✓ Success!${NC}"
-echo -e "Reboot to start streaming to $STREAM_HOST. Web interface: http://${FIRST_IP}:$WEB_PORT."
+echo -e "Reboot to start streaming to $OUTPUT_COUNT SRT output(s). Web interface: http://${FIRST_IP}:$WEB_PORT."
 echo -e "User: ${BOLD}$WEB_USER${NC}, password: ${BOLD}$WEB_PASSWORD${NC}.\n"
