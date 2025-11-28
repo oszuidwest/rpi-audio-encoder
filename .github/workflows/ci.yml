@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.golangci.yml'
+      - '.golangci.yaml'
+  pull_request:
+    branches: ['main']
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.golangci.yml'
+      - '.golangci.yaml'
+
+env:
+  GO_VERSION: '1.25'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          go fmt ./...
+          git diff --exit-code
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Check for dead code
+        run: go run golang.org/x/tools/cmd/deadcode@latest ./...
