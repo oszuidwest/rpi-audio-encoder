@@ -1,0 +1,494 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"log"
+	"os/exec"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// FFmpegManager handles FFmpeg process lifecycle and manages the source
+// audio capture process along with multiple output encoding processes.
+// FFmpegManager is safe for concurrent use.
+type FFmpegManager struct {
+	config           *Config
+	sourceCmd        *exec.Cmd
+	sourceCancel     context.CancelFunc
+	sourceStdout     io.ReadCloser // Audio data from source FFmpeg
+	outputProcesses  map[string]*OutputProcess
+	state            EncoderState
+	stopChan         chan struct{}
+	mu               sync.RWMutex
+	lastError        string
+	startTime        time.Time
+	sourceRetryCount int
+	sourceRetryDelay time.Duration
+	audioLevels      AudioLevels
+}
+
+// NewFFmpegManager creates a new FFmpeg manager
+func NewFFmpegManager(config *Config) *FFmpegManager {
+	return &FFmpegManager{
+		config:           config,
+		state:            StateStopped,
+		outputProcesses:  make(map[string]*OutputProcess),
+		sourceRetryDelay: initialRetryDelay,
+	}
+}
+
+// getAudioInputArgs returns FFmpeg arguments for audio input based on platform
+// Returns input format options, then -i with the device
+func (m *FFmpegManager) getAudioInputArgs() []string {
+	input := m.config.GetAudioInput()
+	switch runtime.GOOS {
+	case "darwin":
+		if input == "" {
+			input = ":0"
+		}
+		// macOS: avfoundation uses device's native settings
+		return []string{"-f", "avfoundation", "-i", input}
+	default: // linux
+		if input == "" {
+			input = "default:CARD=sndrpihifiberry"
+		}
+		// Linux: ALSA with sample rate and channels before -i
+		return []string{
+			"-f", "alsa",
+			"-sample_rate", "48000",
+			"-channels", "2",
+			"-i", input,
+		}
+	}
+}
+
+// AudioDevice represents an available audio input device
+type AudioDevice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ListAudioDevices returns available audio input devices for the current platform
+func ListAudioDevices() []AudioDevice {
+	switch runtime.GOOS {
+	case "darwin":
+		return listMacOSDevices()
+	default:
+		return listLinuxDevices()
+	}
+}
+
+// listMacOSDevices lists audio devices on macOS using ffmpeg
+func listMacOSDevices() []AudioDevice {
+	cmd := exec.Command("ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", "")
+	// Note: ffmpeg -list_devices always returns non-zero exit code, so we ignore the error
+	// The device list is still in the output even though the command "fails"
+	output, err := cmd.CombinedOutput()
+	if err != nil && len(output) == 0 {
+		log.Printf("Failed to list macOS audio devices: %v", err)
+		return nil
+	}
+
+	var devices []AudioDevice
+	lines := strings.Split(string(output), "\n")
+	inAudioSection := false
+
+	// Pattern: [AVFoundation ...] [0] Device Name
+	devicePattern := regexp.MustCompile(`\[AVFoundation[^\]]*\]\s*\[(\d+)\]\s*(.+)`)
+
+	for _, line := range lines {
+		if strings.Contains(line, "AVFoundation audio devices:") {
+			inAudioSection = true
+			continue
+		}
+		if strings.Contains(line, "AVFoundation video devices:") {
+			inAudioSection = false
+			continue
+		}
+		if inAudioSection {
+			matches := devicePattern.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				devices = append(devices, AudioDevice{
+					ID:   ":" + matches[1],
+					Name: strings.TrimSpace(matches[2]),
+				})
+			}
+		}
+	}
+
+	return devices
+}
+
+// listLinuxDevices lists audio devices on Linux using arecord
+func listLinuxDevices() []AudioDevice {
+	cmd := exec.Command("arecord", "-l")
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback: return default HiFiBerry device
+		return []AudioDevice{{
+			ID:   "default:CARD=sndrpihifiberry",
+			Name: "HiFiBerry (default)",
+		}}
+	}
+
+	var devices []AudioDevice
+	lines := strings.Split(string(output), "\n")
+
+	// Pattern: card 0: sndrpihifiberry [snd_rpi_hifiberry_dac], device 0: ...
+	cardPattern := regexp.MustCompile(`card\s+(\d+):\s+(\w+)\s+\[([^\]]+)\]`)
+
+	for _, line := range lines {
+		matches := cardPattern.FindStringSubmatch(line)
+		if len(matches) == 4 {
+			cardName := matches[2]
+			description := matches[3]
+			devices = append(devices, AudioDevice{
+				ID:   "default:CARD=" + cardName,
+				Name: description,
+			})
+		}
+	}
+
+	if len(devices) == 0 {
+		// Fallback: return default device
+		devices = append(devices, AudioDevice{
+			ID:   "default",
+			Name: "Default Audio Device",
+		})
+	}
+
+	return devices
+}
+
+// GetState returns the current encoder state
+func (m *FFmpegManager) GetState() EncoderState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.state
+}
+
+// GetAudioLevels returns the current audio levels
+func (m *FFmpegManager) GetAudioLevels() AudioLevels {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.state != StateRunning {
+		return AudioLevels{Left: -60, Right: -60, PeakLeft: -60, PeakRight: -60}
+	}
+	return m.audioLevels
+}
+
+// GetStatus returns the current encoder status
+func (m *FFmpegManager) GetStatus() EncoderStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	uptime := ""
+	if m.state == StateRunning {
+		d := time.Since(m.startTime)
+		uptime = fmt.Sprintf("%dh %dm %ds", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+	}
+
+	runningOutputs := 0
+	for _, proc := range m.outputProcesses {
+		if proc.running {
+			runningOutputs++
+		}
+	}
+
+	return EncoderStatus{
+		State:            m.state,
+		Uptime:           uptime,
+		LastError:        m.lastError,
+		OutputCount:      runningOutputs,
+		SourceRetryCount: m.sourceRetryCount,
+		SourceMaxRetries: maxRetries,
+	}
+}
+
+// Start begins the source FFmpeg process and all enabled output processes
+func (m *FFmpegManager) Start() error {
+	m.mu.Lock()
+
+	if m.state == StateRunning || m.state == StateStarting {
+		m.mu.Unlock()
+		return fmt.Errorf("encoder already running")
+	}
+
+	m.state = StateStarting
+	m.stopChan = make(chan struct{})
+	m.sourceRetryCount = 0
+	m.sourceRetryDelay = initialRetryDelay
+	m.mu.Unlock()
+
+	go m.runSourceLoop()
+
+	return nil
+}
+
+// Stop stops all FFmpeg processes
+func (m *FFmpegManager) Stop() error {
+	m.mu.Lock()
+
+	if m.state == StateStopped || m.state == StateStopping {
+		m.mu.Unlock()
+		return nil
+	}
+
+	m.state = StateStopping
+
+	if m.stopChan != nil {
+		close(m.stopChan)
+	}
+	m.mu.Unlock()
+
+	m.stopAllOutputs()
+
+	m.mu.Lock()
+	if m.sourceCancel != nil {
+		m.sourceCancel()
+	}
+	if m.sourceCmd != nil && m.sourceCmd.Process != nil {
+		if err := m.sourceCmd.Process.Kill(); err != nil {
+			log.Printf("Failed to kill source process: %v", err)
+		}
+	}
+	m.mu.Unlock()
+
+	time.Sleep(500 * time.Millisecond)
+
+	m.mu.Lock()
+	m.state = StateStopped
+	m.sourceCmd = nil
+	m.sourceCancel = nil
+	m.mu.Unlock()
+
+	return nil
+}
+
+// Restart stops and starts the encoder
+func (m *FFmpegManager) Restart() error {
+	if err := m.Stop(); err != nil {
+		return err
+	}
+	time.Sleep(1 * time.Second)
+	return m.Start()
+}
+
+// runSourceLoop runs the source FFmpeg process with auto-restart
+func (m *FFmpegManager) runSourceLoop() {
+	for {
+		m.mu.Lock()
+		if m.state == StateStopping || m.state == StateStopped {
+			m.mu.Unlock()
+			return
+		}
+		m.mu.Unlock()
+
+		startTime := time.Now()
+		stderrOutput, err := m.runSource()
+		runDuration := time.Since(startTime)
+
+		m.mu.Lock()
+		if err != nil {
+			errMsg := err.Error()
+			if stderrOutput != "" {
+				errMsg = stderrOutput
+			}
+			m.lastError = errMsg
+			log.Printf("Source FFmpeg error: %s", errMsg)
+
+			if runDuration >= successThreshold {
+				m.sourceRetryCount = 0
+				m.sourceRetryDelay = initialRetryDelay
+			} else {
+				m.sourceRetryCount++
+			}
+
+			if m.sourceRetryCount >= maxRetries {
+				log.Printf("Source FFmpeg failed %d times, giving up", maxRetries)
+				m.state = StateStopped
+				m.lastError = fmt.Sprintf("Stopped after %d failed attempts: %s", maxRetries, errMsg)
+				m.mu.Unlock()
+				return
+			}
+		} else {
+			m.sourceRetryCount = 0
+			m.sourceRetryDelay = initialRetryDelay
+		}
+
+		if m.state == StateStopping || m.state == StateStopped {
+			m.mu.Unlock()
+			return
+		}
+
+		m.state = StateStarting
+		retryDelay := m.sourceRetryDelay
+		m.mu.Unlock()
+
+		log.Printf("Source stopped, waiting %v before restart (attempt %d/%d)...",
+			retryDelay, m.sourceRetryCount+1, maxRetries)
+		select {
+		case <-m.stopChan:
+			return
+		case <-time.After(retryDelay):
+			m.mu.Lock()
+			m.sourceRetryDelay *= 2
+			if m.sourceRetryDelay > maxRetryDelay {
+				m.sourceRetryDelay = maxRetryDelay
+			}
+			m.mu.Unlock()
+		}
+	}
+}
+
+// runSource executes the source FFmpeg process
+func (m *FFmpegManager) runSource() (string, error) {
+	// Audio filter for level metering: astats outputs to metadata, ametadata prints to stderr
+	audioFilter := "astats=metadata=1:reset=1,ametadata=mode=print:file=/dev/stderr"
+
+	// Build args: audio input (platform-specific) + output to stdout
+	inputArgs := m.getAudioInputArgs()
+	args := append(inputArgs,
+		"-hide_banner",
+		"-loglevel", "warning",
+		"-af", audioFilter,
+		"-f", "s16le",
+		"-acodec", "pcm_s16le",
+		"-ac", "2",
+		"-ar", "48000",
+		"pipe:1", // Output to stdout
+	)
+
+	log.Printf("Starting source FFmpeg: %s -> stdout", m.config.GetAudioInput())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+
+	// Capture stdout for audio data
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return "", err
+	}
+
+	// Use pipe for stderr to stream and parse audio levels
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		cancel()
+		return "", err
+	}
+
+	// Buffer to capture error messages
+	var stderrBuf bytes.Buffer
+
+	m.mu.Lock()
+	m.sourceCmd = cmd
+	m.sourceCancel = cancel
+	m.sourceStdout = stdoutPipe
+	m.state = StateRunning
+	m.startTime = time.Now()
+	m.lastError = ""
+	m.audioLevels = AudioLevels{Left: -60, Right: -60, PeakLeft: -60, PeakRight: -60}
+	m.mu.Unlock()
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	// Parse stderr in a goroutine
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Try to parse audio levels from ametadata output
+			if strings.HasPrefix(line, "lavfi.astats.") {
+				m.parseAudioLevel(line)
+			} else {
+				// Store non-level lines for error reporting
+				stderrBuf.WriteString(line + "\n")
+			}
+		}
+	}()
+
+	// Start distributor and outputs after brief delay
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		m.startEnabledOutputs()
+	}()
+
+	err = cmd.Wait()
+
+	m.mu.Lock()
+	m.sourceCmd = nil
+	m.sourceCancel = nil
+	m.sourceStdout = nil
+	m.mu.Unlock()
+
+	stderrOutput := extractLastError(stderrBuf.String())
+	return stderrOutput, err
+}
+
+// parseAudioLevel parses a single audio level line from ametadata
+func (m *FFmpegManager) parseAudioLevel(line string) {
+	// Expected format: lavfi.astats.1.RMS_level=-20.123 or lavfi.astats.1.Peak_level=-3.2
+	parts := strings.SplitN(line, "=", 2)
+	if len(parts) != 2 {
+		return
+	}
+
+	value, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return
+	}
+
+	// Clamp to reasonable range
+	if value < -60 {
+		value = -60
+	}
+	if value > 0 {
+		value = 0
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := parts[0]
+	switch {
+	case strings.Contains(key, ".1.RMS_level"):
+		m.audioLevels.Left = value
+		// For mono audio, copy to right channel as well
+		m.audioLevels.Right = value
+	case strings.Contains(key, ".2.RMS_level"):
+		m.audioLevels.Right = value
+	case strings.Contains(key, ".1.Peak_level"):
+		m.audioLevels.PeakLeft = value
+		// For mono audio, copy to right channel as well
+		m.audioLevels.PeakRight = value
+	case strings.Contains(key, ".2.Peak_level"):
+		m.audioLevels.PeakRight = value
+	}
+}
+
+// extractLastError extracts the last meaningful error line from FFmpeg stderr
+func extractLastError(stderr string) string {
+	lines := strings.Split(strings.TrimSpace(stderr), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			if len(line) > 200 {
+				return line[:200] + "..."
+			}
+			return line
+		}
+	}
+	return ""
+}

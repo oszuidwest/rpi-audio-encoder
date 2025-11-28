@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Set-up the functions library
-FUNCTIONS_LIB_PATH="/tmp/functions.sh"
+# Configuration
+GITHUB_REPO="oszuidwest/rpi-audio-encoder"
+ENCODER_SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/encoder.service"
+INSTALL_DIR="/usr/local/bin"
+SERVICE_PATH="/etc/systemd/system/encoder.service"
+
+# Functions library
+FUNCTIONS_LIB_PATH=$(mktemp)
 FUNCTIONS_LIB_URL="https://raw.githubusercontent.com/oszuidwest/bash-functions/main/common-functions.sh"
 
-# Set-up RAM disk
-RAMDISK_SERVICE_PATH="/etc/systemd/system/ramdisk.service"
-RAMDISK_SERVICE_URL="https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/ramdisk.service"
-RAMDISK_PATH="/mnt/ramdisk"
-
-# Set-up FFmpeg and Supervisor
-LOGROTATE_CONFIG_PATH="/etc/logrotate.d/stream"
-STREAM_CONFIG_PATH="/etc/supervisor/conf.d/stream.conf"
-STREAM_LOG_PATH="/var/log/ffmpeg/stream.log"
-SUPERVISOR_CONFIG_PATH="/etc/supervisor/supervisord.conf"
+# Clean up temporary file on exit
+trap 'rm -f "$FUNCTIONS_LIB_PATH"' EXIT
 
 # General Raspberry Pi configuration
 CONFIG_FILE_PATHS=("/boot/firmware/config.txt" "/boot/config.txt")
@@ -23,15 +21,14 @@ FIRST_IP=$(hostname -I | awk '{print $1}')
 # Start with a clean terminal
 clear
 
-# Remove old functions library and download the latest version
-rm -f "$FUNCTIONS_LIB_PATH"
+# Download the functions library
 if ! curl -s -o "$FUNCTIONS_LIB_PATH" "$FUNCTIONS_LIB_URL"; then
   echo -e "*** Failed to download functions library. Please check your network connection! ***"
   exit 1
 fi
 
 # Source the functions file
-# shellcheck source=/tmp/functions.sh
+# shellcheck source=/dev/null
 source "$FUNCTIONS_LIB_PATH"
 
 # Set color variables and perform initial checks
@@ -56,11 +53,11 @@ if [ -z "$CONFIG_FILE" ]; then
 fi
 
 # Check if the required tools are installed
-require_tool curl awk grep sed systemctl
+require_tool curl systemctl
 
 # Banner
 cat << "EOF"
- ______     _     ___          __       _     ______ __  __ 
+ ______     _     ___          __       _     ______ __  __
 |___  /    (_)   | \ \        / /      | |   |  ____|  \/  |
    / /_   _ _  __| |\ \  /\  / /__  ___| |_  | |__  | \  / |
   / /| | | | |/ _` | \ \/  \/ / _ \/ __| __| |  __| | |\/| |
@@ -77,186 +74,73 @@ if ! grep -q "^dtoverlay=hifiberry" "$CONFIG_FILE"; then
   exit 1
 fi
 
-# Ask for input for variables
+# Ask for OS updates
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
-ask_user "SAVE_OUTPUT" "y" "Do you want to save the output of ffmpeg to a log file? (y/n)" "y/n"
-ask_user "ENABLE_HEARTBEAT" "n" "Do you want to integrate heartbeat monitoring via UptimeRobot (y/n)" "y/n"
-if [ "$ENABLE_HEARTBEAT" == "y" ]; then
-  ask_user "HEARTBEAT_URL" "https://heartbeat.uptimerobot.com/xxx" "Enter the URL to get every minute for heartbeat monitoring" "str"
-fi
-
-# Always ask these
-ask_user "WEB_PORT" "90" "Choose a port for the web interface" "num"
-ask_user "WEB_USER" "admin" "Choose a username for the web interface" "str"
-ask_user "WEB_PASSWORD" "encoder" "Choose a password for the web interface" "str"
-ask_user "OUTPUT_FORMAT" "wav" "Choose output format: mp2, mp3, ogg, or wav" "str"
-
-# Validate OUTPUT_FORMAT early so we can use FF_OUTPUT_FORMAT in the tee muxer
-if ! [[ "$OUTPUT_FORMAT" =~ ^(mp2|mp3|ogg|wav)$ ]]; then
-  echo "Invalid input for OUTPUT_FORMAT. Only 'mp2', 'mp3', 'ogg', or 'wav' are allowed."
-  exit 1
-fi
-
-# Determine output format for tee muxer
-case "$OUTPUT_FORMAT" in
-  mp2) FF_OUTPUT_FORMAT='mp2' ;;
-  mp3) FF_OUTPUT_FORMAT='mp3' ;;
-  ogg) FF_OUTPUT_FORMAT='ogg' ;;
-  wav) FF_OUTPUT_FORMAT='matroska' ;;
-esac
-
-# Collect configuration for SRT outputs
-declare -a SRT_OUTPUTS
-OUTPUT_COUNT=0
-ADD_OUTPUT="y"
-
-while [ "$ADD_OUTPUT" == "y" ]; do
-  ((OUTPUT_COUNT++))
-  echo -e "\n${BLUE}=== Configuration for output $OUTPUT_COUNT ===${NC}"
-  ask_user "STREAM_HOST" "localhost" "Hostname or IP address of SRT server" "str"
-  ask_user "STREAM_PORT" "8080" "Port of SRT server" "num"
-  ask_user "STREAM_PASSWORD" "hackme" "Password for SRT server" "str"
-  ask_user "STREAM_MOUNTPOINT" "studio" "Stream ID for SRT server" "str"
-
-  # Build SRT URL (escape & for tee muxer)
-  srt_url="srt://${STREAM_HOST}:${STREAM_PORT}?pkt_size=1316\\&oheadbw=100\\&maxbw=-1\\&latency=10000000\\&mode=caller\\&transtype=live\\&streamid=${STREAM_MOUNTPOINT}\\&passphrase=${STREAM_PASSWORD}"
-  SRT_OUTPUTS+=("[f=${FF_OUTPUT_FORMAT}:onfail=ignore]${srt_url}")
-
-  ask_user "ADD_OUTPUT" "n" "Do you want to add another output? (y/n)" "y/n"
-done
-
-echo -e "\n${GREEN}Configured $OUTPUT_COUNT SRT output(s)${NC}"
-
-# Build tee muxer output string
-TEE_OUTPUT=""
-for i in "${!SRT_OUTPUTS[@]}"; do
-  if [ "$i" -gt 0 ]; then
-    TEE_OUTPUT+="|"
-  fi
-  TEE_OUTPUT+="${SRT_OUTPUTS[$i]}"
-done
 
 # Timezone configuration
 set_timezone Europe/Amsterdam
 
-# Check if the DO_UPDATES variable is set to 'y'
+# Run OS updates if requested
 if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
 
-# Install dependencies
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  install_packages silent ffmpeg supervisor logrotate
-else
-  install_packages silent ffmpeg supervisor
+# Install FFmpeg
+echo -e "${BLUE}►► Installing FFmpeg...${NC}"
+install_packages silent ffmpeg
+
+# Stop existing service if running
+if systemctl is-active --quiet encoder 2>/dev/null; then
+  echo -e "${BLUE}►► Stopping existing encoder service...${NC}"
+  systemctl stop encoder
 fi
 
-# Check if 'SAVE_OUTPUT' is set to 'y'
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  # Parse the value of 'STREAM_LOG_PATH' to just the directory
-  STREAM_LOG_DIR=$(dirname "$STREAM_LOG_PATH")
-  # If the directory doesn't exist, create it
-  if [ ! -d "$STREAM_LOG_DIR" ]; then
-    mkdir -p "$STREAM_LOG_DIR"
-  fi
+# Get latest release version from GitHub API
+echo -e "${BLUE}►► Fetching latest release information...${NC}"
+LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+if [ -z "$LATEST_RELEASE" ]; then
+  echo -e "${RED}Failed to fetch latest release version${NC}"
+  exit 1
 fi
+echo -e "${GREEN}✓ Latest version: ${LATEST_RELEASE}${NC}"
 
-# Set-up logrotate if logging is enabled
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  cat << EOF > $LOGROTATE_CONFIG_PATH
-$STREAM_LOG_PATH {
-  daily
-  rotate 14
-  copytruncate
-  compress
-  missingok
-  notifempty
-}
-EOF
+# Download encoder binary
+echo -e "${BLUE}►► Downloading encoder binary...${NC}"
+ENCODER_BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_RELEASE}/encoder-linux-arm64"
+if ! curl -L -o "${INSTALL_DIR}/encoder" "$ENCODER_BINARY_URL"; then
+  echo -e "${RED}Failed to download encoder binary${NC}"
+  exit 1
 fi
+chmod +x "${INSTALL_DIR}/encoder"
 
-# Let ffmpeg write to /dev/null if logging is disabled
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  LOG_PATH="$STREAM_LOG_PATH"
-else
-  LOG_PATH="/dev/null"
-fi
-
-# Set the ffmpeg audio codec based on OUTPUT_FORMAT
-case "$OUTPUT_FORMAT" in
-  mp2) FF_AUDIO_CODEC='libtwolame -b:a 384k -psymodel 4' ;;
-  mp3) FF_AUDIO_CODEC='libmp3lame -b:a 320k' ;;
-  ogg) FF_AUDIO_CODEC='libvorbis -qscale:a 10' ;;
-  wav) FF_AUDIO_CODEC='pcm_s16le' ;;
-esac
-
-# Add RAM disk
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  echo -e "${BLUE}►► Setting up RAM disk for logs...${NC}"
-  rm -f "$RAMDISK_SERVICE_PATH" > /dev/null
-  curl -s -o "$RAMDISK_SERVICE_PATH" "$RAMDISK_SERVICE_URL"
-  systemctl daemon-reload > /dev/null
-  systemctl enable ramdisk > /dev/null
-  systemctl start ramdisk
-fi
-
-# Put FFmpeg logs on RAM disk
-if [ "$SAVE_OUTPUT" == "y" ]; then
-  echo -e "${BLUE}►► Putting FFmpeg logs on the RAM disk...${NC}"
-  if [ -d "$STREAM_LOG_DIR" ]; then
-    echo -e "${YELLOW}Log directory exists. Removing it before creating the symlink.${NC}"
-    rm -rf "$STREAM_LOG_DIR"
-    ln -s "$RAMDISK_PATH" "$STREAM_LOG_DIR"
-  fi
-fi
-
-# Create the configuration file for supervisor
-cat << EOF > $STREAM_CONFIG_PATH
-[program:encoder]
-command=/bin/bash -c "sleep 30 && ffmpeg -f alsa -channels 2 -sample_rate 48000 -hide_banner -re -y -i 'default:CARD=sndrpihifiberry' -codec:a $FF_AUDIO_CODEC -vn -f tee -use_fifo 1 '$TEE_OUTPUT'"
-autostart=true
-autorestart=true
-startretries=999999999
-redirect_stderr=true
-stdout_logfile_maxbytes=0MB
-stdout_logfile_backups=0
-stdout_logfile=$LOG_PATH
-EOF
-
-# Configure the web interface
-if ! grep -q "\[inet_http_server\]" $SUPERVISOR_CONFIG_PATH; then
-  sed -i "/\[supervisord\]/i\
-[inet_http_server]\n\
-port = 0.0.0.0:$WEB_PORT\n\
-username = $WEB_USER\n\
-password = $WEB_PASSWORD\n\
-" $SUPERVISOR_CONFIG_PATH
-  # Tidy up file after writing to it
-  sed -i 's/^[ \t]*//' $SUPERVISOR_CONFIG_PATH
-fi
-
-# Heartbeat monitoring
-if [ "$ENABLE_HEARTBEAT" == "y" ]; then
-  echo -e "${BLUE}►► Setting up heartbeat monitoring...${NC}"
-  HEARTBEAT_CRONJOB="* * * * * wget --spider $HEARTBEAT_URL > /dev/null 2>&1"
-  if ! (crontab -l 2>/dev/null || true) | grep -F -- "$HEARTBEAT_CRONJOB" > /dev/null; then
-    (crontab -l 2>/dev/null || true; echo "$HEARTBEAT_CRONJOB") | crontab -
-  else
-    echo -e "${YELLOW}Heartbeat monitoring cronjob already exists. No changes made.${NC}"
-  fi
-fi
-
-# Check the installation of ffmpeg and supervisord
-require_tool ffmpeg supervisord
-
-# Check if the configuration file exists
-# @ TODO: USE A MORE COMPREHENSIVE CHECK FUNCTION THAT CHECKS COMMANDS OR FILES
-if [ ! -f $STREAM_CONFIG_PATH ]; then
-  echo -e "${RED}Installation failed. $STREAM_CONFIG_PATH does not exist.${NC}" >&2
+# Download and install systemd service
+echo -e "${BLUE}►► Installing systemd service...${NC}"
+if ! curl -s -o "$SERVICE_PATH" "$ENCODER_SERVICE_URL"; then
+  echo -e "${RED}Failed to download service file${NC}"
   exit 1
 fi
 
+# Reload systemd and enable service
+systemctl daemon-reload
+systemctl enable encoder
+
+# Start the service
+echo -e "${BLUE}►► Starting encoder service...${NC}"
+systemctl start encoder
+
+# Wait for service to start
+sleep 2
+
+# Verify installation
+if ! systemctl is-active --quiet encoder; then
+  echo -e "${RED}Warning: Encoder service failed to start. Check logs with: journalctl -u encoder${NC}"
+else
+  echo -e "${GREEN}✓ Encoder service is running${NC}"
+fi
+
 # Completion message
-echo -e "\n${GREEN}✓ Success!${NC}"
-echo -e "Reboot to start streaming to $OUTPUT_COUNT SRT output(s). Web interface: http://${FIRST_IP}:$WEB_PORT."
-echo -e "User: ${BOLD}$WEB_USER${NC}, password: ${BOLD}$WEB_PASSWORD${NC}.\n"
+echo -e "\n${GREEN}✓ Installation complete!${NC}"
+echo -e "Open the web interface: ${BOLD}http://${FIRST_IP}:8080${NC}"
+echo -e "Default credentials: ${BOLD}admin${NC} / ${BOLD}encoder${NC}"
+echo -e "\nConfigure your SRT outputs via the web interface."
+echo -e "The encoder will auto-start once you add at least one output.\n"

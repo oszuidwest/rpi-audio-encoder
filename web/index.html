@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Audio Encoder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Helvetica Neue', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: '#e6007e',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                    }
+                }
+            }
+        }
+        // Apply dark mode before render to prevent flash
+        if (localStorage.theme === 'dark' || (!localStorage.theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 font-sans text-gray-900 dark:text-white min-h-screen transition-colors">
+    <div class="max-w-md mx-auto p-5">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6 pt-3">
+            <h1 class="text-2xl font-semibold tracking-tight text-brand">Audio Encoder</h1>
+            <div class="flex items-center gap-3">
+                <button id="theme-toggle" onclick="toggleDarkMode()" class="w-9 h-9 rounded-full bg-white dark:bg-gray-800 shadow-md flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-200">
+                    <svg id="sun-icon" class="w-5 h-5 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg id="moon-icon" class="w-5 h-5 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+                <div id="status-pill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                    <span id="status-dot" class="w-3 h-3 rounded-full bg-current animate-pulse"></span>
+                    <span id="status-text">Connecting</span>
+                </div>
+            </div>
+        </header>
+        <!-- Audio Source -->
+        <section class="bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-900/50 hover:shadow-xl dark:hover:shadow-gray-900/70 transition-all duration-200 overflow-hidden mb-4">
+            <!-- Header -->
+            <div class="bg-brand p-4 text-white">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold">Audio Source</h2>
+                    <span class="backdrop-blur-sm bg-white/20 px-3 py-1 rounded-full text-sm font-medium ring-1 ring-white/40">Input</span>
+                </div>
+            </div>
+            <!-- Content -->
+            <div class="p-5">
+
+            <!-- Input Device Selector -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Input Device</label>
+                <select id="audio-input" onchange="updateAudioInput(this.value)" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+                </select>
+            </div>
+
+            <!-- VU Meter (EBU R128 aligned: -18 dBFS reference, -9 dBFS warning, 0 dBFS peak) -->
+            <div id="vu-meter" class="mb-4 bg-gray-100 dark:bg-gray-900 rounded-xl p-3">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-4">L</span>
+                    <div class="flex-1 h-5 rounded-lg overflow-hidden relative shadow-inner" style="background: linear-gradient(to right, #22c55e 0%, #22c55e 70%, #facc15 70%, #facc15 85%, #ef4444 85%, #ef4444 100%)">
+                        <div id="vu-left-cover" class="absolute top-0 right-0 h-full bg-gray-200 dark:bg-gray-800 transition-all duration-75" style="width: 100%"></div>
+                        <div id="peak-left" class="absolute top-0 h-full w-1 bg-white rounded shadow-lg transition-all duration-75" style="left: 0%"></div>
+                    </div>
+                    <span id="db-left" class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 w-16 text-right whitespace-nowrap flex-shrink-0">-60 dB</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-4">R</span>
+                    <div class="flex-1 h-5 rounded-lg overflow-hidden relative shadow-inner" style="background: linear-gradient(to right, #22c55e 0%, #22c55e 70%, #facc15 70%, #facc15 85%, #ef4444 85%, #ef4444 100%)">
+                        <div id="vu-right-cover" class="absolute top-0 right-0 h-full bg-gray-200 dark:bg-gray-800 transition-all duration-75" style="width: 100%"></div>
+                        <div id="peak-right" class="absolute top-0 h-full w-1 bg-white rounded shadow-lg transition-all duration-75" style="left: 0%"></div>
+                    </div>
+                    <span id="db-right" class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 w-16 text-right whitespace-nowrap flex-shrink-0">-60 dB</span>
+                </div>
+                <!-- Scale markers - EBU/broadcast standard positions -->
+                <div class="relative mt-1 ml-7 mr-[4.75rem] h-4 text-xs text-gray-400 dark:text-gray-600 font-mono">
+                    <span class="absolute left-[20%] -translate-x-1/2">-48</span>
+                    <span class="absolute left-[60%] -translate-x-1/2">-24</span>
+                    <span class="absolute left-[70%] -translate-x-1/2">-18</span>
+                    <span class="absolute left-[80%] -translate-x-1/2">-12</span>
+                    <span class="absolute left-[90%] -translate-x-1/2">-6</span>
+                    <span class="absolute left-[100%] -translate-x-1/2">0</span>
+                </div>
+            </div>
+
+            <!-- Source Status (only shown when there's an issue) -->
+            <div id="source-status" class="hidden rounded-xl bg-orange-500/10 dark:bg-orange-500/20 p-3">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span id="source-retry" class="text-sm font-medium text-orange-600 dark:text-orange-400"></span>
+                </div>
+                <p id="source-error" class="mt-1 text-sm text-orange-600 dark:text-orange-400 break-words"></p>
+            </div>
+            </div>
+        </section>
+
+        <!-- Outputs -->
+        <section class="bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-gray-900/50 hover:shadow-xl dark:hover:shadow-gray-900/70 transition-all duration-200 overflow-hidden mb-4">
+            <!-- Header -->
+            <div class="bg-slate-700 dark:bg-slate-600 p-4 text-white">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold">Outputs</h2>
+                    <div class="flex items-center gap-2">
+                        <span id="output-count" class="backdrop-blur-sm bg-white/20 px-3 py-1 rounded-full text-sm font-medium ring-1 ring-white/40">0</span>
+                        <button id="add-btn" class="backdrop-blur-sm bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-sm font-medium ring-1 ring-white/40 transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Content -->
+            <div class="p-5">
+                <div id="outputs-list"></div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="pt-6 pb-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+            <div class="flex items-center justify-center gap-1">
+                <a href="https://github.com/oszuidwest/rpi-audio-encoder" target="_blank" class="hover:text-gray-700 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <span>|</span>
+                <span>v1.0.0</span>
+            </div>
+            <p class="mt-2">© 2025 Streekomroep ZuidWest • MIT License</p>
+        </footer>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 z-50 flex items-end justify-center hidden">
+        <div class="modal-overlay absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-t-2xl px-6 py-6 pb-8 shadow-xl dark:shadow-gray-900/70 transition-all">
+            <h3 class="text-xl font-semibold text-center mb-6">New Output</h3>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Server</label>
+                <input type="text" id="input-host" placeholder="stream.example.com" class="w-full px-4 py-3.5 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Port</label>
+                    <input type="number" id="input-port" value="8080" class="w-full px-4 py-3.5 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Stream ID</label>
+                    <input type="text" id="input-streamid" placeholder="studio" class="w-full px-4 py-3.5 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Password</label>
+                <input type="password" id="input-password" placeholder="Optional" class="w-full px-4 py-3.5 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Codec</label>
+                <select id="input-codec" class="w-full px-4 py-3.5 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 dark:text-white focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all">
+                    <option value="mp3">MP3 (320 kbit/s)</option>
+                    <option value="mp2">MP2 (384 kbit/s)</option>
+                    <option value="ogg">OGG Vorbis (Q10)</option>
+                    <option value="wav">WAV (uncompressed)</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="cancel-btn" class="py-4 text-lg font-semibold bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">Cancel</button>
+                <button id="save-btn" class="py-4 text-lg font-semibold bg-brand text-white rounded-xl hover:brightness-110 transition-all">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
