@@ -9,6 +9,7 @@ import (
 	"log"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -278,8 +279,7 @@ func (m *Encoder) runSource() (string, error) {
 	audioFilter := "astats=metadata=1:reset=10,ametadata=mode=print:file=/dev/stderr"
 
 	// Build args: audio input (platform-specific) + output to stdout
-	inputArgs := m.getAudioInputArgs()
-	args := append(inputArgs,
+	args := slices.Concat(m.getAudioInputArgs(), []string{
 		"-hide_banner",
 		"-loglevel", "warning",
 		"-af", audioFilter,
@@ -288,7 +288,7 @@ func (m *Encoder) runSource() (string, error) {
 		"-ac", "2",
 		"-ar", "48000",
 		"pipe:1", // Output to stdout
-	)
+	})
 
 	log.Printf("Starting source FFmpeg: %s -> stdout", m.config.GetAudioInput())
 
