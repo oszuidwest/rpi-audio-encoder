@@ -52,7 +52,7 @@ func (c *Config) Load() error {
 	data, err := os.ReadFile(c.filePath)
 	if os.IsNotExist(err) {
 		// Create default config
-		return c.saveUnsafe()
+		return c.saveLocked()
 	}
 	if err != nil {
 		return fmt.Errorf("failed to read config: %w", err)
@@ -81,11 +81,11 @@ func (c *Config) Load() error {
 func (c *Config) Save() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.saveUnsafe()
+	return c.saveLocked()
 }
 
-// saveUnsafe saves without locking (caller must hold lock)
-func (c *Config) saveUnsafe() error {
+// saveLocked saves without locking (caller must hold lock)
+func (c *Config) saveLocked() error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -173,7 +173,7 @@ func (c *Config) AddOutput(output Output) error {
 	}
 
 	c.Outputs = append(c.Outputs, output)
-	return c.saveUnsafe()
+	return c.saveLocked()
 }
 
 // RemoveOutput removes an output by ID and saves config
@@ -184,7 +184,7 @@ func (c *Config) RemoveOutput(id string) error {
 	for i, o := range c.Outputs {
 		if o.ID == id {
 			c.Outputs = append(c.Outputs[:i], c.Outputs[i+1:]...)
-			return c.saveUnsafe()
+			return c.saveLocked()
 		}
 	}
 	return fmt.Errorf("output not found: %s", id)
@@ -198,7 +198,7 @@ func (c *Config) UpdateOutput(output Output) error {
 	for i, o := range c.Outputs {
 		if o.ID == output.ID {
 			c.Outputs[i] = output
-			return c.saveUnsafe()
+			return c.saveLocked()
 		}
 	}
 	return fmt.Errorf("output not found: %s", output.ID)
@@ -216,5 +216,5 @@ func (c *Config) SetAudioInput(input string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.AudioInput = input
-	return c.saveUnsafe()
+	return c.saveLocked()
 }

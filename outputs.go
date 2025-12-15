@@ -14,7 +14,7 @@ import (
 
 // startEnabledOutputs starts FFmpeg processes for all enabled outputs
 // and starts the audio distributor
-func (m *FFmpegManager) startEnabledOutputs() {
+func (m *Encoder) startEnabledOutputs() {
 	// Start the distributor that reads from source stdout and fans out to outputs
 	go m.runDistributor()
 
@@ -27,7 +27,7 @@ func (m *FFmpegManager) startEnabledOutputs() {
 }
 
 // runDistributor reads audio from source FFmpeg stdout and distributes to all output processes
-func (m *FFmpegManager) runDistributor() {
+func (m *Encoder) runDistributor() {
 	// Buffer size: 48000 Hz * 2 channels * 2 bytes * 0.1 sec = 19200 bytes (~100ms of audio)
 	// Larger buffer reduces syscall overhead significantly compared to 4KB
 	buf := make([]byte, 19200)
@@ -85,7 +85,7 @@ func (m *FFmpegManager) runDistributor() {
 }
 
 // stopAllOutputs stops all output processes
-func (m *FFmpegManager) stopAllOutputs() {
+func (m *Encoder) stopAllOutputs() {
 	m.mu.Lock()
 	ids := slices.Collect(maps.Keys(m.outputProcesses))
 	m.mu.Unlock()
@@ -98,7 +98,7 @@ func (m *FFmpegManager) stopAllOutputs() {
 }
 
 // StartOutput starts an individual output FFmpeg process
-func (m *FFmpegManager) StartOutput(outputID string) error {
+func (m *Encoder) StartOutput(outputID string) error {
 	m.mu.Lock()
 	if m.state != StateRunning {
 		m.mu.Unlock()
@@ -198,7 +198,7 @@ func (m *FFmpegManager) StartOutput(outputID string) error {
 }
 
 // runOutputProcess handles the output process lifecycle
-func (m *FFmpegManager) runOutputProcess(outputID string, cmd *exec.Cmd, stderr *bytes.Buffer) {
+func (m *Encoder) runOutputProcess(outputID string, cmd *exec.Cmd, stderr *bytes.Buffer) {
 	startTime := time.Now()
 	err := cmd.Wait() // Process already started, just wait for it
 	runDuration := time.Since(startTime)
@@ -290,7 +290,7 @@ func (m *FFmpegManager) runOutputProcess(outputID string, cmd *exec.Cmd, stderr 
 }
 
 // StopOutput stops an individual output FFmpeg process with graceful shutdown
-func (m *FFmpegManager) StopOutput(outputID string) error {
+func (m *Encoder) StopOutput(outputID string) error {
 	m.mu.Lock()
 	proc, exists := m.outputProcesses[outputID]
 	if !exists {
@@ -360,14 +360,14 @@ func (m *FFmpegManager) StopOutput(outputID string) error {
 }
 
 // removeOutput removes an output from the process map
-func (m *FFmpegManager) removeOutput(outputID string) {
+func (m *Encoder) removeOutput(outputID string) {
 	m.mu.Lock()
 	delete(m.outputProcesses, outputID)
 	m.mu.Unlock()
 }
 
 // GetAllOutputStatuses returns status for all tracked outputs
-func (m *FFmpegManager) GetAllOutputStatuses() map[string]OutputStatus {
+func (m *Encoder) GetAllOutputStatuses() map[string]OutputStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

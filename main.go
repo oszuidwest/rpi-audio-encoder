@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Create FFmpeg manager
-	manager := NewFFmpegManager(config)
+	manager := NewEncoder(config)
 
 	// Create HTTP server
 	server := NewServer(config, manager)

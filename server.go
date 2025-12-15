@@ -41,11 +41,11 @@ var upgrader = websocket.Upgrader{
 // Server is an HTTP server that provides the web interface for the audio encoder.
 type Server struct {
 	config  *Config
-	manager *FFmpegManager
+	manager *Encoder
 }
 
 // NewServer returns a new Server configured with the provided config and FFmpeg manager.
-func NewServer(config *Config, manager *FFmpegManager) *Server {
+func NewServer(config *Config, manager *Encoder) *Server {
 	return &Server{
 		config:  config,
 		manager: manager,

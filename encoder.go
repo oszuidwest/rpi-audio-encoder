@@ -16,10 +16,10 @@ import (
 	"time"
 )
 
-// FFmpegManager handles FFmpeg process lifecycle and manages the source
+// Encoder handles FFmpeg process lifecycle and manages the source
 // audio capture process along with multiple output encoding processes.
-// FFmpegManager is safe for concurrent use.
-type FFmpegManager struct {
+// Encoder is safe for concurrent use.
+type Encoder struct {
 	config           *Config
 	sourceCmd        *exec.Cmd
 	sourceCancel     context.CancelFunc
@@ -35,9 +35,9 @@ type FFmpegManager struct {
 	audioLevels      AudioLevels
 }
 
-// NewFFmpegManager creates a new FFmpeg manager
-func NewFFmpegManager(config *Config) *FFmpegManager {
-	return &FFmpegManager{
+// NewEncoder creates a new FFmpeg manager
+func NewEncoder(config *Config) *Encoder {
+	return &Encoder{
 		config:           config,
 		state:            StateStopped,
 		outputProcesses:  make(map[string]*OutputProcess),
@@ -47,7 +47,7 @@ func NewFFmpegManager(config *Config) *FFmpegManager {
 
 // getAudioInputArgs returns FFmpeg arguments for audio input based on platform
 // Returns input format options, then -i with the device
-func (m *FFmpegManager) getAudioInputArgs() []string {
+func (m *Encoder) getAudioInputArgs() []string {
 	input := m.config.GetAudioInput()
 	switch runtime.GOOS {
 	case "darwin":
@@ -71,14 +71,14 @@ func (m *FFmpegManager) getAudioInputArgs() []string {
 }
 
 // GetState returns the current encoder state
-func (m *FFmpegManager) GetState() EncoderState {
+func (m *Encoder) GetState() EncoderState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.state
 }
 
 // GetAudioLevels returns the current audio levels
-func (m *FFmpegManager) GetAudioLevels() AudioLevels {
+func (m *Encoder) GetAudioLevels() AudioLevels {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.state != StateRunning {
@@ -88,7 +88,7 @@ func (m *FFmpegManager) GetAudioLevels() AudioLevels {
 }
 
 // GetStatus returns the current encoder status
-func (m *FFmpegManager) GetStatus() EncoderStatus {
+func (m *Encoder) GetStatus() EncoderStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -116,7 +116,7 @@ func (m *FFmpegManager) GetStatus() EncoderStatus {
 }
 
 // Start begins the source FFmpeg process and all enabled output processes
-func (m *FFmpegManager) Start() error {
+func (m *Encoder) Start() error {
 	m.mu.Lock()
 
 	if m.state == StateRunning || m.state == StateStarting {
@@ -136,7 +136,7 @@ func (m *FFmpegManager) Start() error {
 }
 
 // Stop stops all FFmpeg processes with graceful shutdown
-func (m *FFmpegManager) Stop() error {
+func (m *Encoder) Stop() error {
 	m.mu.Lock()
 
 	if m.state == StateStopped || m.state == StateStopping {
@@ -195,7 +195,7 @@ func (m *FFmpegManager) Stop() error {
 }
 
 // Restart stops and starts the encoder
-func (m *FFmpegManager) Restart() error {
+func (m *Encoder) Restart() error {
 	if err := m.Stop(); err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func (m *FFmpegManager) Restart() error {
 }
 
 // runSourceLoop runs the source FFmpeg process with auto-restart
-func (m *FFmpegManager) runSourceLoop() {
+func (m *Encoder) runSourceLoop() {
 	for {
 		m.mu.Lock()
 		if m.state == StateStopping || m.state == StateStopped {
@@ -271,7 +271,7 @@ func (m *FFmpegManager) runSourceLoop() {
 }
 
 // runSource executes the source FFmpeg process
-func (m *FFmpegManager) runSource() (string, error) {
+func (m *Encoder) runSource() (string, error) {
 	// Audio filter for level metering: astats outputs to metadata, ametadata prints to stderr
 	// reset=10 updates every ~200ms at 48kHz (reduces CPU overhead vs reset=1 which updates every frame)
 	audioFilter := "astats=metadata=1:reset=10,ametadata=mode=print:file=/dev/stderr"
@@ -360,7 +360,7 @@ func (m *FFmpegManager) runSource() (string, error) {
 }
 
 // parseAudioLevel parses a single audio level line from ametadata
-func (m *FFmpegManager) parseAudioLevel(line string) {
+func (m *Encoder) parseAudioLevel(line string) {
 	// Expected format: lavfi.astats.1.RMS_level=-20.123 or lavfi.astats.1.Peak_level=-3.2
 	parts := strings.SplitN(line, "=", 2)
 	if len(parts) != 2 {
