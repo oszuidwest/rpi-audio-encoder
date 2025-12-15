@@ -16,7 +16,7 @@
         <header>
             <h1>Audio Encoder</h1>
             <div class="header-actions">
-                <button id="theme-toggle" onclick="toggleDarkMode()" aria-label="Toggle theme">
+                <button id="theme-toggle" aria-label="Toggle theme">
                     <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                     </svg>
@@ -39,7 +39,7 @@
             <div class="card-body">
                 <div class="form-group">
                     <label for="audio-input">Input Device</label>
-                    <select id="audio-input" onchange="updateAudioInput(this.value)"></select>
+                    <select id="audio-input"></select>
                 </div>
 
                 <div id="vu-meter">
@@ -71,7 +71,7 @@
                     </div>
                 </div>
 
-                <div id="source-status" class="alert hidden">
+                <div id="source-status" class="alert" hidden>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
@@ -109,7 +109,7 @@
         </footer>
     </div>
 
-    <div id="modal" class="modal hidden">
+    <div id="modal" class="modal" hidden>
         <div class="modal-overlay"></div>
         <div class="modal-content">
             <h3>New Output</h3>

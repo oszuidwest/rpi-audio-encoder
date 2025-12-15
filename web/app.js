@@ -1,10 +1,5 @@
 const $ = id => document.getElementById(id);
 
-function toggleDarkMode() {
-    document.documentElement.classList.toggle('dark');
-    localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-}
-
 function updateStatusFromData(data) {
     const state = data.encoder.state;
     const running = state === 'running';
@@ -26,15 +21,15 @@ function updateStatusFromData(data) {
                           (data.encoder.last_error && state !== 'running');
 
     if (hasSourceIssue) {
-        sourceStatus.classList.remove('hidden');
+        sourceStatus.hidden = false;
         $('source-retry').textContent = data.encoder.source_retry_count > 0
             ? `Retry ${data.encoder.source_retry_count}/${data.encoder.source_max_retries}`
             : 'Error';
         const errorEl = $('source-error');
         errorEl.textContent = data.encoder.last_error || '';
-        errorEl.classList.toggle('hidden', !data.encoder.last_error);
+        errorEl.hidden = !data.encoder.last_error;
     } else {
-        sourceStatus.classList.add('hidden');
+        sourceStatus.hidden = true;
     }
 
     if (!running) resetVuMeter();
@@ -71,7 +66,7 @@ function renderOutputs(outputs, statuses) {
             <div class="output-row">
                 <span class="output-dot ${dotClass}"></span>
                 <span class="output-host">${escapeHtml(o.host)}</span>
-                <button class="output-delete" onclick="deleteOutput('${o.id}')" title="Delete">
+                <button class="output-delete" data-id="${o.id}" title="Delete">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
             </div>
@@ -102,14 +97,8 @@ function wsCommand(type, id, data) {
 
 let currentOutputs = [];
 
-function deleteOutput(id) {
-    if (confirm('Delete this output?')) {
-        wsCommand('delete_output', id);
-    }
-}
-
 function showModal() {
-    $('modal').classList.remove('hidden');
+    $('modal').hidden = false;
     $('input-host').value = '';
     $('input-port').value = '8080';
     $('input-streamid').value = '';
@@ -119,7 +108,7 @@ function showModal() {
 }
 
 function hideModal() {
-    $('modal').classList.add('hidden');
+    $('modal').hidden = true;
 }
 
 function addOutput() {
@@ -192,10 +181,6 @@ function updateAudioDevices(devices, selectedInput) {
     }
 }
 
-function updateAudioInput(deviceId) {
-    wsCommand('update_settings', null, { audio_input: deviceId });
-}
-
 // WebSocket
 let ws = null;
 
@@ -227,12 +212,27 @@ function connectWebSocket() {
 }
 
 // Event listeners
+$('theme-toggle').onclick = () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+};
+
+$('audio-input').onchange = (e) => {
+    wsCommand('update_settings', null, { audio_input: e.target.value });
+};
+
+$('outputs-list').onclick = (e) => {
+    const btn = e.target.closest('.output-delete');
+    if (btn && confirm('Delete this output?')) {
+        wsCommand('delete_output', btn.dataset.id);
+    }
+};
+
 $('add-btn').onclick = showModal;
 $('cancel-btn').onclick = hideModal;
 $('save-btn').onclick = addOutput;
 document.querySelector('.modal-overlay').onclick = hideModal;
 
-// Handle Enter key in modal
 for (const input of document.querySelectorAll('.modal-content input')) {
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') addOutput();
