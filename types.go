@@ -31,7 +31,7 @@ const (
 
 // Shutdown settings
 const (
-	shutdownTimeout = 3 * time.Second      // Time to wait for graceful shutdown before SIGKILL
+	shutdownTimeout = 3 * time.Second       // Time to wait for graceful shutdown before SIGKILL
 	pollInterval    = 50 * time.Millisecond // Interval for polling process state
 )
 
