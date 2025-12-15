@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os/exec"
 	"slices"
+	"syscall"
 	"time"
 )
 
@@ -238,42 +239,69 @@ func (m *FFmpegManager) runOutputProcess(outputID string, cmd *exec.Cmd, stderr 
 	retryCount := p.retryCount
 	retryDelay := p.retryDelay
 	lastError := p.lastError
+	state := m.state
 	m.mu.Unlock()
 
-	// Auto-restart if encoder is still running and output is enabled
+	// Check if we should restart
+	if state != StateRunning {
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return
+	}
+
+	output := m.config.GetOutput(outputID)
+	if output == nil || !output.Enabled {
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return
+	}
+
+	// Check max retries
+	if retryCount >= maxRetries {
+		log.Printf("Output %s failed %d times, giving up: %s", outputID, maxRetries, lastError)
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return
+	}
+
+	log.Printf("Output %s stopped, waiting %v before restart (attempt %d/%d)...",
+		outputID, retryDelay, retryCount+1, maxRetries)
+	time.Sleep(retryDelay)
+
+	// Re-check if output still exists and is enabled after sleep
+	// (user might have deleted or disabled it during the wait)
+	output = m.config.GetOutput(outputID)
+	if output == nil || !output.Enabled {
+		log.Printf("Output %s was removed or disabled during retry wait, not restarting", outputID)
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return
+	}
+
+	// Re-check encoder state after sleep
 	m.mu.RLock()
-	state := m.state
+	state = m.state
 	m.mu.RUnlock()
+	if state != StateRunning {
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return
+	}
 
-	if state == StateRunning {
-		output := m.config.GetOutput(outputID)
-		if output != nil && output.Enabled {
-			// Check max retries
-			if retryCount >= maxRetries {
-				log.Printf("Output %s failed %d times, giving up: %s", outputID, maxRetries, lastError)
-				return
-			}
-
-			log.Printf("Output %s stopped, waiting %v before restart (attempt %d/%d)...",
-				outputID, retryDelay, retryCount+1, maxRetries)
-			time.Sleep(retryDelay)
-
-			// Re-check if output still exists and is enabled after sleep
-			// (user might have deleted or disabled it during the wait)
-			output = m.config.GetOutput(outputID)
-			if output == nil || !output.Enabled {
-				log.Printf("Output %s was removed or disabled during retry wait, not restarting", outputID)
-				return
-			}
-
-			if err := m.StartOutput(outputID); err != nil {
-				log.Printf("Failed to restart output %s: %v", outputID, err)
-			}
-		}
+	if err := m.StartOutput(outputID); err != nil {
+		log.Printf("Failed to restart output %s: %v", outputID, err)
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
 	}
 }
 
-// StopOutput stops an individual output FFmpeg process
+// StopOutput stops an individual output FFmpeg process with graceful shutdown
 func (m *FFmpegManager) StopOutput(outputID string) error {
 	m.mu.Lock()
 	proc, exists := m.outputProcesses[outputID]
@@ -281,30 +309,73 @@ func (m *FFmpegManager) StopOutput(outputID string) error {
 		m.mu.Unlock()
 		return nil
 	}
+
+	// Check if already stopping or stopped
+	if !proc.running {
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+		return nil
+	}
+
+	// Mark as not running to prevent distributor from writing
+	proc.running = false
+
+	// Get references while holding lock
+	stdin := proc.stdin
+	process := proc.cmd.Process
+	cancel := proc.cancel
+	proc.stdin = nil // Prevent distributor from using it
 	m.mu.Unlock()
 
 	log.Printf("Stopping output %s", outputID)
 
 	// Close stdin first to signal EOF to ffmpeg
-	if proc.stdin != nil {
-		if err := proc.stdin.Close(); err != nil {
+	if stdin != nil {
+		if err := stdin.Close(); err != nil {
 			log.Printf("Failed to close stdin for output %s: %v", outputID, err)
 		}
 	}
 
-	if proc.cancel != nil {
-		proc.cancel()
-	}
-	if proc.cmd != nil && proc.cmd.Process != nil {
-		if err := proc.cmd.Process.Kill(); err != nil {
-			log.Printf("Failed to kill output %s process: %v", outputID, err)
+	// Send SIGINT for graceful shutdown (FFmpeg flushes buffers and closes connections)
+	if process != nil {
+		if err := process.Signal(syscall.SIGINT); err != nil {
+			// Process might already be dead, use cancel as fallback
+			if cancel != nil {
+				cancel()
+			}
 		}
 	}
 
-	m.mu.Lock()
-	proc.running = false
-	delete(m.outputProcesses, outputID)
-	m.mu.Unlock()
+	// Wait for process to exit with timeout
+	// The runOutputProcess goroutine will handle cmd.Wait() and cleanup
+	exited := make(chan struct{})
+	go func() {
+		for {
+			m.mu.RLock()
+			_, stillExists := m.outputProcesses[outputID]
+			m.mu.RUnlock()
+			if !stillExists {
+				close(exited)
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-exited:
+		log.Printf("Output %s stopped gracefully", outputID)
+	case <-time.After(shutdownTimeout):
+		log.Printf("Output %s did not stop in time, forcing kill", outputID)
+		// Force kill via context cancellation (sends SIGKILL)
+		if cancel != nil {
+			cancel()
+		}
+		// Clean up from map
+		m.mu.Lock()
+		delete(m.outputProcesses, outputID)
+		m.mu.Unlock()
+	}
 
 	return nil
 }

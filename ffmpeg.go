@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -233,7 +234,7 @@ func (m *FFmpegManager) Start() error {
 	return nil
 }
 
-// Stop stops all FFmpeg processes
+// Stop stops all FFmpeg processes with graceful shutdown
 func (m *FFmpegManager) Stop() error {
 	m.mu.Lock()
 
@@ -247,22 +248,49 @@ func (m *FFmpegManager) Stop() error {
 	if m.stopChan != nil {
 		close(m.stopChan)
 	}
+
+	// Get references while holding lock
+	sourceProcess := m.sourceCmd
+	sourceCancel := m.sourceCancel
 	m.mu.Unlock()
 
+	// Stop all outputs first
 	m.stopAllOutputs()
 
-	m.mu.Lock()
-	if m.sourceCancel != nil {
-		m.sourceCancel()
-	}
-	if m.sourceCmd != nil && m.sourceCmd.Process != nil {
-		if err := m.sourceCmd.Process.Kill(); err != nil {
-			log.Printf("Failed to kill source process: %v", err)
+	// Send SIGINT to source for graceful shutdown
+	if sourceProcess != nil && sourceProcess.Process != nil {
+		if err := sourceProcess.Process.Signal(syscall.SIGINT); err != nil {
+			// Process might already be dead
+			log.Printf("Failed to send SIGINT to source: %v", err)
 		}
 	}
-	m.mu.Unlock()
 
-	time.Sleep(500 * time.Millisecond)
+	// Wait for source to stop with timeout
+	// The runSourceLoop goroutine handles cmd.Wait()
+	stopped := make(chan struct{})
+	go func() {
+		for {
+			m.mu.RLock()
+			cmd := m.sourceCmd
+			m.mu.RUnlock()
+			if cmd == nil {
+				close(stopped)
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-stopped:
+		log.Printf("Source FFmpeg stopped gracefully")
+	case <-time.After(shutdownTimeout):
+		log.Printf("Source FFmpeg did not stop in time, forcing kill")
+		// Force kill via context cancellation
+		if sourceCancel != nil {
+			sourceCancel()
+		}
+	}
 
 	m.mu.Lock()
 	m.state = StateStopped

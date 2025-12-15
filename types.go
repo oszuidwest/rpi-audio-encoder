@@ -29,6 +29,11 @@ const (
 	successThreshold  = 30 * time.Second // Reset retry count after running this long
 )
 
+// Shutdown settings
+const (
+	shutdownTimeout = 3 * time.Second // Time to wait for graceful shutdown before SIGKILL
+)
+
 // OutputProcess tracks an individual output FFmpeg process
 type OutputProcess struct {
 	cmd        *exec.Cmd
