@@ -3,24 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Web interface for Raspberry Pi audio encoder - stream audio to SRT servers">
     <title>Audio Encoder</title>
+    <link rel="canonical" href="/">
     <link rel="stylesheet" href="/style.css">
+</head>
+<body>
     <script>
         if (localStorage.theme === 'dark' || (!localStorage.theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         }
     </script>
-</head>
-<body>
-    <div class="container">
+    <main class="container">
         <header>
             <h1>Audio Encoder</h1>
             <div class="header-actions">
-                <button id="theme-toggle" aria-label="Toggle theme">
-                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <button id="theme-toggle" type="button" aria-label="Toggle theme">
+                    <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                     </svg>
-                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
                     </svg>
                 </button>
@@ -47,32 +49,32 @@
                         <span class="vu-label">L</span>
                         <div class="vu-bar">
                             <div class="vu-gradient"></div>
-                            <div id="vu-left-cover" class="vu-cover"></div>
-                            <div id="peak-left" class="vu-peak"></div>
+                            <div class="vu-cover" id="vu-left-cover"></div>
+                            <div class="vu-peak" id="peak-left"></div>
                         </div>
-                        <span id="db-left" class="vu-db">-60 dB</span>
+                        <span class="vu-db" id="db-left">-60 dB</span>
                     </div>
                     <div class="vu-row">
                         <span class="vu-label">R</span>
                         <div class="vu-bar">
                             <div class="vu-gradient"></div>
-                            <div id="vu-right-cover" class="vu-cover"></div>
-                            <div id="peak-right" class="vu-peak"></div>
+                            <div class="vu-cover" id="vu-right-cover"></div>
+                            <div class="vu-peak" id="peak-right"></div>
                         </div>
-                        <span id="db-right" class="vu-db">-60 dB</span>
+                        <span class="vu-db" id="db-right">-60 dB</span>
                     </div>
                     <div class="vu-scale">
-                        <span style="left:20%">-48</span>
-                        <span style="left:60%">-24</span>
-                        <span style="left:70%">-18</span>
-                        <span style="left:80%">-12</span>
-                        <span style="left:90%">-6</span>
-                        <span style="left:100%">0</span>
+                        <span class="vu-mark-48">-48</span>
+                        <span class="vu-mark-24">-24</span>
+                        <span class="vu-mark-18">-18</span>
+                        <span class="vu-mark-12">-12</span>
+                        <span class="vu-mark-6">-6</span>
+                        <span class="vu-mark-0">0</span>
                     </div>
                 </div>
 
-                <div id="source-status" class="alert" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="alert" id="source-status" hidden="hidden">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                     <div>
@@ -87,9 +89,9 @@
             <div class="card-header slate">
                 <h2>Outputs</h2>
                 <div class="header-actions">
-                    <span id="output-count" class="badge">0</span>
-                    <button id="add-btn" class="btn-add">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    <span class="badge" id="output-count">0</span>
+                    <button class="btn-add" id="add-btn" type="button">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                         Add
                     </button>
                 </div>
@@ -100,36 +102,36 @@
         </section>
 
         <footer>
-            <a href="https://github.com/oszuidwest/rpi-audio-encoder" target="_blank">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            <a href="/github" title="View source on GitHub">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                 GitHub
             </a>
             <span class="sep">|</span>
             <span>Streekomroep ZuidWest</span>
         </footer>
-    </div>
+    </main>
 
-    <div id="modal" class="modal" hidden>
+    <div class="modal" id="modal" hidden="hidden">
         <div class="modal-overlay"></div>
         <div class="modal-content">
             <h3>New Output</h3>
             <div class="form-group">
                 <label for="input-host">Server</label>
-                <input type="text" id="input-host" placeholder="stream.example.com">
+                <input id="input-host" type="text" placeholder="stream.example.com">
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label for="input-port">Port</label>
-                    <input type="number" id="input-port" value="8080">
+                    <input id="input-port" type="number" value="8080">
                 </div>
                 <div class="form-group">
                     <label for="input-streamid">Stream ID</label>
-                    <input type="text" id="input-streamid" placeholder="studio">
+                    <input id="input-streamid" type="text" placeholder="studio">
                 </div>
             </div>
             <div class="form-group">
                 <label for="input-password">Password</label>
-                <input type="password" id="input-password" placeholder="Optional">
+                <input id="input-password" type="password" placeholder="Optional">
             </div>
             <div class="form-group">
                 <label for="input-codec">Codec</label>
@@ -141,8 +143,8 @@
                 </select>
             </div>
             <div class="modal-actions">
-                <button id="cancel-btn" class="btn secondary">Cancel</button>
-                <button id="save-btn" class="btn primary">Add</button>
+                <button class="btn secondary" id="cancel-btn" type="button">Cancel</button>
+                <button class="btn primary" id="save-btn" type="button">Add</button>
             </div>
         </div>
     </div>
