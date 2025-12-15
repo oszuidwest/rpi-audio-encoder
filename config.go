@@ -10,49 +10,6 @@ import (
 	"sync"
 )
 
-// Output represents a single SRT output destination
-type Output struct {
-	ID       string `json:"id"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
-	StreamID string `json:"streamid"`
-	Codec    string `json:"codec"`
-	Enabled  bool   `json:"enabled"`
-}
-
-// GetCodecArgs returns FFmpeg codec arguments for this output's codec
-func (o *Output) GetCodecArgs() []string {
-	switch o.Codec {
-	case "mp2":
-		return []string{"libtwolame", "-b:a", "384k", "-psymodel", "4"}
-	case "mp3":
-		return []string{"libmp3lame", "-b:a", "320k"}
-	case "ogg":
-		return []string{"libvorbis", "-qscale:a", "10"}
-	case "wav":
-		return []string{"pcm_s16le"}
-	default:
-		return []string{"libmp3lame", "-b:a", "320k"} // Default to MP3
-	}
-}
-
-// GetOutputFormat returns the FFmpeg output format for this output's codec
-func (o *Output) GetOutputFormat() string {
-	switch o.Codec {
-	case "mp2":
-		return "mp2"
-	case "mp3":
-		return "mp3"
-	case "ogg":
-		return "ogg"
-	case "wav":
-		return "matroska"
-	default:
-		return "mp3" // Default to MP3
-	}
-}
-
 // Config holds all application configuration
 type Config struct {
 	WebPort     int      `json:"web_port"`

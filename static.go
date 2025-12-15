@@ -1,6 +1,6 @@
 package main
 
-import "embed"
+import _ "embed"
 
 //go:embed web/index.html
 var indexHTML string
@@ -10,8 +10,3 @@ var styleCSS string
 
 //go:embed web/app.js
 var appJS string
-
-// WebFiles contains all embedded web assets for direct filesystem access.
-//
-//go:embed web/*
-var WebFiles embed.FS
