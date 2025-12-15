@@ -124,7 +124,7 @@ function hideModal() {
 
 function addOutput() {
     const host = $('input-host').value.trim();
-    const port = Number.parseInt($('input-port').value);
+    const port = Number.parseInt($('input-port').value, 10);
     const streamid = $('input-streamid').value.trim() || 'studio';
     const password = $('input-password').value;
     const codec = $('input-codec').value;
