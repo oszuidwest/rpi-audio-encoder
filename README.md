@@ -82,11 +82,11 @@ Configuration is stored in `config.json`:
 ```mermaid
 flowchart LR
     subgraph Input
-        A[Audio Source\nALSA/AVFoundation]
+        A[Audio Source<br>ALSA/AVFoundation]
     end
 
     subgraph Capture
-        B[Source FFmpeg\nRaw PCM]
+        B[Source FFmpeg<br>Raw PCM]
     end
 
     subgraph Distribution
@@ -94,9 +94,9 @@ flowchart LR
     end
 
     subgraph Encoding
-        D1[FFmpeg\nMP3]
-        D2[FFmpeg\nMP2]
-        D3[FFmpeg\nOGG]
+        D1[FFmpeg MP3]
+        D2[FFmpeg MP2]
+        D3[FFmpeg OGG]
     end
 
     subgraph Output
