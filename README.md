@@ -9,7 +9,7 @@ The encoder, stationed in the studio, connects to the digital output of an Orban
 - Install Raspberry Pi OS Trixie Lite (64-bit).
 - Follow the guide at https://www.hifiberry.com/docs/software/configuring-linux-3-18-x/ for HiFiBerry setup.
 - Gain root access with `sudo su`.
-- Download and execute the install script using `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-encoder/main/install.sh)"`.
+- Download and execute the install script using `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/deploy/install.sh)"`.
 
 # Post installation clean-up
 - You probably don't need WiFi. Disable it by adding `dtoverlay=disable-wifi` to `/boot/firmware/config.txt`

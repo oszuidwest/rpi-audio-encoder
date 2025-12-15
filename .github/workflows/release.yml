@@ -90,7 +90,7 @@ jobs:
 
             On Raspberry Pi 4/5 with HiFiBerry card:
             ```bash
-            curl -sSL https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/install.sh | sudo bash
+            curl -sSL https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/deploy/install.sh | sudo bash
             ```
 
             Binary downloads are available below as release assets.
