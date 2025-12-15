@@ -27,7 +27,9 @@ func (m *FFmpegManager) startEnabledOutputs() {
 
 // runDistributor reads audio from source FFmpeg stdout and distributes to all output processes
 func (m *FFmpegManager) runDistributor() {
-	buf := make([]byte, 4096)
+	// Buffer size: 48000 Hz * 2 channels * 2 bytes * 0.1 sec = 19200 bytes (~100ms of audio)
+	// Larger buffer reduces syscall overhead significantly compared to 4KB
+	buf := make([]byte, 19200)
 	for {
 		// Get reader under lock and keep a reference
 		m.mu.RLock()

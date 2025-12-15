@@ -1,0 +1,14 @@
+{
+  "name": "rpi-audio-encoder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "bun run lint:html && bun run lint:code",
+    "lint:html": "htmlhint web/*.html",
+    "lint:code": "biome check web/"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "htmlhint": "1.1.4"
+  }
+}

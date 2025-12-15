@@ -352,7 +352,8 @@ func (m *FFmpegManager) runSourceLoop() {
 // runSource executes the source FFmpeg process
 func (m *FFmpegManager) runSource() (string, error) {
 	// Audio filter for level metering: astats outputs to metadata, ametadata prints to stderr
-	audioFilter := "astats=metadata=1:reset=1,ametadata=mode=print:file=/dev/stderr"
+	// reset=10 updates every ~200ms at 48kHz (reduces CPU overhead vs reset=1 which updates every frame)
+	audioFilter := "astats=metadata=1:reset=10,ametadata=mode=print:file=/dev/stderr"
 
 	// Build args: audio input (platform-specific) + output to stdout
 	inputArgs := m.getAudioInputArgs()
