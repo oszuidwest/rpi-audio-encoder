@@ -1,4 +1,4 @@
-// Encoder captures audio from digital input and streams to multiple SRT destinations.
+// Package main implements an audio streaming encoder that captures audio from digital input and streams to multiple SRT destinations.
 //
 // Usage:
 //

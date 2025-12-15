@@ -52,8 +52,7 @@ func NewServer(config *Config, manager *Encoder) *Server {
 	}
 }
 
-// basicAuth returns an HTTP handler that wraps the provided handler with
-// HTTP Basic Authentication using credentials from the server's config.
+// basicAuth requires HTTP Basic Authentication for the provided handler.
 func (s *Server) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -73,8 +72,7 @@ type WSCommand struct {
 	Data json.RawMessage `json:"data,omitempty"`
 }
 
-// handleWebSocket upgrades the HTTP connection to WebSocket and manages
-// bidirectional communication for real-time encoder status and audio levels.
+// handleWebSocket streams real-time encoder status and audio levels to the client.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

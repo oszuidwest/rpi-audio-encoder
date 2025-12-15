@@ -8,13 +8,13 @@ import (
 	"strings"
 )
 
-// AudioDevice represents an available audio input device
+// AudioDevice represents an available audio input device.
 type AudioDevice struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// ListAudioDevices returns available audio input devices for the current platform
+// ListAudioDevices returns available audio input devices for the current platform.
 func ListAudioDevices() []AudioDevice {
 	switch runtime.GOOS {
 	case "darwin":
@@ -24,7 +24,7 @@ func ListAudioDevices() []AudioDevice {
 	}
 }
 
-// listMacOSDevices lists audio devices on macOS using ffmpeg
+// listMacOSDevices returns available audio input devices on macOS.
 func listMacOSDevices() []AudioDevice {
 	cmd := exec.Command("ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", "")
 	// Note: ffmpeg -list_devices always returns non-zero exit code, so we ignore the error
@@ -65,7 +65,7 @@ func listMacOSDevices() []AudioDevice {
 	return devices
 }
 
-// listLinuxDevices lists audio devices on Linux using arecord
+// listLinuxDevices returns available audio input devices on Linux.
 func listLinuxDevices() []AudioDevice {
 	cmd := exec.Command("arecord", "-l")
 	output, err := cmd.Output()

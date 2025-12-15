@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Config holds all application configuration
+// Config holds all application configuration. It is safe for concurrent use.
 type Config struct {
 	WebPort     int      `json:"web_port"`
 	WebUser     string   `json:"web_user"`
@@ -22,7 +22,7 @@ type Config struct {
 	filePath string
 }
 
-// NewConfig creates a new config with defaults
+// NewConfig creates a new Config with default values.
 func NewConfig(filePath string) *Config {
 	return &Config{
 		WebPort:     8080,
@@ -34,7 +34,7 @@ func NewConfig(filePath string) *Config {
 	}
 }
 
-// defaultAudioInput returns the default audio input device for the current platform
+// defaultAudioInput returns the default audio input device for the current platform.
 func defaultAudioInput() string {
 	if runtime.GOOS == "darwin" {
 		return ":0"
@@ -42,7 +42,7 @@ func defaultAudioInput() string {
 	return "default:CARD=sndrpihifiberry"
 }
 
-// Load reads config from file, creates default if not exists
+// Load reads config from file, creating a default if none exists.
 func (c *Config) Load() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -77,14 +77,14 @@ func (c *Config) Load() error {
 	return nil
 }
 
-// Save writes config to file
+// Save writes the configuration to file.
 func (c *Config) Save() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.saveLocked()
 }
 
-// saveLocked saves without locking (caller must hold lock)
+// saveLocked writes config to file. Caller must hold c.mu.
 func (c *Config) saveLocked() error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
@@ -104,7 +104,7 @@ func (c *Config) saveLocked() error {
 	return nil
 }
 
-// GetOutputs returns a copy of all outputs
+// GetOutputs returns a copy of all outputs.
 func (c *Config) GetOutputs() []Output {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -114,7 +114,7 @@ func (c *Config) GetOutputs() []Output {
 	return outputs
 }
 
-// GetOutput returns a single output by ID
+// GetOutput returns a copy of the output with the given ID, or nil if not found.
 func (c *Config) GetOutput(id string) *Output {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -128,7 +128,7 @@ func (c *Config) GetOutput(id string) *Output {
 	return nil
 }
 
-// AddOutput adds a new output and saves config
+// AddOutput adds a new output and saves the configuration.
 func (c *Config) AddOutput(output Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -150,7 +150,7 @@ func (c *Config) AddOutput(output Output) error {
 	return c.saveLocked()
 }
 
-// RemoveOutput removes an output by ID and saves config
+// RemoveOutput removes an output by ID and saves the configuration.
 func (c *Config) RemoveOutput(id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -164,7 +164,7 @@ func (c *Config) RemoveOutput(id string) error {
 	return fmt.Errorf("output not found: %s", id)
 }
 
-// UpdateOutput updates an existing output
+// UpdateOutput updates an existing output and saves the configuration.
 func (c *Config) UpdateOutput(output Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -178,14 +178,14 @@ func (c *Config) UpdateOutput(output Output) error {
 	return fmt.Errorf("output not found: %s", output.ID)
 }
 
-// GetAudioInput returns the configured audio input device
+// GetAudioInput returns the configured audio input device.
 func (c *Config) GetAudioInput() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.AudioInput
 }
 
-// SetAudioInput updates the audio input device and saves config
+// SetAudioInput updates the audio input device and saves the configuration.
 func (c *Config) SetAudioInput(input string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

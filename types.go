@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// EncoderState represents the current state of the encoder
+// EncoderState represents the current state of the encoder.
 type EncoderState string
 
 const (
@@ -21,7 +21,7 @@ const (
 	StateStopping EncoderState = "stopping"
 )
 
-// Retry settings
+// Retry settings.
 const (
 	initialRetryDelay = 3 * time.Second
 	maxRetryDelay     = 60 * time.Second
@@ -29,17 +29,17 @@ const (
 	successThreshold  = 30 * time.Second // Reset retry count after running this long
 )
 
-// Shutdown settings
+// Shutdown settings.
 const (
 	shutdownTimeout = 3 * time.Second       // Time to wait for graceful shutdown before SIGKILL
 	pollInterval    = 50 * time.Millisecond // Interval for polling process state
 )
 
-// OutputProcess tracks an individual output FFmpeg process
+// OutputProcess tracks an individual output FFmpeg process.
 type OutputProcess struct {
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
-	stdin      io.WriteCloser // Stdin pipe for receiving audio data
+	stdin      io.WriteCloser // Audio data input
 	running    bool
 	lastError  string
 	startTime  time.Time
@@ -47,7 +47,7 @@ type OutputProcess struct {
 	retryDelay time.Duration
 }
 
-// OutputStatus contains runtime status for an output
+// OutputStatus contains runtime status for an output.
 type OutputStatus struct {
 	Running    bool   `json:"running"`
 	LastError  string `json:"last_error,omitzero"`
@@ -66,7 +66,7 @@ type EncoderStatus struct {
 	SourceMaxRetries int          `json:"source_max_retries"`
 }
 
-// AudioLevels contains current audio level measurements
+// AudioLevels contains current audio level measurements.
 type AudioLevels struct {
 	Left      float64 `json:"left"`       // RMS level in dB (-60 to 0)
 	Right     float64 `json:"right"`      // RMS level in dB

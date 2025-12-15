@@ -17,9 +17,8 @@ import (
 	"time"
 )
 
-// Encoder handles FFmpeg process lifecycle and manages the source
-// audio capture process along with multiple output encoding processes.
-// Encoder is safe for concurrent use.
+// Encoder manages the FFmpeg source audio capture and multiple output encoding processes.
+// It is safe for concurrent use.
 type Encoder struct {
 	config           *Config
 	sourceCmd        *exec.Cmd
@@ -36,7 +35,7 @@ type Encoder struct {
 	audioLevels      AudioLevels
 }
 
-// NewEncoder creates a new FFmpeg manager
+// NewEncoder creates a new Encoder with the given configuration.
 func NewEncoder(config *Config) *Encoder {
 	return &Encoder{
 		config:           config,
@@ -46,8 +45,7 @@ func NewEncoder(config *Config) *Encoder {
 	}
 }
 
-// getAudioInputArgs returns FFmpeg arguments for audio input based on platform
-// Returns input format options, then -i with the device
+// getAudioInputArgs returns platform-specific FFmpeg input arguments.
 func (m *Encoder) getAudioInputArgs() []string {
 	input := m.config.GetAudioInput()
 	switch runtime.GOOS {
@@ -71,14 +69,14 @@ func (m *Encoder) getAudioInputArgs() []string {
 	}
 }
 
-// GetState returns the current encoder state
+// GetState returns the current encoder state.
 func (m *Encoder) GetState() EncoderState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.state
 }
 
-// GetAudioLevels returns the current audio levels
+// GetAudioLevels returns the current audio levels.
 func (m *Encoder) GetAudioLevels() AudioLevels {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -88,7 +86,7 @@ func (m *Encoder) GetAudioLevels() AudioLevels {
 	return m.audioLevels
 }
 
-// GetStatus returns the current encoder status
+// GetStatus returns the current encoder status.
 func (m *Encoder) GetStatus() EncoderStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -116,7 +114,7 @@ func (m *Encoder) GetStatus() EncoderStatus {
 	}
 }
 
-// Start begins the source FFmpeg process and all enabled output processes
+// Start begins the source FFmpeg process and all output processes.
 func (m *Encoder) Start() error {
 	m.mu.Lock()
 
@@ -136,7 +134,7 @@ func (m *Encoder) Start() error {
 	return nil
 }
 
-// Stop stops all FFmpeg processes with graceful shutdown
+// Stop stops all FFmpeg processes with graceful shutdown.
 func (m *Encoder) Stop() error {
 	m.mu.Lock()
 
@@ -195,7 +193,7 @@ func (m *Encoder) Stop() error {
 	return nil
 }
 
-// Restart stops and starts the encoder
+// Restart stops and starts the encoder.
 func (m *Encoder) Restart() error {
 	if err := m.Stop(); err != nil {
 		return err
@@ -204,7 +202,7 @@ func (m *Encoder) Restart() error {
 	return m.Start()
 }
 
-// runSourceLoop runs the source FFmpeg process with auto-restart
+// runSourceLoop runs the source FFmpeg process with auto-restart.
 func (m *Encoder) runSourceLoop() {
 	for {
 		m.mu.Lock()
@@ -272,7 +270,7 @@ func (m *Encoder) runSourceLoop() {
 	}
 }
 
-// runSource executes the source FFmpeg process
+// runSource executes the source FFmpeg process.
 func (m *Encoder) runSource() (string, error) {
 	// Audio filter for level metering: astats outputs to metadata, ametadata prints to stderr
 	// reset=10 updates every ~200ms at 48kHz (reduces CPU overhead vs reset=1 which updates every frame)
@@ -360,7 +358,7 @@ func (m *Encoder) runSource() (string, error) {
 	return stderrOutput, err
 }
 
-// parseAudioLevel parses a single audio level line from ametadata
+// parseAudioLevel parses a single audio level line from ametadata.
 func (m *Encoder) parseAudioLevel(line string) {
 	// Expected format: lavfi.astats.1.RMS_level=-20.123 or lavfi.astats.1.Peak_level=-3.2
 	parts := strings.SplitN(line, "=", 2)

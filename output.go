@@ -11,7 +11,7 @@ type Output struct {
 	CreatedAt int64  `json:"created_at"`
 }
 
-// codecPreset defines FFmpeg encoding parameters for a codec
+// codecPreset defines FFmpeg encoding parameters for a codec.
 type codecPreset struct {
 	args   []string
 	format string
@@ -28,7 +28,7 @@ var codecPresets = map[string]codecPreset{
 // defaultCodec is used when an unknown codec is specified
 const defaultCodec = "mp3"
 
-// GetCodecArgs returns FFmpeg codec arguments for this output's codec
+// GetCodecArgs returns FFmpeg codec arguments for this output's codec.
 func (o *Output) GetCodecArgs() []string {
 	if preset, ok := codecPresets[o.Codec]; ok {
 		return preset.args
@@ -36,7 +36,7 @@ func (o *Output) GetCodecArgs() []string {
 	return codecPresets[defaultCodec].args
 }
 
-// GetOutputFormat returns the FFmpeg output format for this output's codec
+// GetOutputFormat returns the FFmpeg output format for this output's codec.
 func (o *Output) GetOutputFormat() string {
 	if preset, ok := codecPresets[o.Codec]; ok {
 		return preset.format
