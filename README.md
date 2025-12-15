@@ -79,24 +79,36 @@ Configuration is stored in `config.json`:
 
 ## Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Audio Input │────▶│   Source    │────▶│ Distributor │
-│  (ALSA)     │     │   FFmpeg    │     │  (Go)       │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                    ┌──────────────────────────┼──────────────────────────┐
-                    │                          │                          │
-                    ▼                          ▼                          ▼
-             ┌─────────────┐            ┌─────────────┐            ┌─────────────┐
-             │ Output FFmpeg│            │ Output FFmpeg│            │ Output FFmpeg│
-             │   (MP3)     │            │   (MP2)     │            │   (OGG)     │
-             └──────┬──────┘            └──────┬──────┘            └──────┬──────┘
-                    │                          │                          │
-                    ▼                          ▼                          ▼
-             ┌─────────────┐            ┌─────────────┐            ┌─────────────┐
-             │ SRT Server 1│            │ SRT Server 2│            │ SRT Server 3│
-             └─────────────┘            └─────────────┘            └─────────────┘
+```mermaid
+flowchart LR
+    subgraph Input
+        A[Audio Source\nALSA/AVFoundation]
+    end
+
+    subgraph Capture
+        B[Source FFmpeg\nRaw PCM]
+    end
+
+    subgraph Distribution
+        C[Go Distributor]
+    end
+
+    subgraph Encoding
+        D1[FFmpeg\nMP3]
+        D2[FFmpeg\nMP2]
+        D3[FFmpeg\nOGG]
+    end
+
+    subgraph Output
+        E1[SRT Server 1]
+        E2[SRT Server 2]
+        E3[SRT Server 3]
+    end
+
+    A --> B --> C
+    C --> D1 --> E1
+    C --> D2 --> E2
+    C --> D3 --> E3
 ```
 
 One FFmpeg process captures audio and outputs raw PCM. A Go distributor fans out the audio to multiple FFmpeg encoder processes, each streaming to its own SRT destination.
