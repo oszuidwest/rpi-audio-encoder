@@ -22,6 +22,51 @@
       "streamid": "studio",
       "codec": "mp3",
       "enabled": true
+    },
+    {
+      "id": "output-3",
+      "host": "eretyu",
+      "port": 8080,
+      "password": "",
+      "streamid": "studio",
+      "codec": "mp3",
+      "enabled": true
+    },
+    {
+      "id": "output-4",
+      "host": "eretyu",
+      "port": 8080,
+      "password": "",
+      "streamid": "studio",
+      "codec": "mp3",
+      "enabled": true
+    },
+    {
+      "id": "output-5",
+      "host": "eretyu",
+      "port": 8080,
+      "password": "",
+      "streamid": "studio",
+      "codec": "mp3",
+      "enabled": true
+    },
+    {
+      "id": "output-6",
+      "host": "eretyu",
+      "port": 8080,
+      "password": "",
+      "streamid": "studio",
+      "codec": "mp3",
+      "enabled": true
+    },
+    {
+      "id": "output-7",
+      "host": "eretyu",
+      "port": 8080,
+      "password": "",
+      "streamid": "studio",
+      "codec": "mp3",
+      "enabled": true
     }
   ]
 }

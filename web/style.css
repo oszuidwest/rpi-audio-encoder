@@ -443,6 +443,10 @@ input::placeholder {
     margin-top: 1rem;
 }
 
+.alert[hidden] {
+    display: none;
+}
+
 .alert svg {
     width: 1rem;
     height: 1rem;
@@ -646,6 +650,10 @@ input::placeholder {
     display: flex;
     align-items: flex-end;
     justify-content: center;
+}
+
+.modal[hidden] {
+    display: none;
 }
 
 .modal-overlay {
