@@ -2,13 +2,13 @@ package main
 
 // Output represents a single SRT output destination
 type Output struct {
-	ID       string `json:"id"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
-	StreamID string `json:"streamid"`
-	Codec    string `json:"codec"`
-	Enabled  bool   `json:"enabled"`
+	ID        string `json:"id"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Password  string `json:"password"`
+	StreamID  string `json:"streamid"`
+	Codec     string `json:"codec"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 // codecPreset defines FFmpeg encoding parameters for a codec

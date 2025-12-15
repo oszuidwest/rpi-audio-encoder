@@ -35,8 +35,9 @@ function updateStatusFromData(data) {
     if (!running) resetVuMeter();
 
     currentOutputs = data.outputs || [];
+    currentStatuses = data.output_status || {};
     $('output-count').textContent = currentOutputs.length;
-    renderOutputs(currentOutputs, data.output_status || {});
+    renderOutputs(currentOutputs, currentStatuses);
 
     if (data.devices) {
         updateAudioDevices(data.devices, data.settings?.audio_input);
@@ -50,23 +51,43 @@ function renderOutputs(outputs, statuses) {
         return;
     }
 
+    // Clean up deletingOutputs - remove if output no longer exists OR if createdAt changed (ID reused)
+    for (const [id, createdAt] of deletingOutputs) {
+        const output = outputs.find(o => o.id === id);
+        if (!output || output.created_at !== createdAt) {
+            deletingOutputs.delete(id);
+        }
+    }
+
     list.innerHTML = outputs.map(o => {
         const status = statuses[o.id] || {};
+        const isDeleting = deletingOutputs.get(o.id) === o.created_at;
         const isRetrying = status.retry_count > 0 && !status.given_up;
         const givenUp = status.given_up;
-        const isConnected = status.running;
+        const isConnected = status.running && !isDeleting;
 
-        const dotClass = isConnected ? 'success' : (givenUp ? 'danger' : 'warning');
-        const statusClass = isConnected ? 'success' : (givenUp ? 'danger' : 'warning');
-        const statusText = isConnected ? 'Connected' : (givenUp ? 'Failed' : (isRetrying ? `Retry ${status.retry_count}` : 'Connecting'));
-        const showError = (givenUp || isRetrying) && status.last_error;
+        let dotClass, statusClass, statusText;
+        if (isDeleting) {
+            dotClass = statusClass = 'warning';
+            statusText = 'Stopping...';
+        } else if (isConnected) {
+            dotClass = statusClass = 'success';
+            statusText = 'Connected';
+        } else if (givenUp) {
+            dotClass = statusClass = 'danger';
+            statusText = 'Failed';
+        } else {
+            dotClass = statusClass = 'warning';
+            statusText = isRetrying ? `Retry ${status.retry_count}` : 'Connecting';
+        }
+        const showError = !isDeleting && (givenUp || isRetrying) && status.last_error;
 
         return `
-        <div class="output-item">
+        <div class="output-item${isDeleting ? ' deleting' : ''}">
             <div class="output-row">
                 <span class="output-dot ${dotClass}"></span>
                 <span class="output-host">${escapeHtml(o.host)}</span>
-                <button class="output-delete" data-id="${o.id}" title="Delete">
+                <button class="output-delete" data-id="${o.id}" title="Delete"${isDeleting ? ' disabled' : ''}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
             </div>
@@ -96,6 +117,8 @@ function wsCommand(type, id, data) {
 }
 
 let currentOutputs = [];
+let currentStatuses = {};
+const deletingOutputs = new Map(); // id -> createdAt (to detect ID reuse)
 
 function showModal() {
     $('modal').hidden = false;
@@ -223,8 +246,12 @@ $('audio-input').onchange = (e) => {
 
 $('outputs-list').onclick = (e) => {
     const btn = e.target.closest('.output-delete');
-    if (btn && confirm('Delete this output?')) {
+    if (btn && !btn.disabled && confirm('Delete this output?')) {
+        const output = currentOutputs.find(o => o.id === btn.dataset.id);
+        if (output) deletingOutputs.set(btn.dataset.id, output.created_at);
         wsCommand('delete_output', btn.dataset.id);
+        // Immediately re-render to show "Stopping..." state
+        renderOutputs(currentOutputs, currentStatuses);
     }
 };
 

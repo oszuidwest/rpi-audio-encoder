@@ -111,7 +111,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Helper to send status
 	sendStatus := func() error {
 		status := s.manager.GetStatus()
-		status.OutputCount = len(s.config.GetEnabledOutputs())
+		status.OutputCount = len(s.config.GetOutputs())
 		return conn.WriteJSON(map[string]interface{}{
 			"type":          "status",
 			"encoder":       status,
@@ -193,7 +193,6 @@ func (s *Server) handleWSCommand(cmd WSCommand, statusUpdate chan<- bool) {
 		if output.Codec == "" {
 			output.Codec = "mp3"
 		}
-		output.Enabled = true
 		if err := s.config.AddOutput(output); err != nil {
 			log.Printf("add_output: failed to add: %v", err)
 			return
@@ -281,7 +280,9 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	switch path {
 	case "/index.html":
 		w.Header().Set("Content-Type", "text/html")
-		if _, err := w.Write([]byte(indexHTML)); err != nil {
+		html := strings.Replace(indexHTML, "{{VERSION}}", Version, 1)
+		html = strings.Replace(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()), 1)
+		if _, err := w.Write([]byte(html)); err != nil {
 			log.Printf("Failed to write index.html: %v", err)
 		}
 	case "/style.css":

@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 )
 
 // Config holds all application configuration
@@ -15,7 +15,6 @@ type Config struct {
 	WebPort     int      `json:"web_port"`
 	WebUser     string   `json:"web_user"`
 	WebPassword string   `json:"web_password"`
-	AutoStart   bool     `json:"auto_start"`
 	AudioInput  string   `json:"audio_input"`
 	Outputs     []Output `json:"outputs"`
 
@@ -29,7 +28,6 @@ func NewConfig(filePath string) *Config {
 		WebPort:     8080,
 		WebUser:     "admin",
 		WebPassword: "encoder",
-		AutoStart:   true,
 		AudioInput:  defaultAudioInput(),
 		Outputs:     []Output{},
 		filePath:    filePath,
@@ -62,14 +60,16 @@ func (c *Config) Load() error {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Migrate old configs: set default codec for outputs without one
+	// Migrate old configs
 	for i := range c.Outputs {
 		if c.Outputs[i].Codec == "" {
 			c.Outputs[i].Codec = "mp3"
 		}
+		if c.Outputs[i].CreatedAt == 0 {
+			c.Outputs[i].CreatedAt = time.Now().UnixMilli()
+		}
 	}
 
-	// Migrate old configs: set default audio input if not set
 	if c.AudioInput == "" {
 		c.AudioInput = defaultAudioInput()
 	}
@@ -114,35 +114,6 @@ func (c *Config) GetOutputs() []Output {
 	return outputs
 }
 
-// GetEnabledOutputs returns only enabled outputs
-func (c *Config) GetEnabledOutputs() []Output {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	var outputs []Output
-	for _, o := range c.Outputs {
-		if o.Enabled {
-			outputs = append(outputs, o)
-		}
-	}
-	return outputs
-}
-
-// EnabledOutputs returns an iterator over enabled outputs for use in range loops.
-func (c *Config) EnabledOutputs() iter.Seq[Output] {
-	return func(yield func(Output) bool) {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		for _, o := range c.Outputs {
-			if o.Enabled {
-				if !yield(o) {
-					return
-				}
-			}
-		}
-	}
-}
-
 // GetOutput returns a single output by ID
 func (c *Config) GetOutput(id string) *Output {
 	c.mu.RLock()
@@ -171,6 +142,9 @@ func (c *Config) AddOutput(output Output) error {
 	if output.Codec == "" {
 		output.Codec = "mp3"
 	}
+
+	// Set creation timestamp (Unix millis for easy JS comparison)
+	output.CreatedAt = time.Now().UnixMilli()
 
 	c.Outputs = append(c.Outputs, output)
 	return c.saveLocked()

@@ -238,6 +238,7 @@ func (m *Encoder) runSourceLoop() {
 				m.state = StateStopped
 				m.lastError = fmt.Sprintf("Stopped after %d failed attempts: %s", maxRetries, errMsg)
 				m.mu.Unlock()
+				m.stopAllOutputs()
 				return
 			}
 		} else {

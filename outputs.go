@@ -18,8 +18,8 @@ func (m *Encoder) startEnabledOutputs() {
 	// Start the distributor that reads from source stdout and fans out to outputs
 	go m.runDistributor()
 
-	// Start all enabled outputs
-	for output := range m.config.EnabledOutputs() {
+	// Start all outputs
+	for _, output := range m.config.GetOutputs() {
 		if err := m.StartOutput(output.ID); err != nil {
 			log.Printf("Failed to start output %s: %v", output.ID, err)
 		}
@@ -249,7 +249,7 @@ func (m *Encoder) runOutputProcess(outputID string, cmd *exec.Cmd, stderr *bytes
 	}
 
 	output := m.config.GetOutput(outputID)
-	if output == nil || !output.Enabled {
+	if output == nil {
 		m.removeOutput(outputID)
 		return
 	}
@@ -265,11 +265,10 @@ func (m *Encoder) runOutputProcess(outputID string, cmd *exec.Cmd, stderr *bytes
 		outputID, retryDelay, retryCount+1, maxRetries)
 	time.Sleep(retryDelay)
 
-	// Re-check if output still exists and is enabled after sleep
-	// (user might have deleted or disabled it during the wait)
+	// Re-check if output still exists after sleep (user might have deleted it during the wait)
 	output = m.config.GetOutput(outputID)
-	if output == nil || !output.Enabled {
-		log.Printf("Output %s was removed or disabled during retry wait, not restarting", outputID)
+	if output == nil {
+		log.Printf("Output %s was removed during retry wait, not restarting", outputID)
 		m.removeOutput(outputID)
 		return
 	}

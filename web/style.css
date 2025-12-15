@@ -491,6 +491,11 @@ input::placeholder {
     border-bottom: none;
 }
 
+.output-item.deleting {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .output-row {
     display: flex;
     align-items: center;
@@ -697,10 +702,17 @@ footer {
     text-align: center;
     font-size: 0.875rem;
     color: var(--text-secondary);
+}
+
+footer div {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+}
+
+footer p {
+    margin: 0.25rem 0 0;
 }
 
 footer a {
@@ -709,7 +721,6 @@ footer a {
     gap: 0.25rem;
     color: inherit;
     text-decoration: none;
-    transition: color 0.2s;
 }
 
 footer a:hover {
