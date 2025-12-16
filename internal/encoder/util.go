@@ -1,21 +1,6 @@
-package main
+package encoder
 
-import (
-	"strings"
-	"time"
-)
-
-// pollUntil signals when the given condition becomes true.
-func pollUntil(condition func() bool) <-chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		for !condition() {
-			time.Sleep(pollInterval)
-		}
-		close(done)
-	}()
-	return done
-}
+import "strings"
 
 // extractLastError returns the last meaningful error from FFmpeg output.
 func extractLastError(stderr string) string {

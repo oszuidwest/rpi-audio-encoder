@@ -1,4 +1,5 @@
-package main
+// Package encoder provides the audio capture and encoding engine.
+package encoder
 
 import (
 	"log"

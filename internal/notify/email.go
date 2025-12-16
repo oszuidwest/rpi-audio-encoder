@@ -1,0 +1,99 @@
+// Package notify provides notification services for silence alerts.
+package notify
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/wneessen/go-mail"
+)
+
+// EmailConfig holds SMTP configuration.
+type EmailConfig struct {
+	Host       string
+	Port       int
+	Username   string
+	Password   string
+	Recipients string
+}
+
+// SendSilenceAlert sends an email notification for critical silence.
+func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
+	if cfg.Host == "" || cfg.Username == "" || cfg.Recipients == "" {
+		return nil // Silently skip if not configured
+	}
+
+	subject := "ZuidWest FM Encoder: Silence Alert"
+	body := fmt.Sprintf(
+		"Critical silence detected on audio encoder.\n\n"+
+			"Duration: %.1f seconds\n"+
+			"Threshold: %.1f dB\n"+
+			"Time: %s\n\n"+
+			"Please check the audio source.",
+		duration, threshold, time.Now().UTC().Format(time.RFC3339),
+	)
+
+	return sendEmail(cfg, subject, body)
+}
+
+// SendTestEmail sends a test email to verify SMTP configuration.
+func SendTestEmail(cfg EmailConfig) error {
+	if cfg.Host == "" {
+		return fmt.Errorf("SMTP host not configured")
+	}
+	if cfg.Username == "" {
+		return fmt.Errorf("email username not configured")
+	}
+	if cfg.Recipients == "" {
+		return fmt.Errorf("email recipients not configured")
+	}
+
+	subject := "ZuidWest FM Encoder: Test Email"
+	body := fmt.Sprintf(
+		"This is a test email from your ZuidWest FM Encoder.\n\n"+
+			"Time: %s\n\n"+
+			"If you received this email, your SMTP configuration is working correctly.",
+		time.Now().UTC().Format(time.RFC3339),
+	)
+
+	return sendEmail(cfg, subject, body)
+}
+
+// sendEmail sends an email using go-mail with STARTTLS.
+func sendEmail(cfg EmailConfig, subject, body string) error {
+	// Parse recipients (comma-separated)
+	recipients := strings.Split(cfg.Recipients, ",")
+	for i := range recipients {
+		recipients[i] = strings.TrimSpace(recipients[i])
+	}
+
+	// Create message
+	m := mail.NewMsg()
+	if err := m.From(cfg.Username); err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	if err := m.To(recipients...); err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	m.Subject(subject)
+	m.SetBodyString(mail.TypeTextPlain, body)
+
+	// Create client with STARTTLS
+	c, err := mail.NewClient(cfg.Host,
+		mail.WithPort(cfg.Port),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(cfg.Username),
+		mail.WithPassword(cfg.Password),
+		mail.WithTLSPortPolicy(mail.TLSMandatory),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+
+	if err := c.DialAndSend(m); err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	return nil
+}

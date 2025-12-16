@@ -24,6 +24,7 @@ type VersionInfo struct {
 	Current     string `json:"current"`
 	Latest      string `json:"latest,omitempty"`
 	UpdateAvail bool   `json:"update_available"`
+	Commit      string `json:"commit,omitempty"`
 }
 
 // VersionChecker periodically checks GitHub for new releases.
@@ -100,7 +101,10 @@ func (vc *VersionChecker) check() bool {
 	if err != nil {
 		return false
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		// Intentionally ignoring close error - not actionable in version check
+		_ = resp.Body.Close() //nolint:errcheck
+	}()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -157,6 +161,7 @@ func (vc *VersionChecker) GetInfo() VersionInfo {
 	info := VersionInfo{
 		Current: current,
 		Latest:  vc.latest,
+		Commit:  Commit,
 	}
 
 	// Only show update for non-dev builds with valid latest version

@@ -1,303 +1,332 @@
-const $ = id => document.getElementById(id);
+// Utility function - exposed globally for Alpine template expressions
+window.dbToPercent = (db) => Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
 
-function updateStatusFromData(data) {
-    const state = data.encoder.state;
-    const running = state === 'running';
-    encoderRunning = running;
-    const pill = $('status-pill');
+document.addEventListener('alpine:init', () => {
+    Alpine.data('encoderApp', () => ({
+        // View state: 'dashboard', 'settings', 'add-output'
+        view: 'dashboard',
+        settingsTab: 'audio',
 
-    // Status pill styling
-    if (state === 'running') {
-        pill.className = 'running';
-    } else if (state === 'stopped') {
-        pill.className = 'stopped';
-    } else {
-        pill.className = 'warning';
-    }
-    $('status-text').textContent = state.charAt(0).toUpperCase() + state.slice(1);
+        // New output form data
+        newOutput: {
+            host: '',
+            port: 8080,
+            streamid: '',
+            password: '',
+            codec: 'mp3',
+            max_retries: 99
+        },
 
-    // Source status
-    const sourceStatus = $('source-status');
-    const hasSourceIssue = (data.encoder.source_retry_count > 0 && state !== 'stopped') ||
-                          (data.encoder.last_error && state !== 'running');
+        // Encoder state
+        encoder: {
+            state: 'connecting',
+            uptime: '',
+            sourceRetryCount: 0,
+            sourceMaxRetries: 10,
+            lastError: ''
+        },
 
-    if (hasSourceIssue) {
-        sourceStatus.hidden = false;
-        $('source-retry').textContent = data.encoder.source_retry_count > 0
-            ? `Retry ${data.encoder.source_retry_count}/${data.encoder.source_max_retries}`
-            : 'Error';
-        const errorEl = $('source-error');
-        errorEl.textContent = data.encoder.last_error || '';
-        errorEl.hidden = !data.encoder.last_error;
-    } else {
-        sourceStatus.hidden = true;
-    }
+        // Outputs
+        outputs: [],
+        outputStatuses: {},
+        deletingOutputs: {},
 
-    if (!running) resetVuMeter();
+        // Audio
+        devices: [],
+        levels: { left: -60, right: -60, peak_left: -60, peak_right: -60, silence_level: null },
+        vuMode: localStorage.getItem('vuMode') || 'peak',
+        clipActive: false,
+        clipTimeout: null,
 
-    currentOutputs = data.outputs || [];
-    currentStatuses = data.output_status || {};
-    $('output-count').textContent = currentOutputs.length;
-    renderOutputs(currentOutputs, currentStatuses);
+        // Settings
+        settings: {
+            audioInput: '',
+            silenceThreshold: -40,
+            silenceDuration: 15,
+            silenceRecovery: 5,
+            silenceWebhook: '',
+            email: { host: '', port: 587, username: '', password: '', recipients: '' },
+            platform: ''
+        },
 
-    if (data.devices) {
-        updateAudioDevices(data.devices, data.settings?.audio_input);
-    }
+        // Version
+        version: { current: '', latest: '', updateAvail: false, commit: '' },
 
-    if (data.version) {
-        updateVersionBanner(data.version);
-    }
-}
+        // Email test state
+        emailTestPending: false,
+        emailTestText: 'Send Test Email',
 
-function renderOutputs(outputs, statuses) {
-    const list = $('outputs-list');
-    const template = $('output-template');
+        // WebSocket
+        ws: null,
 
-    list.replaceChildren();
+        // Computed properties
+        get statusPillClass() {
+            const s = this.encoder.state;
+            if (s === 'running') return 'state-success';
+            if (s === 'stopped') return 'state-danger';
+            return 'state-warning';
+        },
 
-    if (!outputs?.length) return;
+        get hasSourceIssue() {
+            return (this.encoder.sourceRetryCount > 0 && this.encoder.state !== 'stopped') ||
+                   (this.encoder.lastError && this.encoder.state !== 'running');
+        },
 
-    // Clean up deletingOutputs - remove if output no longer exists OR if createdAt changed (ID reused)
-    for (const [id, createdAt] of deletingOutputs) {
-        const output = outputs.find(o => o.id === id);
-        if (!output || output.created_at !== createdAt) {
-            deletingOutputs.delete(id);
+        get encoderRunning() {
+            return this.encoder.state === 'running';
+        },
+
+        // Lifecycle
+        init() {
+            this.connectWebSocket();
+        },
+
+        // WebSocket
+        connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            this.ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+            this.ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'levels') {
+                    this.handleLevels(msg.levels);
+                } else if (msg.type === 'status') {
+                    this.handleStatus(msg);
+                } else if (msg.type === 'test_email_result') {
+                    this.handleTestEmailResult(msg);
+                }
+            };
+
+            this.ws.onclose = () => {
+                this.encoder.state = 'connecting';
+                this.resetVuMeter();
+                setTimeout(() => this.connectWebSocket(), 1000);
+            };
+
+            this.ws.onerror = () => this.ws.close();
+        },
+
+        send(type, id, data) {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: type, id: id, data: data }));
+            }
+        },
+
+        handleLevels(levels) {
+            this.levels = levels;
+            const totalClips = (levels.clip_left || 0) + (levels.clip_right || 0);
+            if (totalClips > 0) {
+                this.clipActive = true;
+                clearTimeout(this.clipTimeout);
+                this.clipTimeout = setTimeout(() => { this.clipActive = false; }, 1500);
+            }
+        },
+
+        handleStatus(msg) {
+            // Encoder state
+            this.encoder.state = msg.encoder.state;
+            this.encoder.uptime = msg.encoder.uptime || '';
+            this.encoder.sourceRetryCount = msg.encoder.source_retry_count || 0;
+            this.encoder.sourceMaxRetries = msg.encoder.source_max_retries || 10;
+            this.encoder.lastError = msg.encoder.last_error || '';
+
+            if (!this.encoderRunning) {
+                this.resetVuMeter();
+            }
+
+            // Outputs
+            this.outputs = msg.outputs || [];
+            this.outputStatuses = msg.output_status || {};
+
+            // Clean up deletingOutputs
+            for (const id in this.deletingOutputs) {
+                const output = this.outputs.find(o => o.id === id);
+                if (!output || output.created_at !== this.deletingOutputs[id]) {
+                    delete this.deletingOutputs[id];
+                }
+            }
+
+            // Devices
+            if (msg.devices) {
+                this.devices = msg.devices;
+            }
+            if (msg.settings?.audio_input) {
+                this.settings.audioInput = msg.settings.audio_input;
+            }
+
+            // Settings from status
+            if (msg.silence_threshold !== undefined) {
+                this.settings.silenceThreshold = msg.silence_threshold;
+            }
+            if (msg.silence_duration !== undefined) {
+                this.settings.silenceDuration = msg.silence_duration;
+            }
+            if (msg.silence_recovery !== undefined) {
+                this.settings.silenceRecovery = msg.silence_recovery;
+            }
+            if (msg.silence_webhook !== undefined) {
+                this.settings.silenceWebhook = msg.silence_webhook || '';
+            }
+            if (msg.email_smtp_host !== undefined) {
+                this.settings.email.host = msg.email_smtp_host || '';
+            }
+            if (msg.email_smtp_port !== undefined) {
+                this.settings.email.port = msg.email_smtp_port || 587;
+            }
+            if (msg.email_username !== undefined) {
+                this.settings.email.username = msg.email_username || '';
+            }
+            if (msg.email_recipients !== undefined) {
+                this.settings.email.recipients = msg.email_recipients || '';
+            }
+            if (msg.settings && msg.settings.platform !== undefined) {
+                this.settings.platform = msg.settings.platform;
+            }
+
+            // Version
+            if (msg.version) {
+                this.version = msg.version;
+            }
+        },
+
+        handleTestEmailResult(msg) {
+            this.emailTestPending = false;
+            this.emailTestText = msg.success ? 'Sent!' : 'Failed';
+            if (!msg.success) alert(`Test email failed: ${msg.error || 'Unknown error'}`);
+            setTimeout(() => { this.emailTestText = 'Send Test Email'; }, 2000);
+        },
+
+        // Navigation
+        showDashboard() {
+            this.view = 'dashboard';
+        },
+
+        showSettings() {
+            this.view = 'settings';
+        },
+
+        showAddOutput() {
+            this.newOutput = {
+                host: '',
+                port: 8080,
+                streamid: '',
+                password: '',
+                codec: 'mp3',
+                max_retries: 99
+            };
+            this.view = 'add-output';
+        },
+
+        showTab(tabId) {
+            this.settingsTab = tabId;
+        },
+
+        // Output management
+        submitNewOutput() {
+            if (!this.newOutput.host) {
+                return;
+            }
+            this.send('add_output', null, {
+                host: this.newOutput.host.trim(),
+                port: this.newOutput.port,
+                streamid: this.newOutput.streamid.trim() || 'studio',
+                password: this.newOutput.password,
+                codec: this.newOutput.codec,
+                max_retries: this.newOutput.max_retries
+            });
+            this.view = 'dashboard';
+        },
+
+        deleteOutput(id) {
+            if (!confirm('Delete this output?')) return;
+            const output = this.outputs.find(o => o.id === id);
+            if (output) this.deletingOutputs[id] = output.created_at;
+            this.send('delete_output', id, null);
+        },
+
+        getOutputStateClass(output) {
+            const status = this.outputStatuses[output.id] || {};
+            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            if (isDeleting) return 'state-warning';
+            if (status.stable) return 'state-success';
+            if (status.given_up) return 'state-danger';
+            if (status.retry_count > 0) return 'state-warning';
+            if (status.running) return 'state-warning';
+            if (!this.encoderRunning) return 'state-stopped';
+            return 'state-warning';
+        },
+
+        getOutputStatusText(output) {
+            const status = this.outputStatuses[output.id] || {};
+            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            if (isDeleting) return 'Stopping...';
+            if (status.stable) return 'Connected';
+            if (status.given_up) return 'Failed';
+            if (status.retry_count > 0) return `Retry ${status.retry_count}/${status.max_retries}`;
+            if (status.running) return 'Connecting...';
+            if (!this.encoderRunning) return 'Offline';
+            return 'Connecting...';
+        },
+
+        shouldShowError(output) {
+            const status = this.outputStatuses[output.id] || {};
+            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            return !isDeleting && (status.given_up || status.retry_count > 0) && status.last_error;
+        },
+
+        // VU Meter
+        toggleVuMode() {
+            this.vuMode = this.vuMode === 'peak' ? 'rms' : 'peak';
+            localStorage.setItem('vuMode', this.vuMode);
+        },
+
+        resetVuMeter() {
+            this.levels = { left: -60, right: -60, peak_left: -60, peak_right: -60, silence_level: null };
+        },
+
+        // Settings
+        updateAudioInput() {
+            this.send('update_settings', null, { audio_input: this.settings.audioInput });
+        },
+
+        updateSilenceThreshold() {
+            if (this.settings.silenceThreshold >= -60 && this.settings.silenceThreshold <= 0) {
+                this.send('update_settings', null, { silence_threshold: this.settings.silenceThreshold });
+            }
+        },
+
+        updateSilenceDuration() {
+            if (this.settings.silenceDuration >= 1 && this.settings.silenceDuration <= 300) {
+                this.send('update_settings', null, { silence_duration: this.settings.silenceDuration });
+            }
+        },
+
+        updateSilenceRecovery() {
+            if (this.settings.silenceRecovery >= 1 && this.settings.silenceRecovery <= 60) {
+                this.send('update_settings', null, { silence_recovery: this.settings.silenceRecovery });
+            }
+        },
+
+        updateSilenceWebhook() {
+            this.send('update_settings', null, { silence_webhook: this.settings.silenceWebhook });
+        },
+
+        saveEmailSettings() {
+            const update = {
+                email_smtp_host: this.settings.email.host,
+                email_smtp_port: this.settings.email.port,
+                email_username: this.settings.email.username,
+                email_recipients: this.settings.email.recipients
+            };
+            const pw = document.getElementById('email-password');
+            if (pw?.value) update.email_password = pw.value;
+            this.send('update_settings', null, update);
+        },
+
+        sendTestEmail() {
+            this.emailTestPending = true;
+            this.emailTestText = 'Sending...';
+            this.send('test_email', null, null);
         }
-    }
-
-    for (const o of outputs) {
-        const status = statuses[o.id] || {};
-        const isDeleting = deletingOutputs.get(o.id) === o.created_at;
-        const isRetrying = status.retry_count > 0 && !status.given_up;
-        const givenUp = status.given_up;
-        const isStable = status.stable && !isDeleting;
-        const isConnecting = status.running && !status.stable && !isDeleting;
-
-        let stateClass, statusText;
-        if (isDeleting) {
-            stateClass = 'warning';
-            statusText = 'Stopping...';
-        } else if (isStable) {
-            stateClass = 'success';
-            statusText = 'Connected';
-        } else if (givenUp) {
-            stateClass = 'danger';
-            statusText = 'Failed';
-        } else if (isRetrying) {
-            stateClass = 'warning';
-            statusText = `Retry ${status.retry_count}/${status.max_retries}`;
-        } else if (isConnecting) {
-            stateClass = 'warning';
-            statusText = 'Connecting...';
-        } else if (!encoderRunning) {
-            stateClass = 'stopped';
-            statusText = 'Offline';
-        } else {
-            stateClass = 'warning';
-            statusText = 'Connecting...';
-        }
-
-        const clone = template.content.cloneNode(true);
-        const item = clone.querySelector('.output-item');
-        const deleteBtn = clone.querySelector('.output-delete');
-        const errorEl = clone.querySelector('.output-error');
-
-        if (isDeleting) item.classList.add('deleting');
-        clone.querySelector('.output-dot').classList.add(stateClass);
-        clone.querySelector('.output-host').textContent = `${o.host}:${o.port}`;
-        clone.querySelector('.output-codec').textContent = o.codec.toUpperCase();
-        clone.querySelector('.output-streamid').textContent = `#${o.streamid}`;
-        clone.querySelector('.output-status').textContent = statusText;
-        clone.querySelector('.output-status').classList.add(stateClass);
-
-        deleteBtn.dataset.id = o.id;
-        if (isDeleting) deleteBtn.disabled = true;
-
-        const showError = !isDeleting && (givenUp || isRetrying) && status.last_error;
-        if (showError) {
-            errorEl.textContent = status.last_error;
-        } else {
-            errorEl.remove();
-        }
-
-        list.appendChild(clone);
-    }
-}
-
-function wsCommand(type, id, data) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type, id, data }));
-    }
-}
-
-let currentOutputs = [];
-let currentStatuses = {};
-let encoderRunning = false;
-const deletingOutputs = new Map(); // id -> createdAt (to detect ID reuse)
-
-function showModal() {
-    $('modal').hidden = false;
-    $('input-host').value = '';
-    $('input-port').value = '8080';
-    $('input-streamid').value = '';
-    $('input-password').value = '';
-    $('input-codec').value = 'mp3';
-    $('input-retries').value = '99';
-    $('input-host').focus();
-}
-
-function hideModal() {
-    $('modal').hidden = true;
-}
-
-function addOutput() {
-    const host = $('input-host').value.trim();
-    const port = Number.parseInt($('input-port').value, 10);
-    const streamid = $('input-streamid').value.trim() || 'studio';
-    const password = $('input-password').value;
-    const codec = $('input-codec').value;
-    const max_retries = Number.parseInt($('input-retries').value, 10) || 99;
-
-    if (!host) {
-        $('input-host').focus();
-        return;
-    }
-
-    wsCommand('add_output', null, { host, port, streamid, password, codec, max_retries });
-    hideModal();
-}
-
-// VU Meter
-let vuMode = localStorage.vuMode || 'peak';
-
-function dbToPercent(db) {
-    return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
-}
-
-function updateLevelsFromData(levels) {
-    const showPeak = vuMode === 'peak';
-    const displayL = showPeak ? levels.peak_left : levels.left;
-    const displayR = showPeak ? levels.peak_right : levels.right;
-
-    $('vu-left-cover').style.width = `${100 - dbToPercent(levels.left)}%`;
-    $('vu-right-cover').style.width = `${100 - dbToPercent(levels.right)}%`;
-    $('peak-left').style.left = `${dbToPercent(levels.peak_left)}%`;
-    $('peak-right').style.left = `${dbToPercent(levels.peak_right)}%`;
-    $('db-left').textContent = `${displayL.toFixed(1)} dB`;
-    $('db-right').textContent = `${displayR.toFixed(1)} dB`;
-}
-
-function getVuModeLabel() {
-    return vuMode === 'peak' ? 'Peak' : 'RMS';
-}
-
-function toggleVuMode() {
-    vuMode = vuMode === 'peak' ? 'rms' : 'peak';
-    localStorage.vuMode = vuMode;
-    $('vu-mode-toggle').textContent = getVuModeLabel();
-}
-
-function resetVuMeter() {
-    $('vu-left-cover').style.width = $('vu-right-cover').style.width = '100%';
-    $('peak-left').style.left = $('peak-right').style.left = '0%';
-    $('db-left').textContent = $('db-right').textContent = '-60 dB';
-}
-
-// Version Banner
-function updateVersionBanner(version) {
-    const banner = $('upgrade-banner');
-    if (version.update_available && version.latest) {
-        $('upgrade-version').textContent = version.latest;
-        banner.hidden = false;
-    } else {
-        banner.hidden = true;
-    }
-}
-
-// Audio Input
-let currentAudioInput = '';
-
-function updateAudioDevices(devices, selectedInput) {
-    const select = $('audio-input');
-
-    if (selectedInput && selectedInput !== currentAudioInput) {
-        currentAudioInput = selectedInput;
-    }
-
-    if (select.options.length === 0) {
-        if (!devices || devices.length === 0) {
-            select.innerHTML = '<option value="">No devices found</option>';
-            return;
-        }
-
-        for (const device of devices) {
-            const option = document.createElement('option');
-            option.value = device.id;
-            option.textContent = device.name;
-            if (device.id === currentAudioInput) option.selected = true;
-            select.appendChild(option);
-        }
-    }
-}
-
-// WebSocket
-let ws = null;
-
-function showConnecting() {
-    $('status-pill').className = '';
-    $('status-text').textContent = 'Connecting';
-    resetVuMeter();
-}
-
-function connectWebSocket() {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${location.host}/ws`);
-
-    ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'levels') {
-            updateLevelsFromData(msg.levels);
-        } else if (msg.type === 'status') {
-            updateStatusFromData(msg);
-        }
-    };
-
-    ws.onclose = () => {
-        showConnecting();
-        setTimeout(connectWebSocket, 1000);
-    };
-
-    ws.onerror = () => ws.close();
-}
-
-// Event listeners
-$('audio-input').onchange = (e) => {
-    wsCommand('update_settings', null, { audio_input: e.target.value });
-};
-
-$('outputs-list').onclick = (e) => {
-    const btn = e.target.closest('.output-delete');
-    if (btn && !btn.disabled && confirm('Delete this output?')) {
-        const output = currentOutputs.find(o => o.id === btn.dataset.id);
-        if (output) deletingOutputs.set(btn.dataset.id, output.created_at);
-        wsCommand('delete_output', btn.dataset.id);
-        // Immediately re-render to show "Stopping..." state
-        renderOutputs(currentOutputs, currentStatuses);
-    }
-};
-
-$('add-btn').onclick = showModal;
-$('cancel-btn').onclick = hideModal;
-$('save-btn').onclick = addOutput;
-$('vu-mode-toggle').onclick = toggleVuMode;
-document.querySelector('.modal-overlay').onclick = hideModal;
-
-for (const input of document.querySelectorAll('.modal-content input')) {
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') addOutput();
-    });
-}
-
-// Init
-$('vu-mode-toggle').textContent = getVuModeLabel();
-connectWebSocket();
+    }));
+});

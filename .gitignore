@@ -1,5 +1,5 @@
 .DS_Store
-encoder
+/encoder
 config.json
 CLAUDE.md
 /node_modules
