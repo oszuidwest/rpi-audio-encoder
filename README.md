@@ -8,6 +8,7 @@ Audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radi
 
 - **Multi-output streaming** - Send to multiple SRT servers with different codecs simultaneously
 - **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, updated via WebSocket
+- **Silence detection** - Alerts via webhook or email when audio drops below threshold
 - **Web interface** - Configure outputs, select audio input, monitor levels
 - **Auto-recovery** - Automatic reconnection with exponential backoff
 - **Multiple codecs** - MP3, MP2, OGG Vorbis, or uncompressed WAV per output
@@ -54,6 +55,22 @@ Connect the digital output of your audio processor to the HiFiBerry input.
 | OGG | libvorbis | ~500 kbit/s (Q10) |
 | WAV | pcm_s16le | Uncompressed |
 
+## Silence Detection
+
+Monitors audio levels and sends alerts when silence is detected. Uses hysteresis to prevent alert flapping:
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| Threshold | -40 dB | -60 to 0 | Audio level below which silence is detected |
+| Duration | 15 s | 1-300 | Seconds of silence before alerting |
+| Recovery | 5 s | 1-60 | Seconds of audio before considering recovered |
+
+**Alerting options:**
+- **Webhook** - POST request to a URL when silence starts
+- **Email** - SMTP notification to configured recipients
+
+Configure via the web interface under Settings → Alerts.
+
 ## Configuration
 
 Configuration is stored in `config.json`:
@@ -64,6 +81,10 @@ Configuration is stored in `config.json`:
   "web_user": "admin",
   "web_password": "encoder",
   "audio_input": "default:CARD=sndrpihifiberry",
+  "silence_threshold": -40,
+  "silence_duration": 15,
+  "silence_recovery": 5,
+  "silence_webhook": "https://example.com/alert",
   "outputs": [
     {
       "id": "output-1",
