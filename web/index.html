@@ -1,5 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+  ZuidWest FM Encoder - Web Interface
+
+  Single-page application for real-time audio monitoring and encoder control.
+  Built with Alpine.js for reactive state management.
+
+  Views:
+    - Dashboard: Live VU meter, encoder status, output management
+    - Settings: Audio input, silence detection, alerts, about info
+    - Add Output: Form for creating new stream outputs
+
+  State Management:
+    - Alpine.js component: encoderApp() defined in app.js
+    - View switching via 'view' property: 'dashboard' | 'settings' | 'add-output'
+    - WebSocket at /ws for real-time updates
+
+  File Dependencies:
+    - style.css: All styling and animations
+    - icons.js: SVG icon definitions (window.icons)
+    - app.js: Alpine.js application logic
+    - alpine.js: Alpine.js framework
+
+  @see app.js for state management and WebSocket handling
+  @see style.css for component styling
+  @see icons.js for SVG icon reference
+-->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,20 +36,31 @@
     <script src="/alpine.min.js" defer="defer"></script>
 </head>
 <body x-data="encoderApp()" x-cloak>
+    <!-- Dark mode detection - syncs with system preference
+         Sets --color-scheme CSS variable for theme-aware styling
+         Listens for system preference changes in real-time -->
     <script>
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
         if (mq.matches) document.documentElement.classList.add('dark');
         mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
     </script>
     <main class="container">
-        <!-- Dashboard View -->
+        <!-- === Dashboard View ===
+             Main monitoring interface showing:
+             - Header with status pill and settings button
+             - Audio input device selector
+             - VU meter with real-time levels
+             - Source status alerts
+             - Output list with individual status indicators -->
         <div id="dashboard-view" x-show="view === 'dashboard'" x-transition:enter.duration.200ms>
             <header>
                 <h1>ZuidWest FM Encoder</h1>
                 <div class="header-controls">
                     <button class="icon-btn icon-btn--settings" id="settings-btn" type="button" title="Settings" @click="showSettings()">
-                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span x-html="icons.settings"></span>
                     </button>
+                    <!-- Status pill - shows encoder state with animated indicator
+                         States: running (green pulse), stopped (gray), connecting (yellow pulse), starting -->
                     <div id="status-pill" :class="statusPillClass">
                         <span id="status-dot" :class="{ 'animate-pulse': encoder.state === 'running' || encoder.state === 'starting' }"></span>
                         <span id="status-text" x-text="encoder.state.charAt(0).toUpperCase() + encoder.state.slice(1)"></span>
@@ -57,32 +94,37 @@
                     </select>
                 </div>
 
+                <!-- === VU Meter Component ===
+                     Real-time audio level visualization with:
+                     - Mode toggle: Peak (default) vs RMS display
+                     - Silence indicator: Activates when audio below threshold for configured duration
+                     - Clip indicator: Flashes when levels exceed 0dB, held for 1.5s
+                     - Two channels (L/R): Gradient bar with peak hold marker
+                     - Scale: Reference marks at -60, -48, -24, -12, -6, 0 dB
+                     Updates ~4 times per second -->
                 <div id="vu-meter">
                     <div class="vu-header">
                         <button class="vu-mode-btn" id="vu-mode-toggle" type="button" @click="toggleVuMode()" x-text="vuMode === 'peak' ? 'Peak' : 'RMS'"></button>
+                        <!-- Status indicators - visual feedback for audio state
+                             TODO: Add aria-label for screen reader accessibility
+                             Silence: Yellow dot when audio below threshold
+                             Clip: Red flash when audio exceeds 0dB -->
                         <div class="vu-indicators">
                             <span class="vu-indicator" id="silence-alert"><span class="indicator-dot silence" :class="levels.silence_level"></span>Silence</span>
                             <span class="vu-indicator" id="clip-alert"><span class="indicator-dot clip" :class="{ active: clipActive }"></span>Clip</span>
                         </div>
                     </div>
-                    <div class="vu-channel">
-                        <span class="vu-label">L</span>
-                        <div class="vu-track">
-                            <div class="vu-gradient"></div>
-                            <div class="vu-cover" :style="{ width: `${100 - dbToPercent(vuMode === 'peak' ? levels.peak_left : levels.left)}%` }"></div>
-                            <div class="vu-peak" :style="{ left: `${dbToPercent(levels.peak_left)}%` }" :class="{ visible: dbToPercent(levels.peak_left) > 0 }"></div>
+                    <template x-for="ch in vuChannels" :key="ch.label">
+                        <div class="vu-channel">
+                            <span class="vu-label" x-text="ch.label"></span>
+                            <div class="vu-track">
+                                <div class="vu-gradient"></div>
+                                <div class="vu-cover" :style="{ width: `${100 - dbToPercent(vuMode === 'peak' ? levels[ch.peak] : levels[ch.level])}%` }"></div>
+                                <div class="vu-peak" :style="{ left: `${dbToPercent(levels[ch.peak])}%` }" :class="{ visible: dbToPercent(levels[ch.peak]) > 0 }"></div>
+                            </div>
+                            <span class="vu-db" x-text="`${(vuMode === 'peak' ? levels[ch.peak] : levels[ch.level]).toFixed(1)} dB`"></span>
                         </div>
-                        <span class="vu-db" x-text="`${(vuMode === 'peak' ? levels.peak_left : levels.left).toFixed(1)} dB`"></span>
-                    </div>
-                    <div class="vu-channel">
-                        <span class="vu-label">R</span>
-                        <div class="vu-track">
-                            <div class="vu-gradient"></div>
-                            <div class="vu-cover" :style="{ width: `${100 - dbToPercent(vuMode === 'peak' ? levels.peak_right : levels.right)}%` }"></div>
-                            <div class="vu-peak" :style="{ left: `${dbToPercent(levels.peak_right)}%` }" :class="{ visible: dbToPercent(levels.peak_right) > 0 }"></div>
-                        </div>
-                        <span class="vu-db" x-text="`${(vuMode === 'peak' ? levels.peak_right : levels.right).toFixed(1)} dB`"></span>
-                    </div>
+                    </template>
                     <div class="vu-scale">
                         <span class="mark-60">-60</span>
                         <span class="mark-48">-48</span>
@@ -93,6 +135,12 @@
                     </div>
                 </div>
 
+                <!-- Source status alert - shows when audio capture has issues
+                     Conditions:
+                     - No audio input device selected
+                     - Source process not running
+                     - Last error from source capture
+                     Displays retry counter when encoder is attempting recovery -->
                 <div class="alert-box" id="source-status" x-show="hasSourceIssue" x-cloak>
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -105,6 +153,21 @@
             </div>
         </section>
 
+        <!-- === Outputs List ===
+             Displays configured stream outputs with real-time status.
+
+             Each output shows:
+             - Status dot (color-coded by state)
+             - Host:port and stream ID
+             - Status text (Connected, Connecting, Retry N/M, Failed)
+             - Error message when in failed state
+             - Delete button (disabled while deletion in progress)
+
+             Status states:
+             - Green: Connected and streaming
+             - Yellow: Connecting or retrying
+             - Red: Failed (shows error)
+             - Gray: Encoder not running -->
         <section class="card">
             <div class="card-header slate">
                 <h2>Outputs</h2>
@@ -154,45 +217,50 @@
             </footer>
         </div>
 
-        <!-- Settings View -->
+        <!-- === Settings View ===
+             Configuration interface with tabbed navigation.
+
+             Tabs: Audio | Alerts | About
+
+             Cancel/Save workflow:
+             - Cancel restores original values, Save persists all changes
+             - Test Email disabled when unsaved changes exist
+             - Settings not overwritten by status updates while editing -->
         <div id="settings-view" x-show="view === 'settings'" x-transition:enter.duration.200ms x-cloak>
-            <header class="settings-header">
-                <button class="settings-back" id="settings-back" type="button" @click="showDashboard()">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
-                    <span>Back</span>
-                </button>
+            <header class="modal-nav">
+                <button class="nav-btn" type="button" @click="cancelSettings()">Cancel</button>
                 <h1>Settings</h1>
-                <div class="settings-header-spacer"></div>
+                <button class="nav-btn nav-btn--save" type="button" @click="saveSettings()" :disabled="!settingsDirty">Save</button>
             </header>
 
+            <!-- Settings tab navigation - segmented control style
+                 Tab switching is UI-only (no persistence)
+                 Sliding indicator animates between tabs -->
             <nav class="settings-tabs">
-                <button class="settings-tab" type="button" @click="showTab('audio')" :class="{ active: settingsTab === 'audio' }">
-                    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
-                    <span>Audio</span>
-                </button>
-                <button class="settings-tab" type="button" @click="showTab('alerts')" :class="{ active: settingsTab === 'alerts' }">
-                    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
-                    <span>Alerts</span>
-                </button>
-                <button class="settings-tab" type="button" @click="showTab('about')" :class="{ active: settingsTab === 'about' }">
-                    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
-                    <span>About</span>
-                </button>
+                <template x-for="tab in settingsTabs" :key="tab.id">
+                    <button class="settings-tab" type="button" @click="showTab(tab.id)" :class="{ active: settingsTab === tab.id }">
+                        <span x-html="icons[tab.icon]"></span>
+                        <span x-text="tab.label"></span>
+                    </button>
+                </template>
             </nav>
 
             <div class="settings-panels" id="settings-panels">
-                <!-- Audio Panel -->
+                <!-- Audio Panel - Silence detection configuration
+                     - Threshold: dB level below which audio is considered silent (-60 to 0)
+                     - Duration: Seconds of silence before triggering alerts (1-3600)
+                     - Recovery: Seconds of audio before clearing silence state (1-60) -->
                 <div class="settings-panel" id="panel-audio" x-show="settingsTab === 'audio'">
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
+                            <span x-html="icons.audio"></span>
                             <h3>Silence Detection</h3>
                         </div>
                         <p class="settings-section-desc">Alert when audio drops below threshold for extended periods.</p>
                         <div class="form-group">
                             <label for="silence-threshold">Threshold</label>
                             <div class="input-with-unit">
-                                <input id="silence-threshold" type="number" max="0" min="-60" step="1" x-model.number="settings.silenceThreshold" @change="updateSilenceThreshold()">
+                                <input id="silence-threshold" type="number" max="0" min="-60" step="1" x-model.number="settings.silenceThreshold" @input="markSettingsDirty()">
                                 <span class="input-unit">dB</span>
                             </div>
                             <span class="input-hint">Audio below this level is considered silence</span>
@@ -201,14 +269,14 @@
                             <div class="form-group">
                                 <label for="silence-duration">Alert after</label>
                                 <div class="input-with-unit">
-                                    <input id="silence-duration" type="number" max="300" min="1" step="1" x-model.number="settings.silenceDuration" @change="updateSilenceDuration()">
+                                    <input id="silence-duration" type="number" max="300" min="1" step="1" x-model.number="settings.silenceDuration" @input="markSettingsDirty()">
                                     <span class="input-unit">sec</span>
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label for="silence-recovery">Recover after</label>
                                 <div class="input-with-unit">
-                                    <input id="silence-recovery" type="number" max="60" min="1" step="1" x-model.number="settings.silenceRecovery" @change="updateSilenceRecovery()">
+                                    <input id="silence-recovery" type="number" max="60" min="1" step="1" x-model.number="settings.silenceRecovery" @input="markSettingsDirty()">
                                     <span class="input-unit">sec</span>
                                 </div>
                             </div>
@@ -217,57 +285,78 @@
                     </div>
                 </div>
 
-                <!-- Alerts Panel -->
+                <!-- Alerts Panel - Notification configuration for silence events
+                     Three notification methods (can use multiple):
+                     - Webhook: HTTP POST to URL on silence start/end
+                     - File Log: Append JSON lines to local file
+                     - Email: SMTP notifications with configurable server -->
                 <div class="settings-panel" id="panel-alerts" x-show="settingsTab === 'alerts'">
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
+                            <span x-html="icons.link"></span>
                             <h3>Webhook</h3>
                         </div>
                         <p class="settings-section-desc">POST request sent when silence is detected.</p>
                         <div class="form-group">
                             <label for="silence-webhook">Webhook URL</label>
-                            <input id="silence-webhook" type="url" placeholder="https://hooks.example.com/..." x-model="settings.silenceWebhook" @blur="updateSilenceWebhook()">
+                            <input id="silence-webhook" type="url" placeholder="https://hooks.example.com/..." x-model="settings.silenceWebhook" @input="markSettingsDirty()">
                         </div>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                            <span x-html="icons.file"></span>
+                            <h3>File Log</h3>
+                        </div>
+                        <p class="settings-section-desc">Log silence events to a JSON Lines file.</p>
+                        <div class="form-group">
+                            <label for="silence-log-path">Log File Path</label>
+                            <input id="silence-log-path" type="text" placeholder="/var/log/encoder/silence.jsonl" x-model="settings.silenceLogPath" @input="markSettingsDirty()">
+                            <span class="input-hint">Leave empty to disable file logging</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <div class="settings-section-header">
+                            <span x-html="icons.email"></span>
                             <h3>Email Alerts</h3>
                         </div>
                         <p class="settings-section-desc">Email notifications when silence is detected.</p>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="email-smtp-host">SMTP Server</label>
-                                <input id="email-smtp-host" type="text" placeholder="smtp.example.com" x-model="settings.email.host" @blur="saveEmailSettings()">
+                                <input id="email-smtp-host" type="text" placeholder="smtp.example.com" x-model="settings.email.host" @input="markSettingsDirty()">
                             </div>
                             <div class="form-group">
                                 <label for="email-smtp-port">Port</label>
-                                <input id="email-smtp-port" type="number" max="65535" min="1" x-model.number="settings.email.port" @blur="saveEmailSettings()">
+                                <input id="email-smtp-port" type="number" max="65535" min="1" x-model.number="settings.email.port" @input="markSettingsDirty()">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="email-username">Username / From</label>
-                            <input id="email-username" type="email" placeholder="alerts@example.com" x-model="settings.email.username" @blur="saveEmailSettings()">
+                            <input id="email-username" type="email" placeholder="alerts@example.com" x-model="settings.email.username" @input="markSettingsDirty()">
                         </div>
                         <div class="form-group">
                             <label for="email-password">Password</label>
-                            <input id="email-password" type="password" placeholder="SMTP password" @blur="saveEmailSettings()">
+                            <input id="email-password" type="password" placeholder="SMTP password" x-model="settings.email.password" @input="markSettingsDirty()">
                             <span class="input-hint">Leave empty to keep existing password</span>
                         </div>
                         <div class="form-group">
                             <label for="email-recipients">Recipients</label>
-                            <input id="email-recipients" type="text" placeholder="admin@example.com, tech@example.com" x-model="settings.email.recipients" @blur="saveEmailSettings()">
+                            <input id="email-recipients" type="text" placeholder="admin@example.com, tech@example.com" x-model="settings.email.recipients" @input="markSettingsDirty()">
                             <span class="input-hint">Comma-separated email addresses</span>
                         </div>
-                        <button class="btn secondary" id="email-test" type="button" @click="sendTestEmail()" :disabled="emailTestPending" x-text="emailTestText">Send Test Email</button>
+                        <button class="btn secondary" id="email-test" type="button" @click="sendTestEmail()" :disabled="emailTestPending || settingsDirty" x-text="emailTestText">Send Test Email</button>
                     </div>
                 </div>
 
-                <!-- About Panel -->
+                <!-- About Panel - Version info and attribution
+                     Shows: Version, commit hash, build date, update availability
+                     Includes: MIT license text, microphone logo SVG -->
                 <div class="settings-panel" id="panel-about" x-show="settingsTab === 'about'">
                     <div class="settings-section about-section">
                         <div class="about-logo">
+                            <!-- Microphone logo - custom SVG illustration
+                                 Decorative branding element for About section
+                                 Uses currentColor for theme-aware coloring -->
                             <svg class="app-logo" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                 <!-- Microphone top -->
                                 <path d="M369.8,148.3h-35.5c-2.8,0-5-2.2-5-5v-94c0-1.4,0.6-2.7,1.6-3.7l17.8-16.5c1.9-1.8,4.9-1.8,6.8,0l17.8,16.5c1,0.9,1.6,2.3,1.6,3.7v94C374.8,146,372.6,148.3,369.8,148.3z M339.3,138.3h25.5V51.4l-12.8-11.9l-12.8,11.9V138.3z"/>
@@ -284,9 +373,9 @@
                         <div class="about-info">
                             <dl class="about-list">
                                 <dt>Version</dt>
-                                <dd id="about-version" x-text="version.current || 'dev'">-</dd>
-                                <dt>Commit</dt>
-                                <dd id="about-commit" x-text="version.commit || 'unknown'">-</dd>
+                                <dd id="about-version" x-text="`${version.current || 'dev'} (${(version.commit || 'unknown').slice(0, 7)})`">-</dd>
+                                <dt>Built</dt>
+                                <dd id="about-build" x-text="version.build_time || 'unknown'">-</dd>
                                 <dt>Platform</dt>
                                 <dd id="about-platform" x-text="settings.platform || '-'">-</dd>
                                 <dt>Uptime</dt>
@@ -310,31 +399,40 @@
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                            <span x-html="icons.license"></span>
                             <h3>License</h3>
                         </div>
-                        <p class="about-license">MIT License &mdash; Streekomroep ZuidWest</p>
+                        <div class="license-text">
+                            <p><strong>MIT License</strong></p>
+                            <p>Copyright (c) {{YEAR}} Streekomroep ZuidWest</p>
+                            <p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+                            <p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+                            <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Add Output View -->
+        <!-- === Add Output View ===
+             Form for creating new stream outputs.
+
+             Required fields: Host, Port
+             Optional fields: Stream ID, Password, Codec, Max Retries
+
+             Defaults: codec 'mp3', max retries 99 -->
         <div id="add-output-view" x-show="view === 'add-output'" x-transition:enter.duration.200ms x-cloak>
-            <header class="settings-header">
-                <button class="settings-back" type="button" @click="showDashboard()">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
-                    <span>Back</span>
-                </button>
+            <header class="modal-nav">
+                <button class="nav-btn" type="button" @click="showDashboard()">Cancel</button>
                 <h1>New Output</h1>
-                <div class="settings-header-spacer"></div>
+                <button class="nav-btn nav-btn--save" type="button" @click="submitNewOutput()" :disabled="!newOutput.host">Save</button>
             </header>
 
             <div class="settings-panels">
                 <div class="settings-panel">
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/></svg>
+                            <span x-html="icons.server"></span>
                             <h3>Server Connection</h3>
                         </div>
                         <p class="settings-section-desc">Configure the SRT server to stream audio to.</p>
@@ -359,7 +457,7 @@
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
-                            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span x-html="icons.gear"></span>
                             <h3>Encoding</h3>
                         </div>
                         <p class="settings-section-desc">Audio encoding format and retry settings.</p>
@@ -379,15 +477,12 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-actions">
-                        <button class="btn secondary" type="button" @click="showDashboard()">Cancel</button>
-                        <button class="btn primary" type="button" @click="submitNewOutput()">Add Output</button>
-                    </div>
                 </div>
             </div>
         </div>
     </main>
 
+    <script src="/icons.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

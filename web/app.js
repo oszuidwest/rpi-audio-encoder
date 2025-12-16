@@ -1,5 +1,95 @@
-// Utility function - exposed globally for Alpine template expressions
-window.dbToPercent = (db) => Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+/**
+ * ZuidWest FM Encoder - Alpine.js Web Application
+ *
+ * Real-time audio monitoring, encoder control, and multi-output stream
+ * management via WebSocket connection to Go backend.
+ *
+ * Architecture:
+ *   - Single Alpine.js component (encoderApp) manages all UI state
+ *   - WebSocket connection at /ws for bidirectional communication
+ *   - Three views: dashboard (monitoring), settings (config), add-output (form)
+ *
+ * WebSocket Message Types (incoming):
+ *   - levels: Audio RMS/peak levels, ~4 updates per second
+ *   - status: Encoder state, outputs, devices, settings (every 3s)
+ *   - test_email_result: Email test success/failure response
+ *
+ * WebSocket Commands (outgoing):
+ *   - start/stop: Control encoder
+ *   - update_settings: Persist configuration changes
+ *   - add_output/remove_output: Manage stream outputs
+ *   - test_email: Trigger email test
+ *
+ * Dependencies:
+ *   - Alpine.js 3.x (loaded before this script)
+ *   - icons.js (window.icons object for SVG rendering)
+ *
+ * @see index.html for markup structure
+ * @see icons.js for SVG icon definitions
+ */
+
+// === Constants ===
+const DB_MINIMUM = -60;           // Minimum dB level for VU meter range
+const DB_RANGE = 60;              // dB range (0 to -60)
+const CLIP_TIMEOUT_MS = 1500;     // Peak hold / clip indicator timeout
+const WS_RECONNECT_MS = 1000;     // WebSocket reconnection delay
+const EMAIL_FEEDBACK_MS = 2000;   // Email test result display duration
+
+/**
+ * Converts decibel value to percentage for VU meter display.
+ * Maps -60dB to 0% and 0dB to 100%.
+ *
+ * @param {number} db - Decibel value (typically -60 to 0)
+ * @returns {number} Percentage value (0-100), clamped to valid range
+ */
+window.dbToPercent = (db) => Math.max(0, Math.min(100, (db - DB_MINIMUM) / DB_RANGE * 100));
+
+// Default values for new outputs
+const DEFAULT_OUTPUT = {
+    host: '',
+    port: 8080,
+    streamid: '',
+    password: '',
+    codec: 'mp3',
+    max_retries: 99
+};
+
+const DEFAULT_LEVELS = {
+    left: -60,
+    right: -60,
+    peak_left: -60,
+    peak_right: -60,
+    silence_level: null
+};
+
+// Settings field mapping for WebSocket status sync
+const SETTINGS_MAP = [
+    { msgKey: 'silence_threshold', path: 'silenceThreshold', default: -40 },
+    { msgKey: 'silence_duration', path: 'silenceDuration', default: 15 },
+    { msgKey: 'silence_recovery', path: 'silenceRecovery', default: 5 },
+    { msgKey: 'silence_webhook', path: 'silenceWebhook', default: '' },
+    { msgKey: 'silence_log_path', path: 'silenceLogPath', default: '' },
+    { msgKey: 'email_smtp_host', path: 'email.host', default: '' },
+    { msgKey: 'email_smtp_port', path: 'email.port', default: 587 },
+    { msgKey: 'email_username', path: 'email.username', default: '' },
+    { msgKey: 'email_recipients', path: 'email.recipients', default: '' }
+];
+
+/**
+ * Sets a nested property value using dot-notation path.
+ *
+ * @param {Object} obj - Target object to modify
+ * @param {string} path - Dot-notation path (e.g., 'email.host')
+ * @param {*} value - Value to set
+ */
+function setNestedValue(obj, path, value) {
+    const keys = path.split('.');
+    let current = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+        current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = value;
+}
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('encoderApp', () => ({
@@ -7,15 +97,21 @@ document.addEventListener('alpine:init', () => {
         view: 'dashboard',
         settingsTab: 'audio',
 
+        // VU meter channel definitions
+        vuChannels: [
+            { label: 'L', level: 'left', peak: 'peak_left' },
+            { label: 'R', level: 'right', peak: 'peak_right' }
+        ],
+
+        // Settings tab definitions
+        settingsTabs: [
+            { id: 'audio', label: 'Audio', icon: 'audio' },
+            { id: 'alerts', label: 'Alerts', icon: 'bell' },
+            { id: 'about', label: 'About', icon: 'info' }
+        ],
+
         // New output form data
-        newOutput: {
-            host: '',
-            port: 8080,
-            streamid: '',
-            password: '',
-            codec: 'mp3',
-            max_retries: 99
-        },
+        newOutput: { ...DEFAULT_OUTPUT },
 
         // Encoder state
         encoder: {
@@ -33,7 +129,7 @@ document.addEventListener('alpine:init', () => {
 
         // Audio
         devices: [],
-        levels: { left: -60, right: -60, peak_left: -60, peak_right: -60, silence_level: null },
+        levels: { ...DEFAULT_LEVELS },
         vuMode: localStorage.getItem('vuMode') || 'peak',
         clipActive: false,
         clipTimeout: null,
@@ -45,12 +141,15 @@ document.addEventListener('alpine:init', () => {
             silenceDuration: 15,
             silenceRecovery: 5,
             silenceWebhook: '',
+            silenceLogPath: '',
             email: { host: '', port: 587, username: '', password: '', recipients: '' },
             platform: ''
         },
+        originalSettings: null,
+        settingsDirty: false,
 
         // Version
-        version: { current: '', latest: '', updateAvail: false, commit: '' },
+        version: { current: '', latest: '', updateAvail: false, commit: '', build_time: '' },
 
         // Email test state
         emailTestPending: false,
@@ -60,6 +159,10 @@ document.addEventListener('alpine:init', () => {
         ws: null,
 
         // Computed properties
+        /**
+         * Computes CSS class for status pill based on encoder state.
+         * @returns {string} CSS class: 'running', 'stopped', 'connecting', or 'starting'
+         */
         get statusPillClass() {
             const s = this.encoder.state;
             if (s === 'running') return 'state-success';
@@ -67,21 +170,38 @@ document.addEventListener('alpine:init', () => {
             return 'state-warning';
         },
 
+        /**
+         * Checks if audio source has issues (no device or capture error).
+         * @returns {boolean} True if source needs attention
+         */
         get hasSourceIssue() {
             return (this.encoder.sourceRetryCount > 0 && this.encoder.state !== 'stopped') ||
                    (this.encoder.lastError && this.encoder.state !== 'running');
         },
 
+        /**
+         * Checks if encoder is actively running.
+         * @returns {boolean} True if status is 'running'
+         */
         get encoderRunning() {
             return this.encoder.state === 'running';
         },
 
         // Lifecycle
+        /**
+         * Alpine.js lifecycle hook - initializes WebSocket connection.
+         * Called automatically when component mounts.
+         */
         init() {
             this.connectWebSocket();
         },
 
         // WebSocket
+        /**
+         * Establishes WebSocket connection to backend.
+         * Handles incoming messages by type and auto-reconnects on close.
+         * Reconnection uses WS_RECONNECT_MS delay to prevent rapid retries.
+         */
         connectWebSocket() {
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             this.ws = new WebSocket(`${protocol}//${location.host}/ws`);
@@ -100,28 +220,51 @@ document.addEventListener('alpine:init', () => {
             this.ws.onclose = () => {
                 this.encoder.state = 'connecting';
                 this.resetVuMeter();
-                setTimeout(() => this.connectWebSocket(), 1000);
+                setTimeout(() => this.connectWebSocket(), WS_RECONNECT_MS);
             };
 
             this.ws.onerror = () => this.ws.close();
         },
 
+        /**
+         * Sends command to backend via WebSocket.
+         *
+         * @param {string} type - Command type (start, stop, update_settings, etc.)
+         * @param {string} [id] - Optional output ID for output-specific commands
+         * @param {Object} [data] - Optional payload data
+         */
         send(type, id, data) {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify({ type: type, id: id, data: data }));
             }
         },
 
+        /**
+         * Processes incoming audio level data.
+         * Updates VU meter display and manages clip detection state.
+         * Clip indicator activates when levels exceed threshold and holds
+         * for CLIP_TIMEOUT_MS before auto-clearing.
+         *
+         * @param {Object} levels - Audio levels (left, right, peak_left, peak_right, silence_level)
+         */
         handleLevels(levels) {
             this.levels = levels;
             const totalClips = (levels.clip_left || 0) + (levels.clip_right || 0);
             if (totalClips > 0) {
                 this.clipActive = true;
                 clearTimeout(this.clipTimeout);
-                this.clipTimeout = setTimeout(() => { this.clipActive = false; }, 1500);
+                this.clipTimeout = setTimeout(() => { this.clipActive = false; }, CLIP_TIMEOUT_MS);
             }
         },
 
+        /**
+         * Processes encoder status updates from backend.
+         * Updates encoder state, output statuses, available devices, and settings.
+         * Settings sync is skipped when user is on settings view to prevent
+         * overwriting in-progress edits.
+         *
+         * @param {Object} msg - Status message with state, outputs, devices, settings
+         */
         handleStatus(msg) {
             // Encoder state
             this.encoder.state = msg.encoder.state;
@@ -157,31 +300,13 @@ document.addEventListener('alpine:init', () => {
                 if (msg.settings?.audio_input) {
                     this.settings.audioInput = msg.settings.audio_input;
                 }
-                if (msg.silence_threshold !== undefined) {
-                    this.settings.silenceThreshold = msg.silence_threshold;
+                // Sync remaining settings from status message
+                for (const field of SETTINGS_MAP) {
+                    if (msg[field.msgKey] !== undefined) {
+                        setNestedValue(this.settings, field.path, msg[field.msgKey] || field.default);
+                    }
                 }
-                if (msg.silence_duration !== undefined) {
-                    this.settings.silenceDuration = msg.silence_duration;
-                }
-                if (msg.silence_recovery !== undefined) {
-                    this.settings.silenceRecovery = msg.silence_recovery;
-                }
-                if (msg.silence_webhook !== undefined) {
-                    this.settings.silenceWebhook = msg.silence_webhook || '';
-                }
-                if (msg.email_smtp_host !== undefined) {
-                    this.settings.email.host = msg.email_smtp_host || '';
-                }
-                if (msg.email_smtp_port !== undefined) {
-                    this.settings.email.port = msg.email_smtp_port || 587;
-                }
-                if (msg.email_username !== undefined) {
-                    this.settings.email.username = msg.email_username || '';
-                }
-                if (msg.email_recipients !== undefined) {
-                    this.settings.email.recipients = msg.email_recipients || '';
-                }
-                if (msg.settings && msg.settings.platform !== undefined) {
+                if (msg.settings?.platform !== undefined) {
                     this.settings.platform = msg.settings.platform;
                 }
             }
@@ -192,39 +317,107 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        /**
+         * Handles email test result from backend.
+         * Updates UI feedback and auto-clears after EMAIL_FEEDBACK_MS.
+         *
+         * @param {Object} msg - Result message with success and optional error
+         */
         handleTestEmailResult(msg) {
             this.emailTestPending = false;
             this.emailTestText = msg.success ? 'Sent!' : 'Failed';
             if (!msg.success) alert(`Test email failed: ${msg.error || 'Unknown error'}`);
-            setTimeout(() => { this.emailTestText = 'Send Test Email'; }, 2000);
+            setTimeout(() => { this.emailTestText = 'Send Test Email'; }, EMAIL_FEEDBACK_MS);
         },
 
         // Navigation
+        /**
+         * Returns to dashboard view and clears settings state.
+         */
         showDashboard() {
             this.view = 'dashboard';
+            this.settingsDirty = false;
+            this.originalSettings = null;
         },
 
+        /**
+         * Navigates to settings view and captures current settings snapshot.
+         * Snapshot enables cancel/restore functionality.
+         */
         showSettings() {
+            // Save a copy of current settings to allow cancel
+            this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+            this.settingsDirty = false;
             this.view = 'settings';
         },
 
-        showAddOutput() {
-            this.newOutput = {
-                host: '',
-                port: 8080,
-                streamid: '',
-                password: '',
-                codec: 'mp3',
-                max_retries: 99
+        /**
+         * Marks settings as modified, enabling Save button.
+         * Called on any settings input change.
+         */
+        markSettingsDirty() {
+            this.settingsDirty = true;
+        },
+
+        /**
+         * Reverts settings to snapshot taken when entering settings view.
+         * Returns to dashboard without saving changes.
+         */
+        cancelSettings() {
+            // Restore original settings
+            if (this.originalSettings) {
+                this.settings = JSON.parse(JSON.stringify(this.originalSettings));
+            }
+            this.showDashboard();
+        },
+
+        /**
+         * Persists all settings to backend via WebSocket.
+         * Builds payload with all current values, only including password
+         * if it was modified (non-empty). Resets dirty state on send.
+         */
+        saveSettings() {
+            // Build update payload with all settings
+            const update = {
+                silence_threshold: this.settings.silenceThreshold,
+                silence_duration: this.settings.silenceDuration,
+                silence_recovery: this.settings.silenceRecovery,
+                silence_webhook: this.settings.silenceWebhook,
+                silence_log_path: this.settings.silenceLogPath,
+                email_smtp_host: this.settings.email.host,
+                email_smtp_port: this.settings.email.port,
+                email_username: this.settings.email.username,
+                email_recipients: this.settings.email.recipients
             };
+            // Only include password if it was changed
+            if (this.settings.email.password) {
+                update.email_password = this.settings.email.password;
+            }
+            this.send('update_settings', null, update);
+            this.showDashboard();
+        },
+
+        /**
+         * Opens add output form with default values.
+         */
+        showAddOutput() {
+            this.newOutput = { ...DEFAULT_OUTPUT };
             this.view = 'add-output';
         },
 
+        /**
+         * Switches active settings tab.
+         * @param {string} tabId - Tab identifier (audio, alerts, about)
+         */
         showTab(tabId) {
             this.settingsTab = tabId;
         },
 
         // Output management
+        /**
+         * Validates and submits new output configuration.
+         * Requires host and port; other fields have defaults.
+         */
         submitNewOutput() {
             if (!this.newOutput.host) {
                 return;
@@ -240,6 +433,11 @@ document.addEventListener('alpine:init', () => {
             this.view = 'dashboard';
         },
 
+        /**
+         * Initiates output deletion with optimistic UI update.
+         * Tracks deletion state to prevent double-clicks.
+         * @param {string} id - Output ID to delete
+         */
         deleteOutput(id) {
             if (!confirm('Delete this output?')) return;
             const output = this.outputs.find(o => o.id === id);
@@ -247,9 +445,28 @@ document.addEventListener('alpine:init', () => {
             this.send('delete_output', id, null);
         },
 
+        /**
+         * Gets output status and deletion state.
+         *
+         * @param {Object} output - Output object with id and created_at
+         * @returns {Object} Object with status and isDeleting properties
+         */
+        getOutputStatus(output) {
+            return {
+                status: this.outputStatuses[output.id] || {},
+                isDeleting: this.deletingOutputs[output.id] === output.created_at
+            };
+        },
+
+        /**
+         * Determines CSS state class for output status indicator.
+         * Priority: deleting > encoder stopped > failed > retrying > connected.
+         *
+         * @param {Object} output - Output configuration object
+         * @returns {string} CSS class for state styling
+         */
         getOutputStateClass(output) {
-            const status = this.outputStatuses[output.id] || {};
-            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            const { status, isDeleting } = this.getOutputStatus(output);
             if (isDeleting) return 'state-warning';
             if (status.stable) return 'state-success';
             if (status.given_up) return 'state-danger';
@@ -259,9 +476,14 @@ document.addEventListener('alpine:init', () => {
             return 'state-warning';
         },
 
+        /**
+         * Generates human-readable status text for output.
+         *
+         * @param {Object} output - Output configuration object
+         * @returns {string} Status text (e.g., 'Connected', 'Retry 2/5')
+         */
         getOutputStatusText(output) {
-            const status = this.outputStatuses[output.id] || {};
-            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            const { status, isDeleting } = this.getOutputStatus(output);
             if (isDeleting) return 'Stopping...';
             if (status.stable) return 'Connected';
             if (status.given_up) return 'Failed';
@@ -271,61 +493,40 @@ document.addEventListener('alpine:init', () => {
             return 'Connecting...';
         },
 
+        /**
+         * Determines if error message should be shown for output.
+         * Shows error when output has failed state with error message.
+         *
+         * @param {Object} output - Output configuration object
+         * @returns {boolean} True if error should be displayed
+         */
         shouldShowError(output) {
-            const status = this.outputStatuses[output.id] || {};
-            const isDeleting = this.deletingOutputs[output.id] === output.created_at;
+            const { status, isDeleting } = this.getOutputStatus(output);
             return !isDeleting && (status.given_up || status.retry_count > 0) && status.last_error;
         },
 
         // VU Meter
+        /**
+         * Toggles VU meter display mode between peak and RMS.
+         */
         toggleVuMode() {
             this.vuMode = this.vuMode === 'peak' ? 'rms' : 'peak';
             localStorage.setItem('vuMode', this.vuMode);
         },
 
+        /**
+         * Resets VU meter to default zero state.
+         * Called when encoder stops or on initialization.
+         */
         resetVuMeter() {
-            this.levels = { left: -60, right: -60, peak_left: -60, peak_right: -60, silence_level: null };
+            this.levels = { ...DEFAULT_LEVELS };
         },
 
         // Settings
-        updateAudioInput() {
-            this.send('update_settings', null, { audio_input: this.settings.audioInput });
-        },
-
-        updateSilenceThreshold() {
-            if (this.settings.silenceThreshold >= -60 && this.settings.silenceThreshold <= 0) {
-                this.send('update_settings', null, { silence_threshold: this.settings.silenceThreshold });
-            }
-        },
-
-        updateSilenceDuration() {
-            if (this.settings.silenceDuration >= 1 && this.settings.silenceDuration <= 300) {
-                this.send('update_settings', null, { silence_duration: this.settings.silenceDuration });
-            }
-        },
-
-        updateSilenceRecovery() {
-            if (this.settings.silenceRecovery >= 1 && this.settings.silenceRecovery <= 60) {
-                this.send('update_settings', null, { silence_recovery: this.settings.silenceRecovery });
-            }
-        },
-
-        updateSilenceWebhook() {
-            this.send('update_settings', null, { silence_webhook: this.settings.silenceWebhook });
-        },
-
-        saveEmailSettings() {
-            const update = {
-                email_smtp_host: this.settings.email.host,
-                email_smtp_port: this.settings.email.port,
-                email_username: this.settings.email.username,
-                email_recipients: this.settings.email.recipients
-            };
-            const pw = document.getElementById('email-password');
-            if (pw?.value) update.email_password = pw.value;
-            this.send('update_settings', null, update);
-        },
-
+        /**
+         * Triggers email test via WebSocket.
+         * Temporarily disables button and shows sending state.
+         */
         sendTestEmail() {
             this.emailTestPending = true;
             this.emailTestText = 'Sending...';

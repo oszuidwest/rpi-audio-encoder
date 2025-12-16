@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
 // WSCommand is a command received from a WebSocket client.
@@ -70,21 +71,21 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		return
 	}
 	// Validate required fields
-	if output.Host == "" {
-		log.Printf("add_output: host is required")
+	if err := util.ValidateRequired("host", output.Host); err != nil {
+		log.Printf("add_output: %s", err.Message)
 		return
 	}
-	if output.Port < 1 || output.Port > 65535 {
-		log.Printf("add_output: port must be between 1 and 65535, got %d", output.Port)
+	if err := util.ValidatePort("port", output.Port); err != nil {
+		log.Printf("add_output: %s", err.Message)
 		return
 	}
 	// Validate optional fields
-	if len(output.Host) > 253 {
-		log.Printf("add_output: host too long (max 253 chars)")
+	if err := util.ValidateMaxLength("host", output.Host, 253); err != nil {
+		log.Printf("add_output: %s", err.Message)
 		return
 	}
-	if len(output.StreamID) > 256 {
-		log.Printf("add_output: streamid too long (max 256 chars)")
+	if err := util.ValidateMaxLength("streamid", output.StreamID, 256); err != nil {
+		log.Printf("add_output: %s", err.Message)
 		return
 	}
 	// Limit number of outputs to prevent resource exhaustion
@@ -93,8 +94,8 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		return
 	}
 	// Validate max_retries if provided
-	if output.MaxRetries < 0 || output.MaxRetries > 9999 {
-		log.Printf("add_output: max_retries must be between 0 and 9999, got %d", output.MaxRetries)
+	if err := util.ValidateRange("max_retries", output.MaxRetries, 0, 9999); err != nil {
+		log.Printf("add_output: %s", err.Message)
 		return
 	}
 	// Set defaults
@@ -136,6 +137,33 @@ func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 	}
 }
 
+// updateFloatSetting validates and updates a float64 setting with logging.
+func updateFloatSetting(value *float64, min, max float64, name string, setter func(float64) error) {
+	if value == nil {
+		return
+	}
+	v := *value
+	if err := util.ValidateRangeFloat(name, v, min, max); err != nil {
+		log.Printf("update_settings: %s", err.Message)
+		return
+	}
+	log.Printf("update_settings: changing %s to %.1f", name, v)
+	if err := setter(v); err != nil {
+		log.Printf("update_settings: failed to save: %v", err)
+	}
+}
+
+// updateStringSetting updates a string setting with logging.
+func updateStringSetting(value *string, name string, setter func(string) error) {
+	if value == nil {
+		return
+	}
+	log.Printf("update_settings: changing %s", name)
+	if err := setter(*value); err != nil {
+		log.Printf("update_settings: failed to save: %v", err)
+	}
+}
+
 func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	var settings struct {
 		AudioInput       string   `json:"audio_input"`
@@ -143,6 +171,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		SilenceDuration  *float64 `json:"silence_duration"`
 		SilenceRecovery  *float64 `json:"silence_recovery"`
 		SilenceWebhook   *string  `json:"silence_webhook"`
+		SilenceLogPath   *string  `json:"silence_log_path"`
 		EmailSMTPHost    *string  `json:"email_smtp_host"`
 		EmailSMTPPort    *int     `json:"email_smtp_port"`
 		EmailUsername    *string  `json:"email_username"`
@@ -166,45 +195,11 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 			}()
 		}
 	}
-	if settings.SilenceThreshold != nil {
-		threshold := *settings.SilenceThreshold
-		if threshold < -60 || threshold > 0 {
-			log.Printf("update_settings: invalid silence threshold %.1f (must be -60 to 0)", threshold)
-		} else {
-			log.Printf("update_settings: changing silence threshold to %.1f dB", threshold)
-			if err := h.cfg.SetSilenceThreshold(threshold); err != nil {
-				log.Printf("update_settings: failed to save: %v", err)
-			}
-		}
-	}
-	if settings.SilenceDuration != nil {
-		duration := *settings.SilenceDuration
-		if duration < 1 || duration > 300 {
-			log.Printf("update_settings: invalid silence duration %.1f (must be 1-300s)", duration)
-		} else {
-			log.Printf("update_settings: changing silence duration to %.1fs", duration)
-			if err := h.cfg.SetSilenceDuration(duration); err != nil {
-				log.Printf("update_settings: failed to save: %v", err)
-			}
-		}
-	}
-	if settings.SilenceRecovery != nil {
-		recovery := *settings.SilenceRecovery
-		if recovery < 1 || recovery > 60 {
-			log.Printf("update_settings: invalid silence recovery %.1f (must be 1-60s)", recovery)
-		} else {
-			log.Printf("update_settings: changing silence recovery to %.1fs", recovery)
-			if err := h.cfg.SetSilenceRecovery(recovery); err != nil {
-				log.Printf("update_settings: failed to save: %v", err)
-			}
-		}
-	}
-	if settings.SilenceWebhook != nil {
-		log.Printf("update_settings: changing silence webhook")
-		if err := h.cfg.SetSilenceWebhook(*settings.SilenceWebhook); err != nil {
-			log.Printf("update_settings: failed to save: %v", err)
-		}
-	}
+	updateFloatSetting(settings.SilenceThreshold, -60, 0, "silence threshold", h.cfg.SetSilenceThreshold)
+	updateFloatSetting(settings.SilenceDuration, 1, 300, "silence duration", h.cfg.SetSilenceDuration)
+	updateFloatSetting(settings.SilenceRecovery, 1, 60, "silence recovery", h.cfg.SetSilenceRecovery)
+	updateStringSetting(settings.SilenceWebhook, "silence webhook", h.cfg.SetSilenceWebhook)
+	updateStringSetting(settings.SilenceLogPath, "silence log path", h.cfg.SetSilenceLogPath)
 	// Handle email configuration updates
 	if settings.EmailSMTPHost != nil || settings.EmailSMTPPort != nil ||
 		settings.EmailUsername != nil || settings.EmailPassword != nil ||

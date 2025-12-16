@@ -4,8 +4,8 @@ package notify
 import (
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 	"github.com/wneessen/go-mail"
 )
 
@@ -20,7 +20,7 @@ type EmailConfig struct {
 
 // SendSilenceAlert sends an email notification for critical silence.
 func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
-	if cfg.Host == "" || cfg.Username == "" || cfg.Recipients == "" {
+	if !util.IsConfigured(cfg.Host, cfg.Username, cfg.Recipients) {
 		return nil // Silently skip if not configured
 	}
 
@@ -31,7 +31,7 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 			"Threshold: %.1f dB\n"+
 			"Time: %s\n\n"+
 			"Please check the audio source.",
-		duration, threshold, time.Now().UTC().Format(time.RFC3339),
+		duration, threshold, util.RFC3339Now(),
 	)
 
 	return sendEmail(cfg, subject, body)
@@ -39,7 +39,7 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 
 // SendRecoveryAlert sends an email notification when audio recovers from silence.
 func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
-	if cfg.Host == "" || cfg.Username == "" || cfg.Recipients == "" {
+	if !util.IsConfigured(cfg.Host, cfg.Username, cfg.Recipients) {
 		return nil // Silently skip if not configured
 	}
 
@@ -48,7 +48,7 @@ func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
 		"Audio has recovered on the encoder.\n\n"+
 			"Silence duration: %.1f seconds\n"+
 			"Time: %s",
-		silenceDuration, time.Now().UTC().Format(time.RFC3339),
+		silenceDuration, util.RFC3339Now(),
 	)
 
 	return sendEmail(cfg, subject, body)
@@ -71,7 +71,7 @@ func SendTestEmail(cfg EmailConfig) error {
 		"This is a test email from your ZuidWest FM Encoder.\n\n"+
 			"Time: %s\n\n"+
 			"If you received this email, your SMTP configuration is working correctly.",
-		time.Now().UTC().Format(time.RFC3339),
+		util.RFC3339Now(),
 	)
 
 	return sendEmail(cfg, subject, body)
@@ -88,10 +88,10 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 	// Create message
 	m := mail.NewMsg()
 	if err := m.From(cfg.Username); err != nil {
-		return fmt.Errorf("invalid from address: %w", err)
+		return util.WrapError("set from address", err)
 	}
 	if err := m.To(recipients...); err != nil {
-		return fmt.Errorf("invalid recipient address: %w", err)
+		return util.WrapError("set recipient address", err)
 	}
 	m.Subject(subject)
 	m.SetBodyString(mail.TypeTextPlain, body)
@@ -105,11 +105,11 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 		mail.WithTLSPortPolicy(mail.TLSMandatory),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %w", err)
+		return util.WrapError("create SMTP client", err)
 	}
 
 	if err := c.DialAndSend(m); err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+		return util.WrapError("send email", err)
 	}
 
 	return nil

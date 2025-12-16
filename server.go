@@ -12,6 +12,7 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
 	"github.com/oszuidwest/zwfm-encoder/internal/server"
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
 // Server is an HTTP server that provides the web interface for the audio encoder.
@@ -51,11 +52,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			log.Printf("Failed to close WebSocket connection: %v", err)
-		}
-	}()
+	defer util.SafeCloseFunc(conn, "WebSocket connection")()
 
 	// Channel to signal status update needed
 	statusUpdate := make(chan bool, 1)
@@ -97,6 +94,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"silence_duration":  s.config.GetSilenceDuration(),
 			"silence_recovery":  s.config.GetSilenceRecovery(),
 			"silence_webhook":   s.config.GetSilenceWebhook(),
+			"silence_log_path":  s.config.GetSilenceLogPath(),
 			"email_smtp_host":   s.config.GetEmailSMTPHost(),
 			"email_smtp_port":   s.config.GetEmailSMTPPort(),
 			"email_username":    s.config.GetEmailUsername(),
@@ -151,6 +149,37 @@ func (s *Server) SetupRoutes() http.Handler {
 	return mux
 }
 
+// staticFile represents an embedded static file with its content type and content.
+type staticFile struct {
+	contentType string
+	content     string
+	name        string
+}
+
+// staticFiles maps URL paths to their corresponding static file definitions.
+var staticFiles = map[string]staticFile{
+	"/style.css": {
+		contentType: "text/css",
+		content:     styleCSS,
+		name:        "style.css",
+	},
+	"/app.js": {
+		contentType: "application/javascript",
+		content:     appJS,
+		name:        "app.js",
+	},
+	"/icons.js": {
+		contentType: "application/javascript",
+		content:     iconsJS,
+		name:        "icons.js",
+	},
+	"/alpine.min.js": {
+		contentType: "application/javascript",
+		content:     alpineJS,
+		name:        "alpine.min.js",
+	},
+}
+
 // handleStatic serves the embedded static web interface files.
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
@@ -158,33 +187,28 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		path = "/index.html"
 	}
 
-	// Serve embedded static content
-	switch path {
-	case "/index.html":
+	// Handle index.html specially (requires template replacement)
+	if path == "/index.html" {
 		w.Header().Set("Content-Type", "text/html")
 		html := strings.Replace(indexHTML, "{{VERSION}}", Version, 1)
-		html = strings.Replace(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()), 1)
+		html = strings.ReplaceAll(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()))
 		if _, err := w.Write([]byte(html)); err != nil {
 			log.Printf("Failed to write index.html: %v", err)
 		}
-	case "/style.css":
-		w.Header().Set("Content-Type", "text/css")
-		if _, err := w.Write([]byte(styleCSS)); err != nil {
-			log.Printf("Failed to write style.css: %v", err)
-		}
-	case "/app.js":
-		w.Header().Set("Content-Type", "application/javascript")
-		if _, err := w.Write([]byte(appJS)); err != nil {
-			log.Printf("Failed to write app.js: %v", err)
-		}
-	case "/alpine.min.js":
-		w.Header().Set("Content-Type", "application/javascript")
-		if _, err := w.Write([]byte(alpineJS)); err != nil {
-			log.Printf("Failed to write alpine.min.js: %v", err)
-		}
-	default:
-		http.NotFound(w, r)
+		return
 	}
+
+	// Handle other static files via table lookup
+	if file, ok := staticFiles[path]; ok {
+		w.Header().Set("Content-Type", file.contentType)
+		if _, err := w.Write([]byte(file.content)); err != nil {
+			log.Printf("Failed to write %s: %v", file.name, err)
+		}
+		return
+	}
+
+	// File not found
+	http.NotFound(w, r)
 }
 
 // Start begins listening and serving HTTP requests on the configured port.

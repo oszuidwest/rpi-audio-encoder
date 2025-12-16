@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
 // Default values.
@@ -31,6 +32,7 @@ type Config struct {
 	SilenceDuration  float64        `json:"silence_duration,omitempty"`
 	SilenceRecovery  float64        `json:"silence_recovery,omitempty"`
 	SilenceWebhook   string         `json:"silence_webhook,omitempty"`
+	SilenceLogPath   string         `json:"silence_log_path,omitempty"`
 	EmailSMTPHost    string         `json:"email_smtp_host,omitempty"`
 	EmailSMTPPort    int            `json:"email_smtp_port,omitempty"`
 	EmailUsername    string         `json:"email_username,omitempty"`
@@ -76,7 +78,7 @@ func (c *Config) Load() error {
 	}
 
 	if err := json.Unmarshal(data, c); err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
+		return util.WrapError("parse config", err)
 	}
 
 	// Migrate old configs
@@ -107,16 +109,16 @@ func (c *Config) Save() error {
 func (c *Config) saveLocked() error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return util.WrapError("marshal config", err)
 	}
 
 	dir := filepath.Dir(c.filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+		return util.WrapError("create config directory", err)
 	}
 
 	if err := os.WriteFile(c.filePath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+		return util.WrapError("write config", err)
 	}
 
 	return nil
@@ -146,6 +148,17 @@ func (c *Config) GetOutput(id string) *types.Output {
 	return nil
 }
 
+// findOutputIndex returns the index of the output with the given ID, or -1 if not found.
+// Caller must hold c.mu (read or write lock).
+func (c *Config) findOutputIndex(id string) int {
+	for i, o := range c.Outputs {
+		if o.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
 // AddOutput adds a new output and saves the configuration.
 func (c *Config) AddOutput(output types.Output) error {
 	c.mu.Lock()
@@ -168,13 +181,13 @@ func (c *Config) RemoveOutput(id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, o := range c.Outputs {
-		if o.ID == id {
-			c.Outputs = append(c.Outputs[:i], c.Outputs[i+1:]...)
-			return c.saveLocked()
-		}
+	i := c.findOutputIndex(id)
+	if i == -1 {
+		return fmt.Errorf("output not found: %s", id)
 	}
-	return fmt.Errorf("output not found: %s", id)
+
+	c.Outputs = append(c.Outputs[:i], c.Outputs[i+1:]...)
+	return c.saveLocked()
 }
 
 // UpdateOutput updates an existing output and saves the configuration.
@@ -182,13 +195,13 @@ func (c *Config) UpdateOutput(output types.Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, o := range c.Outputs {
-		if o.ID == output.ID {
-			c.Outputs[i] = output
-			return c.saveLocked()
-		}
+	i := c.findOutputIndex(output.ID)
+	if i == -1 {
+		return fmt.Errorf("output not found: %s", output.ID)
 	}
-	return fmt.Errorf("output not found: %s", output.ID)
+
+	c.Outputs[i] = output
+	return c.saveLocked()
 }
 
 // GetAudioInput returns the configured audio input device.
@@ -272,6 +285,21 @@ func (c *Config) SetSilenceWebhook(url string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.SilenceWebhook = url
+	return c.saveLocked()
+}
+
+// GetSilenceLogPath returns the configured silence log file path.
+func (c *Config) GetSilenceLogPath() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.SilenceLogPath
+}
+
+// SetSilenceLogPath updates the silence log file path and saves the configuration.
+func (c *Config) SetSilenceLogPath(path string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.SilenceLogPath = path
 	return c.saveLocked()
 }
 
