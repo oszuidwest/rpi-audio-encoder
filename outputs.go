@@ -300,14 +300,16 @@ func (m *Encoder) runOutputProcess(outputID string, cmd *exec.Cmd, stderr *bytes
 		return
 	}
 
-	if retryCount >= maxRetries {
-		log.Printf("Output %s failed %d times, giving up: %s", outputID, maxRetries, lastError)
-		m.removeOutput(outputID)
+	outputMaxRetries := output.GetMaxRetries()
+	if retryCount > outputMaxRetries {
+		log.Printf("Output %s gave up after %d retries: %s", outputID, outputMaxRetries, lastError)
+		// Don't remove from outputProcesses - keep for status reporting
+		// Process entry stays with running=false, high retryCount, so UI shows "Failed"
 		return
 	}
 
-	log.Printf("Output %s stopped, waiting %v before restart (attempt %d/%d)...",
-		outputID, retryDelay, retryCount+1, maxRetries)
+	log.Printf("Output %s stopped, waiting %v before retry %d/%d...",
+		outputID, retryDelay, retryCount, outputMaxRetries)
 	time.Sleep(retryDelay)
 
 	// Abort if output was removed or encoder stopped during wait
@@ -404,12 +406,17 @@ func (m *Encoder) GetAllOutputStatuses() map[string]OutputStatus {
 
 	statuses := make(map[string]OutputStatus)
 	for id, proc := range m.outputProcesses {
+		outputMaxRetries := DefaultMaxRetries
+		if output := m.config.GetOutput(id); output != nil {
+			outputMaxRetries = output.GetMaxRetries()
+		}
 		statuses[id] = OutputStatus{
 			Running:    proc.running,
+			Stable:     proc.running && time.Since(proc.startTime) >= stableThreshold,
 			LastError:  proc.lastError,
 			RetryCount: proc.retryCount,
-			MaxRetries: maxRetries,
-			GivenUp:    proc.retryCount >= maxRetries,
+			MaxRetries: outputMaxRetries,
+			GivenUp:    proc.retryCount > outputMaxRetries,
 		}
 	}
 	return statuses

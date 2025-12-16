@@ -10,12 +10,19 @@
     --brand: #e6007e;
     --brand-hover: #cc006f;
 
-    /* Semantic colors */
+    /* Semantic state colors */
     --success: #22c55e;
     --warning: #facc15;
     --danger: #ef4444;
+    --stopped: var(--neutral-400);
 
-    /* Neutral scale (light mode) */
+    /* State backgrounds */
+    --success-bg: rgb(34 197 94 / 10%);
+    --warning-bg: rgb(250 204 21 / 15%);
+    --danger-bg: rgb(239 68 68 / 10%);
+    --stopped-bg: rgb(107 114 128 / 15%);
+
+    /* Neutral scale */
     --neutral-50: #f9fafb;
     --neutral-100: #f3f4f6;
     --neutral-200: #e5e7eb;
@@ -39,6 +46,7 @@
     --text-secondary: var(--neutral-500);
     --text-muted: var(--neutral-400);
     --text-inverse: #fff;
+    --warning-text: #b45309;
 
     /* Borders */
     --border-default: var(--neutral-200);
@@ -52,29 +60,22 @@
     --header-primary: var(--brand);
     --header-secondary: #475569;
 
-    /* State backgrounds (10% opacity approximations) */
-    --success-bg: rgb(34 197 94 / 10%);
-    --warning-bg: rgb(250 204 21 / 15%);
-    --danger-bg: rgb(239 68 68 / 10%);
-    --warning-text: #b45309;
-
     /* Typography */
     --font-mono: 'SF Mono', Monaco, 'Courier New', monospace;
 
-    /* Icon sizes */
+    /* Sizing */
     --icon-sm: 1rem;
     --icon-md: 1.25rem;
-
-    /* Shadows */
-    --shadow-sm: 0 1px 3px rgb(0 0 0 / 10%);
-    --shadow-md: 0 4px 6px rgb(0 0 0 / 10%);
-    --shadow-inset: inset 0 1px 3px rgb(0 0 0 / 10%);
-
-    /* Radii */
     --radius-sm: 0.25rem;
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
     --radius-full: 9999px;
+
+    /* Effects */
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 10%);
+    --shadow-md: 0 4px 6px rgb(0 0 0 / 10%);
+    --shadow-inset: inset 0 1px 3px rgb(0 0 0 / 10%);
+    --transition-fast: 0.2s ease;
 }
 
 /* Dark theme overrides */
@@ -91,6 +92,7 @@
     --vu-bg: var(--neutral-950);
     --vu-peak: var(--neutral-300);
     --warning-text: #fbbf24;
+    --stopped: var(--neutral-500);
 }
 
 /* =============================================================================
@@ -108,7 +110,7 @@ body {
     background: var(--surface-page);
     color: var(--text-primary);
     min-height: 100vh;
-    transition: background 0.2s, color 0.2s;
+    transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .container {
@@ -165,25 +167,13 @@ header h1 {
     background: currentcolor;
 }
 
-#status-pill.running {
-    background: var(--success-bg);
-    color: var(--success);
-}
-
-#status-pill.stopped {
-    background: var(--danger-bg);
-    color: var(--danger);
-}
-
-#status-pill.warning {
-    background: var(--warning-bg);
-    color: var(--warning);
-}
+/* Status pill states - uses same pattern as other state indicators */
+#status-pill.running { background: var(--success-bg); color: var(--success); }
+#status-pill.stopped { background: var(--danger-bg); color: var(--danger); }
+#status-pill.warning { background: var(--warning-bg); color: var(--warning); }
 
 #status-pill.running #status-dot,
-#status-pill.warning #status-dot {
-    animation: pulse 2s infinite;
-}
+#status-pill.warning #status-dot { animation: pulse 2s infinite; }
 
 @keyframes pulse {
     0%,
@@ -206,7 +196,7 @@ header h1 {
     box-shadow: var(--shadow-sm);
     overflow: hidden;
     margin-bottom: 1rem;
-    transition: box-shadow 0.2s;
+    transition: box-shadow var(--transition-fast);
 }
 
 .card:hover {
@@ -281,7 +271,7 @@ input, select {
     border-radius: var(--radius-lg);
     background: var(--surface-input);
     color: var(--text-primary);
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 input:focus, select:focus {
@@ -292,6 +282,15 @@ input:focus, select:focus {
 
 input::placeholder {
     color: var(--text-muted);
+}
+
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+    cursor: pointer;
 }
 
 /* =============================================================================
@@ -322,7 +321,7 @@ input::placeholder {
     background: var(--surface-card);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: color var(--transition-fast);
 }
 
 .vu-mode-btn:hover {
@@ -553,18 +552,11 @@ input::placeholder {
     flex-shrink: 0;
 }
 
-.output-dot.success {
-    background: var(--success);
-}
-
-.output-dot.warning {
-    background: var(--warning);
-    animation: pulse 2s infinite;
-}
-
-.output-dot.danger {
-    background: var(--danger);
-}
+/* Output dot states */
+.output-dot.success { background: var(--success); }
+.output-dot.warning { background: var(--warning); animation: pulse 2s infinite; }
+.output-dot.danger { background: var(--danger); }
+.output-dot.stopped { background: var(--stopped); }
 
 .output-host {
     flex: 1;
@@ -577,7 +569,7 @@ input::placeholder {
     border: none;
     color: var(--border-strong);
     cursor: pointer;
-    transition: color 0.2s;
+    transition: color var(--transition-fast);
 }
 
 .output-delete:hover {
@@ -621,20 +613,11 @@ input::placeholder {
     font-weight: 500;
 }
 
-.output-status.success {
-    background: var(--success-bg);
-    color: var(--success);
-}
-
-.output-status.warning {
-    background: var(--warning-bg);
-    color: var(--warning);
-}
-
-.output-status.danger {
-    background: var(--danger-bg);
-    color: var(--danger);
-}
+/* Output status badge states */
+.output-status.success { background: var(--success-bg); color: var(--success); }
+.output-status.warning { background: var(--warning-bg); color: var(--warning); }
+.output-status.danger { background: var(--danger-bg); color: var(--danger); }
+.output-status.stopped { background: var(--stopped-bg); color: var(--text-muted); }
 
 .output-error {
     font-size: 0.75rem;
@@ -659,7 +642,7 @@ input::placeholder {
     font-weight: 500;
     color: var(--text-inverse);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background var(--transition-fast);
 }
 
 .btn-add:hover {
@@ -678,7 +661,7 @@ input::placeholder {
     border: none;
     border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background var(--transition-fast);
 }
 
 .btn.primary {
