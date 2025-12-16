@@ -32,6 +32,8 @@ const (
 	levelUpdateSamples = 12000
 	// Minimum dB level (silence)
 	minDB = -60.0
+	// Peak hold duration before decay
+	peakHoldDuration = 1500 * time.Millisecond
 )
 
 // runDistributor delivers audio from the source to all output processes
@@ -43,6 +45,10 @@ func (m *Encoder) runDistributor() {
 	var sampleCount int
 	var sumSquaresL, sumSquaresR float64
 	var peakL, peakR float64
+
+	// Peak hold state
+	heldPeakL, heldPeakR := minDB, minDB
+	var peakHoldTimeL, peakHoldTimeR time.Time
 
 	for {
 		m.mu.RLock()
@@ -104,7 +110,18 @@ func (m *Encoder) runDistributor() {
 			peakDbL = max(peakDbL, minDB)
 			peakDbR = max(peakDbR, minDB)
 
-			m.updateAudioLevels(dbL, dbR, peakDbL, peakDbR)
+			// Peak hold: update held peak if current is higher, or hold time expired
+			now := time.Now()
+			if peakDbL >= heldPeakL || now.Sub(peakHoldTimeL) > peakHoldDuration {
+				heldPeakL = peakDbL
+				peakHoldTimeL = now
+			}
+			if peakDbR >= heldPeakR || now.Sub(peakHoldTimeR) > peakHoldDuration {
+				heldPeakR = peakDbR
+				peakHoldTimeR = now
+			}
+
+			m.updateAudioLevels(dbL, dbR, heldPeakL, heldPeakR)
 
 			// Reset accumulators
 			sampleCount = 0
