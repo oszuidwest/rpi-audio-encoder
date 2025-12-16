@@ -729,15 +729,17 @@ footer {
     color: var(--text-secondary);
 }
 
-footer div {
+footer > div:first-child {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
 }
 
-footer p {
-    margin: 0.25rem 0 0;
+footer .copyright {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
 footer a {
