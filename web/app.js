@@ -50,10 +50,11 @@ function updateStatusFromData(data) {
 
 function renderOutputs(outputs, statuses) {
     const list = $('outputs-list');
-    if (!outputs?.length) {
-        list.innerHTML = '';
-        return;
-    }
+    const template = $('output-template');
+
+    list.replaceChildren();
+
+    if (!outputs?.length) return;
 
     // Clean up deletingOutputs - remove if output no longer exists OR if createdAt changed (ID reused)
     for (const [id, createdAt] of deletingOutputs) {
@@ -63,52 +64,53 @@ function renderOutputs(outputs, statuses) {
         }
     }
 
-    list.innerHTML = outputs.map(o => {
+    for (const o of outputs) {
         const status = statuses[o.id] || {};
         const isDeleting = deletingOutputs.get(o.id) === o.created_at;
         const isRetrying = status.retry_count > 0 && !status.given_up;
         const givenUp = status.given_up;
         const isConnected = status.running && !isDeleting;
 
-        let dotClass, statusClass, statusText;
+        let stateClass, statusText;
         if (isDeleting) {
-            dotClass = statusClass = 'warning';
+            stateClass = 'warning';
             statusText = 'Stopping...';
         } else if (isConnected) {
-            dotClass = statusClass = 'success';
+            stateClass = 'success';
             statusText = 'Connected';
         } else if (givenUp) {
-            dotClass = statusClass = 'danger';
+            stateClass = 'danger';
             statusText = 'Failed';
         } else {
-            dotClass = statusClass = 'warning';
+            stateClass = 'warning';
             statusText = isRetrying ? `Retry ${status.retry_count}` : 'Connecting';
         }
+
+        const clone = template.content.cloneNode(true);
+        const item = clone.querySelector('.output-item');
+        const deleteBtn = clone.querySelector('.output-delete');
+        const errorEl = clone.querySelector('.output-error');
+
+        if (isDeleting) item.classList.add('deleting');
+        clone.querySelector('.output-dot').classList.add(stateClass);
+        clone.querySelector('.output-host').textContent = `${o.host}:${o.port}`;
+        clone.querySelector('.output-codec').textContent = o.codec.toUpperCase();
+        clone.querySelector('.output-streamid').textContent = `#${o.streamid}`;
+        clone.querySelector('.output-status').textContent = statusText;
+        clone.querySelector('.output-status').classList.add(stateClass);
+
+        deleteBtn.dataset.id = o.id;
+        if (isDeleting) deleteBtn.disabled = true;
+
         const showError = !isDeleting && (givenUp || isRetrying) && status.last_error;
+        if (showError) {
+            errorEl.textContent = status.last_error;
+        } else {
+            errorEl.remove();
+        }
 
-        return `
-        <div class="output-item${isDeleting ? ' deleting' : ''}">
-            <div class="output-row">
-                <span class="output-dot ${dotClass}"></span>
-                <span class="output-host">${escapeHtml(o.host)}:${o.port}</span>
-                <button class="output-delete" data-id="${o.id}" title="Delete"${isDeleting ? ' disabled' : ''}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <div class="output-details">
-                <span class="output-codec">${o.codec.toUpperCase()}</span>
-                <span class="output-streamid">#${escapeHtml(o.streamid)}</span>
-                <span class="output-status ${statusClass}">${statusText}</span>
-            </div>
-            ${showError ? `<p class="output-error">${escapeHtml(status.last_error)}</p>` : ''}
-        </div>`;
-    }).join('');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+        list.appendChild(clone);
+    }
 }
 
 function wsCommand(type, id, data) {
