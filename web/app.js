@@ -151,28 +151,20 @@ function addOutput() {
 }
 
 // VU Meter
-let peakHoldLeft = -60;
-let peakHoldRight = -60;
-const peakDecay = 0.3;
-
 function dbToPercent(db) {
     return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
 }
 
 function updateLevelsFromData(levels) {
-    peakHoldLeft = Math.max(levels.peak_left, peakHoldLeft - peakDecay);
-    peakHoldRight = Math.max(levels.peak_right, peakHoldRight - peakDecay);
-
     $('vu-left-cover').style.width = `${100 - dbToPercent(levels.left)}%`;
     $('vu-right-cover').style.width = `${100 - dbToPercent(levels.right)}%`;
-    $('peak-left').style.left = `${dbToPercent(peakHoldLeft)}%`;
-    $('peak-right').style.left = `${dbToPercent(peakHoldRight)}%`;
-    $('db-left').textContent = `${levels.left.toFixed(1)} dB`;
-    $('db-right').textContent = `${levels.right.toFixed(1)} dB`;
+    $('peak-left').style.left = `${dbToPercent(levels.peak_left)}%`;
+    $('peak-right').style.left = `${dbToPercent(levels.peak_right)}%`;
+    $('db-left').textContent = `${levels.peak_left.toFixed(1)} dB`;
+    $('db-right').textContent = `${levels.peak_right.toFixed(1)} dB`;
 }
 
 function resetVuMeter() {
-    peakHoldLeft = peakHoldRight = -60;
     $('vu-left-cover').style.width = $('vu-right-cover').style.width = '100%';
     $('peak-left').style.left = $('peak-right').style.left = '0%';
     $('db-left').textContent = $('db-right').textContent = '-60 dB';
