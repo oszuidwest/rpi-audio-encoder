@@ -150,37 +150,40 @@ document.addEventListener('alpine:init', () => {
             if (msg.devices) {
                 this.devices = msg.devices;
             }
-            if (msg.settings?.audio_input) {
-                this.settings.audioInput = msg.settings.audio_input;
-            }
 
-            // Settings from status
-            if (msg.silence_threshold !== undefined) {
-                this.settings.silenceThreshold = msg.silence_threshold;
-            }
-            if (msg.silence_duration !== undefined) {
-                this.settings.silenceDuration = msg.silence_duration;
-            }
-            if (msg.silence_recovery !== undefined) {
-                this.settings.silenceRecovery = msg.silence_recovery;
-            }
-            if (msg.silence_webhook !== undefined) {
-                this.settings.silenceWebhook = msg.silence_webhook || '';
-            }
-            if (msg.email_smtp_host !== undefined) {
-                this.settings.email.host = msg.email_smtp_host || '';
-            }
-            if (msg.email_smtp_port !== undefined) {
-                this.settings.email.port = msg.email_smtp_port || 587;
-            }
-            if (msg.email_username !== undefined) {
-                this.settings.email.username = msg.email_username || '';
-            }
-            if (msg.email_recipients !== undefined) {
-                this.settings.email.recipients = msg.email_recipients || '';
-            }
-            if (msg.settings && msg.settings.platform !== undefined) {
-                this.settings.platform = msg.settings.platform;
+            // Only update settings from status when not on settings view to prevent
+            // overwriting user input while editing
+            if (this.view !== 'settings') {
+                if (msg.settings?.audio_input) {
+                    this.settings.audioInput = msg.settings.audio_input;
+                }
+                if (msg.silence_threshold !== undefined) {
+                    this.settings.silenceThreshold = msg.silence_threshold;
+                }
+                if (msg.silence_duration !== undefined) {
+                    this.settings.silenceDuration = msg.silence_duration;
+                }
+                if (msg.silence_recovery !== undefined) {
+                    this.settings.silenceRecovery = msg.silence_recovery;
+                }
+                if (msg.silence_webhook !== undefined) {
+                    this.settings.silenceWebhook = msg.silence_webhook || '';
+                }
+                if (msg.email_smtp_host !== undefined) {
+                    this.settings.email.host = msg.email_smtp_host || '';
+                }
+                if (msg.email_smtp_port !== undefined) {
+                    this.settings.email.port = msg.email_smtp_port || 587;
+                }
+                if (msg.email_username !== undefined) {
+                    this.settings.email.username = msg.email_username || '';
+                }
+                if (msg.email_recipients !== undefined) {
+                    this.settings.email.recipients = msg.email_recipients || '';
+                }
+                if (msg.settings && msg.settings.platform !== undefined) {
+                    this.settings.platform = msg.settings.platform;
+                }
             }
 
             // Version
