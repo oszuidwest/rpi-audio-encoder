@@ -86,14 +86,12 @@ function renderOutputs(outputs, statuses) {
         <div class="output-item${isDeleting ? ' deleting' : ''}">
             <div class="output-row">
                 <span class="output-dot ${dotClass}"></span>
-                <span class="output-host">${escapeHtml(o.host)}</span>
+                <span class="output-host">${escapeHtml(o.host)}:${o.port}</span>
                 <button class="output-delete" data-id="${o.id}" title="Delete"${isDeleting ? ' disabled' : ''}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="output-details">
-                <span>Port ${o.port}</span>
-                <span class="sep">-</span>
                 <span>${escapeHtml(o.streamid)}</span>
                 <span class="sep">-</span>
                 <span>${o.codec.toUpperCase()}</span>
