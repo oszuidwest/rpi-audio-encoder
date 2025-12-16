@@ -5,6 +5,7 @@ set -euo pipefail
 GITHUB_REPO="oszuidwest/zwfm-encoder"
 ENCODER_SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/deploy/encoder.service"
 INSTALL_DIR="/usr/local/bin"
+CONFIG_DIR="/etc/encoder"
 SERVICE_PATH="/etc/systemd/system/encoder.service"
 
 # Functions library
@@ -112,6 +113,20 @@ if ! curl -L -o "${INSTALL_DIR}/encoder" "$ENCODER_BINARY_URL"; then
   exit 1
 fi
 chmod +x "${INSTALL_DIR}/encoder"
+
+# Create config directory
+echo -e "${BLUE}►► Setting up configuration directory...${NC}"
+mkdir -p "$CONFIG_DIR"
+chmod 700 "$CONFIG_DIR"
+
+# Migrate config from old location if it exists
+OLD_CONFIG="${INSTALL_DIR}/config.json"
+NEW_CONFIG="${CONFIG_DIR}/config.json"
+if [ -f "$OLD_CONFIG" ] && [ ! -f "$NEW_CONFIG" ]; then
+  echo -e "${BLUE}►► Migrating config from old location...${NC}"
+  mv "$OLD_CONFIG" "$NEW_CONFIG"
+  echo -e "${GREEN}✓ Config migrated to ${NEW_CONFIG}${NC}"
+fi
 
 # Download and install systemd service
 echo -e "${BLUE}►► Installing systemd service...${NC}"

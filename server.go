@@ -1,15 +1,23 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	sessionCookieName = "encoder_session"
+	sessionDuration   = 24 * time.Hour
 )
 
 // upgrader configures the WebSocket connection upgrader with origin validation
@@ -38,29 +46,111 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// session represents an authenticated user session.
+type session struct {
+	token     string
+	expiresAt time.Time
+}
+
 // Server is an HTTP server that provides the web interface for the audio encoder.
 type Server struct {
-	config  *Config
-	manager *Encoder
+	config   *Config
+	manager  *Encoder
+	sessions map[string]*session
+	sessLock sync.RWMutex
 }
 
 // NewServer returns a new Server configured with the provided config and FFmpeg manager.
 func NewServer(config *Config, manager *Encoder) *Server {
 	return &Server{
-		config:  config,
-		manager: manager,
+		config:   config,
+		manager:  manager,
+		sessions: make(map[string]*session),
 	}
 }
 
-// basicAuth requires HTTP Basic Authentication for the provided handler.
+// generateToken creates a cryptographically secure random token.
+func generateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
+}
+
+// createSession creates a new session and returns the token.
+func (s *Server) createSession() string {
+	token := generateToken()
+	if token == "" {
+		return ""
+	}
+
+	s.sessLock.Lock()
+	defer s.sessLock.Unlock()
+
+	s.sessions[token] = &session{
+		token:     token,
+		expiresAt: time.Now().Add(sessionDuration),
+	}
+	return token
+}
+
+// validateSession checks if a session token is valid.
+func (s *Server) validateSession(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	s.sessLock.RLock()
+	sess, exists := s.sessions[token]
+	s.sessLock.RUnlock()
+
+	if !exists {
+		return false
+	}
+
+	if time.Now().After(sess.expiresAt) {
+		s.sessLock.Lock()
+		delete(s.sessions, token)
+		s.sessLock.Unlock()
+		return false
+	}
+
+	return true
+}
+
+// basicAuth requires HTTP Basic Authentication or a valid session cookie.
 func (s *Server) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Check for valid session cookie first
+		if cookie, err := r.Cookie(sessionCookieName); err == nil {
+			if s.validateSession(cookie.Value) {
+				next(w, r)
+				return
+			}
+		}
+
+		// Fall back to Basic Auth
 		user, pass, ok := r.BasicAuth()
 		if !ok || user != s.config.WebUser || pass != s.config.WebPassword {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Encoder"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		// Basic Auth succeeded - create session cookie
+		token := s.createSession()
+		if token != "" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     sessionCookieName,
+				Value:    token,
+				Path:     "/",
+				MaxAge:   int(sessionDuration.Seconds()),
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+		}
+
 		next(w, r)
 	}
 }

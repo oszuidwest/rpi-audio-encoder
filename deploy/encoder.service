@@ -5,8 +5,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/encoder
-WorkingDirectory=/usr/local/bin
+ExecStart=/usr/local/bin/encoder -config /etc/encoder/config.json
 Restart=always
 RestartSec=5
 User=root
@@ -15,7 +14,7 @@ User=root
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/usr/local/bin
+ReadWritePaths=/etc/encoder
 
 [Install]
 WantedBy=multi-user.target
