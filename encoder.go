@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -10,8 +9,6 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -272,20 +269,16 @@ func (m *Encoder) runSourceLoop() {
 
 // runSource executes the source FFmpeg process.
 func (m *Encoder) runSource() (string, error) {
-	// Audio filter for level metering: astats outputs to metadata, ametadata prints to stderr
-	// reset=10 updates every ~200ms at 48kHz (reduces CPU overhead vs reset=1 which updates every frame)
-	audioFilter := "astats=metadata=1:reset=10,ametadata=mode=print:file=/dev/stderr"
-
-	// Build args: audio input (platform-specific) + output to stdout
+	// Build args: audio input (platform-specific) + output raw PCM to stdout
+	// No audio filters - level metering is done in Go for efficiency
 	args := slices.Concat(m.getAudioInputArgs(), []string{
 		"-hide_banner",
 		"-loglevel", "warning",
-		"-af", audioFilter,
 		"-f", "s16le",
 		"-acodec", "pcm_s16le",
 		"-ac", "2",
 		"-ar", "48000",
-		"pipe:1", // Output to stdout
+		"pipe:1",
 	})
 
 	log.Printf("Starting source FFmpeg: %s -> stdout", m.config.GetAudioInput())
@@ -293,22 +286,14 @@ func (m *Encoder) runSource() (string, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
-	// Capture stdout for audio data
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
 		return "", err
 	}
 
-	// Use pipe for stderr to stream and parse audio levels
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		cancel()
-		return "", err
-	}
-
-	// Buffer to capture error messages
 	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	m.mu.Lock()
 	m.sourceCmd = cmd
@@ -320,25 +305,9 @@ func (m *Encoder) runSource() (string, error) {
 	m.audioLevels = AudioLevels{Left: -60, Right: -60, PeakLeft: -60, PeakRight: -60}
 	m.mu.Unlock()
 
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-
-	// Parse stderr in a goroutine
-	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			// Try to parse audio levels from ametadata output
-			if strings.HasPrefix(line, "lavfi.astats.") {
-				m.parseAudioLevel(line)
-			} else {
-				// Store non-level lines for error reporting
-				stderrBuf.WriteString(line + "\n")
-			}
-		}
-	}()
 
 	// Start distributor and outputs after brief delay
 	go func() {
@@ -354,47 +323,17 @@ func (m *Encoder) runSource() (string, error) {
 	m.sourceStdout = nil
 	m.mu.Unlock()
 
-	stderrOutput := extractLastError(stderrBuf.String())
-	return stderrOutput, err
+	return extractLastError(stderrBuf.String()), err
 }
 
-// parseAudioLevel parses a single audio level line from ametadata.
-func (m *Encoder) parseAudioLevel(line string) {
-	// Expected format: lavfi.astats.1.RMS_level=-20.123 or lavfi.astats.1.Peak_level=-3.2
-	parts := strings.SplitN(line, "=", 2)
-	if len(parts) != 2 {
-		return
-	}
-
-	value, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return
-	}
-
-	// Clamp to reasonable range
-	if value < -60 {
-		value = -60
-	}
-	if value > 0 {
-		value = 0
-	}
-
+// updateAudioLevels updates audio levels from calculated RMS and peak values.
+func (m *Encoder) updateAudioLevels(rmsL, rmsR, peakL, peakR float64) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	key := parts[0]
-	switch {
-	case strings.Contains(key, ".1.RMS_level"):
-		m.audioLevels.Left = value
-		// For mono audio, copy to right channel as well
-		m.audioLevels.Right = value
-	case strings.Contains(key, ".2.RMS_level"):
-		m.audioLevels.Right = value
-	case strings.Contains(key, ".1.Peak_level"):
-		m.audioLevels.PeakLeft = value
-		// For mono audio, copy to right channel as well
-		m.audioLevels.PeakRight = value
-	case strings.Contains(key, ".2.Peak_level"):
-		m.audioLevels.PeakRight = value
+	m.audioLevels = AudioLevels{
+		Left:      rmsL,
+		Right:     rmsR,
+		PeakLeft:  peakL,
+		PeakRight: peakR,
 	}
+	m.mu.Unlock()
 }

@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"maps"
+	"math"
 	"os/exec"
 	"slices"
 	"syscall"
@@ -24,45 +26,97 @@ func (m *Encoder) startEnabledOutputs() {
 	}
 }
 
-// runDistributor delivers audio from the source to all output processes.
+// Audio metering constants.
+const (
+	// Update levels every ~250ms (12000 stereo samples at 48kHz)
+	levelUpdateSamples = 12000
+	// Minimum dB level (silence)
+	minDB = -60.0
+)
+
+// runDistributor delivers audio from the source to all output processes
+// and calculates audio levels from the PCM data.
 func (m *Encoder) runDistributor() {
 	buf := make([]byte, 19200) // ~100ms of audio at 48kHz stereo
+
+	// Level metering state
+	var sampleCount int
+	var sumSquaresL, sumSquaresR float64
+	var peakL, peakR float64
+
 	for {
-		// Get reader under lock and keep a reference
 		m.mu.RLock()
 		state := m.state
 		reader := m.sourceStdout
 		stopChan := m.stopChan
 		m.mu.RUnlock()
 
-		// Check if we should stop
 		if state != StateRunning || reader == nil {
 			return
 		}
 
-		// Check stop channel (non-blocking) for fast shutdown
 		select {
 		case <-stopChan:
 			return
 		default:
 		}
 
-		// Read from source stdout (blocking, but will return error when pipe closes)
 		n, err := reader.Read(buf)
 		if err != nil {
-			// Source stopped or error - exit cleanly
 			return
 		}
 		if n == 0 {
 			continue
 		}
 
-		// Distribute to all running outputs under lock
+		// Calculate audio levels from S16LE stereo PCM
+		// Format: [L_low, L_high, R_low, R_high, ...]
+		for i := 0; i+3 < n; i += 4 {
+			left := float64(int16(binary.LittleEndian.Uint16(buf[i:])))
+			right := float64(int16(binary.LittleEndian.Uint16(buf[i+2:])))
+
+			sumSquaresL += left * left
+			sumSquaresR += right * right
+
+			if absL := math.Abs(left); absL > peakL {
+				peakL = absL
+			}
+			if absR := math.Abs(right); absR > peakR {
+				peakR = absR
+			}
+			sampleCount++
+		}
+
+		// Update levels periodically
+		if sampleCount >= levelUpdateSamples {
+			rmsL := math.Sqrt(sumSquaresL / float64(sampleCount))
+			rmsR := math.Sqrt(sumSquaresR / float64(sampleCount))
+
+			// Convert to dB (reference: 32768 for 16-bit audio)
+			dbL := 20 * math.Log10(rmsL/32768.0)
+			dbR := 20 * math.Log10(rmsR/32768.0)
+			peakDbL := 20 * math.Log10(peakL/32768.0)
+			peakDbR := 20 * math.Log10(peakR/32768.0)
+
+			// Clamp to minimum
+			dbL = max(dbL, minDB)
+			dbR = max(dbR, minDB)
+			peakDbL = max(peakDbL, minDB)
+			peakDbR = max(peakDbR, minDB)
+
+			m.updateAudioLevels(dbL, dbR, peakDbL, peakDbR)
+
+			// Reset accumulators
+			sampleCount = 0
+			sumSquaresL, sumSquaresR = 0, 0
+			peakL, peakR = 0, 0
+		}
+
+		// Distribute to all running outputs
 		m.mu.Lock()
 		for _, proc := range m.outputProcesses {
 			if proc.running && proc.stdin != nil {
 				if _, err := proc.stdin.Write(buf[:n]); err != nil {
-					// Output died - mark as not running and close stdin
 					log.Printf("Output write failed, marking as stopped: %v", err)
 					proc.running = false
 					if proc.stdin != nil {
