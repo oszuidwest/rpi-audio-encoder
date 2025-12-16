@@ -276,6 +276,11 @@ func (s *Server) handleWSCommand(cmd WSCommand, statusUpdate chan<- bool) {
 			log.Printf("add_output: maximum of 10 outputs reached")
 			return
 		}
+		// Validate max_retries if provided
+		if output.MaxRetries < 0 || output.MaxRetries > 9999 {
+			log.Printf("add_output: max_retries must be between 0 and 9999, got %d", output.MaxRetries)
+			return
+		}
 		// Set defaults
 		if output.StreamID == "" {
 			output.StreamID = "studio"

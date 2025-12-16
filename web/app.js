@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 function updateStatusFromData(data) {
     const state = data.encoder.state;
     const running = state === 'running';
+    encoderRunning = running;
     const pill = $('status-pill');
 
     // Status pill styling
@@ -69,21 +70,31 @@ function renderOutputs(outputs, statuses) {
         const isDeleting = deletingOutputs.get(o.id) === o.created_at;
         const isRetrying = status.retry_count > 0 && !status.given_up;
         const givenUp = status.given_up;
-        const isConnected = status.running && !isDeleting;
+        const isStable = status.stable && !isDeleting;
+        const isConnecting = status.running && !status.stable && !isDeleting;
 
         let stateClass, statusText;
         if (isDeleting) {
             stateClass = 'warning';
             statusText = 'Stopping...';
-        } else if (isConnected) {
+        } else if (isStable) {
             stateClass = 'success';
             statusText = 'Connected';
         } else if (givenUp) {
             stateClass = 'danger';
             statusText = 'Failed';
+        } else if (isRetrying) {
+            stateClass = 'warning';
+            statusText = `Retry ${status.retry_count}/${status.max_retries}`;
+        } else if (isConnecting) {
+            stateClass = 'warning';
+            statusText = 'Connecting...';
+        } else if (!encoderRunning) {
+            stateClass = 'stopped';
+            statusText = 'Offline';
         } else {
             stateClass = 'warning';
-            statusText = isRetrying ? `Retry ${status.retry_count}` : 'Connecting';
+            statusText = 'Connecting...';
         }
 
         const clone = template.content.cloneNode(true);
@@ -121,6 +132,7 @@ function wsCommand(type, id, data) {
 
 let currentOutputs = [];
 let currentStatuses = {};
+let encoderRunning = false;
 const deletingOutputs = new Map(); // id -> createdAt (to detect ID reuse)
 
 function showModal() {
@@ -130,6 +142,7 @@ function showModal() {
     $('input-streamid').value = '';
     $('input-password').value = '';
     $('input-codec').value = 'mp3';
+    $('input-retries').value = '99';
     $('input-host').focus();
 }
 
@@ -143,13 +156,14 @@ function addOutput() {
     const streamid = $('input-streamid').value.trim() || 'studio';
     const password = $('input-password').value;
     const codec = $('input-codec').value;
+    const max_retries = Number.parseInt($('input-retries').value, 10) || 99;
 
     if (!host) {
         $('input-host').focus();
         return;
     }
 
-    wsCommand('add_output', null, { host, port, streamid, password, codec });
+    wsCommand('add_output', null, { host, port, streamid, password, codec, max_retries });
     hideModal();
 }
 

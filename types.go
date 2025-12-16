@@ -27,6 +27,7 @@ const (
 	maxRetryDelay     = 60 * time.Second
 	maxRetries        = 10
 	successThreshold  = 30 * time.Second // Reset retry count after running this long
+	stableThreshold   = 10 * time.Second // Consider connection stable after this duration
 )
 
 // Shutdown settings.
@@ -50,6 +51,7 @@ type OutputProcess struct {
 // OutputStatus contains runtime status for an output.
 type OutputStatus struct {
 	Running    bool   `json:"running"`
+	Stable     bool   `json:"stable,omitzero"`
 	LastError  string `json:"last_error,omitzero"`
 	RetryCount int    `json:"retry_count,omitzero"`
 	MaxRetries int    `json:"max_retries"`

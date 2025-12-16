@@ -2,13 +2,25 @@ package main
 
 // Output represents a single SRT output destination.
 type Output struct {
-	ID        string `json:"id"`
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	Password  string `json:"password"`
-	StreamID  string `json:"streamid"`
-	Codec     string `json:"codec"`
-	CreatedAt int64  `json:"created_at"`
+	ID         string `json:"id"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Password   string `json:"password"`
+	StreamID   string `json:"streamid"`
+	Codec      string `json:"codec"`
+	MaxRetries int    `json:"max_retries,omitempty"`
+	CreatedAt  int64  `json:"created_at"`
+}
+
+// DefaultMaxRetries is the default number of retry attempts for outputs.
+const DefaultMaxRetries = 99
+
+// GetMaxRetries returns the configured max retries or the default value.
+func (o *Output) GetMaxRetries() int {
+	if o.MaxRetries <= 0 {
+		return DefaultMaxRetries
+	}
+	return o.MaxRetries
 }
 
 // codecPreset defines FFmpeg encoding parameters for a codec.
