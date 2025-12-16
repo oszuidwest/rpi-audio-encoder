@@ -418,6 +418,12 @@ func (e *Encoder) runDistributor() {
 			if silenceState.TriggerEmail {
 				go e.triggerSilenceEmail(silenceState.Duration)
 			}
+			if silenceState.TriggerRecoveryWebhook {
+				go e.triggerRecoveryWebhook(silenceState.RecoveredAfter)
+			}
+			if silenceState.TriggerRecoveryEmail {
+				go e.triggerRecoveryEmail(silenceState.RecoveredAfter)
+			}
 
 			e.updateAudioLevels(levels.RMSL, levels.RMSR, heldPeakL, heldPeakR,
 				silenceState.IsSilent, silenceState.Duration, silenceState.Level,
@@ -564,6 +570,32 @@ func (e *Encoder) triggerSilenceEmail(duration float64) {
 		log.Printf("Silence email failed: %v", err)
 	} else if cfg.Host != "" && cfg.Recipients != "" {
 		log.Printf("Silence email sent successfully (duration: %.1fs)", duration)
+	}
+}
+
+// triggerRecoveryWebhook sends a webhook notification when audio recovers.
+func (e *Encoder) triggerRecoveryWebhook(silenceDuration float64) {
+	webhookURL := e.config.GetSilenceWebhook()
+	if err := notify.SendRecoveryWebhook(webhookURL, silenceDuration); err != nil {
+		log.Printf("Recovery webhook failed: %v", err)
+	} else if webhookURL != "" {
+		log.Printf("Recovery webhook sent successfully (was silent for: %.1fs)", silenceDuration)
+	}
+}
+
+// triggerRecoveryEmail sends an email notification when audio recovers.
+func (e *Encoder) triggerRecoveryEmail(silenceDuration float64) {
+	cfg := notify.EmailConfig{
+		Host:       e.config.GetEmailSMTPHost(),
+		Port:       e.config.GetEmailSMTPPort(),
+		Username:   e.config.GetEmailUsername(),
+		Password:   e.config.GetEmailPassword(),
+		Recipients: e.config.GetEmailRecipients(),
+	}
+	if err := notify.SendRecoveryAlert(cfg, silenceDuration); err != nil {
+		log.Printf("Recovery email failed: %v", err)
+	} else if cfg.Host != "" && cfg.Recipients != "" {
+		log.Printf("Recovery email sent successfully (was silent for: %.1fs)", silenceDuration)
 	}
 }
 

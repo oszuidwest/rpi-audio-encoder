@@ -11,15 +11,27 @@ import (
 
 // SendSilenceWebhook sends a POST request to the webhook URL when silence is critical.
 func SendSilenceWebhook(webhookURL string, duration, threshold float64) error {
-	if webhookURL == "" {
-		return nil // Silently skip if not configured
-	}
-
-	payload := map[string]any{
-		"event":            "silence_critical",
+	return sendWebhook(webhookURL, map[string]any{
+		"event":            "silence_detected",
 		"silence_duration": duration,
 		"threshold":        threshold,
 		"timestamp":        time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// SendRecoveryWebhook sends a POST request to the webhook URL when audio recovers.
+func SendRecoveryWebhook(webhookURL string, silenceDuration float64) error {
+	return sendWebhook(webhookURL, map[string]any{
+		"event":            "silence_recovered",
+		"silence_duration": silenceDuration,
+		"timestamp":        time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// sendWebhook sends a POST request with JSON payload to the webhook URL.
+func sendWebhook(webhookURL string, payload map[string]any) error {
+	if webhookURL == "" {
+		return nil // Silently skip if not configured
 	}
 
 	jsonData, err := json.Marshal(payload)

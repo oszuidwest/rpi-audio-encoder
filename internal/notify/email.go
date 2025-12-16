@@ -24,7 +24,7 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 		return nil // Silently skip if not configured
 	}
 
-	subject := "ZuidWest FM Encoder: Silence Alert"
+	subject := "⚠️ ZuidWest FM Encoder: Silence Detected"
 	body := fmt.Sprintf(
 		"Critical silence detected on audio encoder.\n\n"+
 			"Duration: %.1f seconds\n"+
@@ -32,6 +32,23 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 			"Time: %s\n\n"+
 			"Please check the audio source.",
 		duration, threshold, time.Now().UTC().Format(time.RFC3339),
+	)
+
+	return sendEmail(cfg, subject, body)
+}
+
+// SendRecoveryAlert sends an email notification when audio recovers from silence.
+func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
+	if cfg.Host == "" || cfg.Username == "" || cfg.Recipients == "" {
+		return nil // Silently skip if not configured
+	}
+
+	subject := "✅ ZuidWest FM Encoder: Audio Recovered"
+	body := fmt.Sprintf(
+		"Audio has recovered on the encoder.\n\n"+
+			"Silence duration: %.1f seconds\n"+
+			"Time: %s",
+		silenceDuration, time.Now().UTC().Format(time.RFC3339),
 	)
 
 	return sendEmail(cfg, subject, body)
