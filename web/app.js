@@ -192,7 +192,6 @@ function updateVersionBanner(version) {
     const banner = $('upgrade-banner');
     if (version.update_available && version.latest) {
         $('upgrade-version').textContent = version.latest;
-        $('upgrade-link').href = version.release_url || '#';
         banner.hidden = false;
     } else {
         banner.hidden = true;

@@ -148,6 +148,7 @@ func (s *Server) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 				Path:     "/",
 				MaxAge:   int(sessionDuration.Seconds()),
 				HttpOnly: true,
+				Secure:   r.TLS != nil,
 				SameSite: http.SameSiteStrictMode,
 			})
 		}
