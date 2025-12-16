@@ -1,5 +1,5 @@
 [Unit]
-Description=Audio Encoder for Raspberry Pi
+Description=ZuidWest FM Encoder
 After=network.target sound.target
 Wants=network.target
 

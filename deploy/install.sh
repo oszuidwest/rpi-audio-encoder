@@ -85,9 +85,9 @@ if [ "$DO_UPDATES" == "y" ]; then
   update_os silent
 fi
 
-# Install FFmpeg
-echo -e "${BLUE}►► Installing FFmpeg...${NC}"
-install_packages silent ffmpeg
+# Install dependencies
+echo -e "${BLUE}►► Installing FFmpeg and alsa-utils...${NC}"
+install_packages silent ffmpeg alsa-utils
 
 # Stop existing service if running
 if systemctl is-active --quiet encoder 2>/dev/null; then
