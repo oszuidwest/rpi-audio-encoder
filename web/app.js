@@ -92,9 +92,8 @@ function renderOutputs(outputs, statuses) {
                 </button>
             </div>
             <div class="output-details">
-                <span>${escapeHtml(o.streamid)}</span>
-                <span class="sep">-</span>
-                <span>${o.codec.toUpperCase()}</span>
+                <span class="output-codec">${o.codec.toUpperCase()}</span>
+                <span class="output-streamid">#${escapeHtml(o.streamid)}</span>
                 <span class="output-status ${statusClass}">${statusText}</span>
             </div>
             ${showError ? `<p class="output-error">${escapeHtml(status.last_error)}</p>` : ''}
