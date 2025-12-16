@@ -7,18 +7,20 @@ Stream audio from a Raspberry Pi to multiple SRT destinations simultaneously. Bu
 ## Features
 
 - **Multi-output streaming** - Send to multiple SRT servers with different codecs simultaneously
-- **Real-time VU meters** - Monitor audio levels via WebSocket (10 fps updates)
-- **Web interface** - Configure outputs, select audio input, start/stop streaming
+- **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, updated via WebSocket
+- **Low CPU usage** - Optimized audio capture using arecord, level metering in Go
+- **Web interface** - Configure outputs, select audio input, monitor levels
 - **Auto-recovery** - Automatic reconnection with exponential backoff
 - **Multiple codecs** - MP3, MP2, OGG Vorbis, or uncompressed WAV per output
-- **Single binary** - Web interface embedded, no external dependencies except FFmpeg
+- **Single binary** - Web interface embedded, minimal runtime dependencies
 
 ## Requirements
 
 - Raspberry Pi 4 or 5
 - [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) or [HiFiBerry DAC+ ADC](https://www.hifiberry.com/shop/boards/dacplus-adc/)
 - Raspberry Pi OS Trixie Lite (64-bit)
-- FFmpeg
+- FFmpeg (for encoding)
+- alsa-utils (for audio capture via arecord)
 
 ## Installation
 
@@ -82,15 +84,15 @@ Configuration is stored in `config.json`:
 ```mermaid
 flowchart LR
     subgraph Input
-        A[Audio Source<br>ALSA/AVFoundation]
+        A[Audio Source<br>S/PDIF]
     end
 
     subgraph Capture
-        B[Source FFmpeg<br>Raw PCM]
+        B[arecord<br>Raw PCM]
     end
 
     subgraph Distribution
-        C[Go Distributor]
+        C[Go Distributor<br>+ Level Metering]
     end
 
     subgraph Encoding
@@ -111,7 +113,9 @@ flowchart LR
     C --> D3 --> E3
 ```
 
-One FFmpeg process captures audio and outputs raw PCM. A Go distributor fans out the audio to multiple FFmpeg encoder processes, each streaming to its own SRT destination.
+On Linux, `arecord` captures audio from ALSA with minimal CPU overhead. The Go distributor calculates RMS/peak audio levels directly from the PCM stream and fans out the audio to multiple FFmpeg encoder processes. Each encoder streams to its own SRT destination.
+
+On macOS (for development), FFmpeg with AVFoundation is used for capture instead of arecord.
 
 ## Post-installation
 
