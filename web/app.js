@@ -86,9 +86,12 @@ function setNestedValue(obj, path, value) {
     const keys = path.split('.');
     let current = obj;
     for (let i = 0; i < keys.length - 1; i++) {
+        if (!Object.hasOwn(current, keys[i])) return;
         current = current[keys[i]];
     }
-    current[keys[keys.length - 1]] = value;
+    const finalKey = keys[keys.length - 1];
+    if (!Object.hasOwn(current, finalKey)) return;
+    current[finalKey] = value;
 }
 
 document.addEventListener('alpine:init', () => {
