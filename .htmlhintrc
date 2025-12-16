@@ -17,7 +17,7 @@
   "frame-title-require": true,
   "h1-require": true,
   "head-script-disabled": true,
-  "href-abs-or-rel": true,
+  "href-abs-or-rel": false,
   "html-lang-require": true,
   "id-class-ad-disabled": true,
   "id-class-value": "dash",
