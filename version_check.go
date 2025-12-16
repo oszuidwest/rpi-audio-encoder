@@ -193,8 +193,7 @@ func isNewerVersion(latest, current string) bool {
 	return false
 }
 
-// parseVersion extracts major, minor, patch from a version string.
-// Handles: "1.2.3", "1.2.3-beta", "1.2", "v1.2.3"
+// parseVersion extracts major, minor, patch from a version string like "1.2.3" or "1.2.3-beta".
 func parseVersion(v string) [3]int {
 	v = normalizeVersion(v)
 

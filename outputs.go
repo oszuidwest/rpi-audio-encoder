@@ -36,8 +36,7 @@ const (
 	peakHoldDuration = 1500 * time.Millisecond
 )
 
-// runDistributor delivers audio from the source to all output processes
-// and calculates audio levels from the PCM data.
+// runDistributor delivers audio from the source to all output processes and calculates audio levels.
 func (m *Encoder) runDistributor() {
 	buf := make([]byte, 19200) // ~100ms of audio at 48kHz stereo
 

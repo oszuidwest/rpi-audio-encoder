@@ -20,8 +20,7 @@ const (
 	sessionDuration   = 24 * time.Hour
 )
 
-// upgrader configures the WebSocket connection upgrader with origin validation
-// that allows same-origin, localhost, and local network connections.
+// upgrader configures the WebSocket upgrader with origin validation for same-origin and local network connections.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
@@ -244,8 +243,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleWSCommand processes a WebSocket command from a client and performs
-// the requested action (add_output, delete_output, or update_settings).
+// handleWSCommand processes a WebSocket command and performs the requested action.
 func (s *Server) handleWSCommand(cmd WSCommand, statusUpdate chan<- bool) {
 	switch cmd.Type {
 	case "add_output":

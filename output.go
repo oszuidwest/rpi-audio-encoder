@@ -1,6 +1,6 @@
 package main
 
-// Output represents a single SRT output destination
+// Output represents a single SRT output destination.
 type Output struct {
 	ID        string `json:"id"`
 	Host      string `json:"host"`

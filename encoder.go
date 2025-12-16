@@ -13,8 +13,7 @@ import (
 	"time"
 )
 
-// Encoder manages audio capture and multiple output encoding processes.
-// It is safe for concurrent use.
+// Encoder manages audio capture and multiple output encoding processes. It is safe for concurrent use.
 type Encoder struct {
 	config           *Config
 	sourceCmd        *exec.Cmd
@@ -41,9 +40,7 @@ func NewEncoder(config *Config) *Encoder {
 	}
 }
 
-// getSourceCommand returns the command and arguments for audio capture.
-// Linux uses arecord for minimal CPU overhead.
-// macOS uses FFmpeg with AVFoundation (for development).
+// getSourceCommand returns the platform-specific command and arguments for audio capture.
 func (m *Encoder) getSourceCommand() (string, []string) {
 	input := m.config.GetAudioInput()
 
