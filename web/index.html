@@ -153,6 +153,24 @@
         </div>
     </div>
 
+    <template id="output-template">
+        <div class="output-item">
+            <div class="output-row">
+                <span class="output-dot"></span>
+                <span class="output-host"></span>
+                <button class="output-delete" type="button" title="Delete">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="output-details">
+                <span class="output-codec"></span>
+                <span class="output-streamid"></span>
+                <span class="output-status"></span>
+            </div>
+            <p class="output-error"></p>
+        </div>
+    </template>
+
     <script src="/app.js"></script>
 </body>
 </html>
