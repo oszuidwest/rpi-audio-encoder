@@ -1,172 +1,52 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/oszuidwest/zwfm-encoder/internal/config"
+	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
+	"github.com/oszuidwest/zwfm-encoder/internal/server"
 )
-
-const (
-	sessionCookieName = "encoder_session"
-	sessionDuration   = 24 * time.Hour
-)
-
-// upgrader configures the WebSocket upgrader with origin validation for same-origin and local network connections.
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		// Allow requests without Origin header (same-origin requests)
-		if origin == "" {
-			return true
-		}
-		// Allow localhost and local network origins
-		host := r.Host
-		if strings.HasPrefix(origin, "http://"+host) || strings.HasPrefix(origin, "https://"+host) {
-			return true
-		}
-		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
-			return true
-		}
-		// Allow local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-		if strings.Contains(origin, "192.168.") || strings.Contains(origin, "10.") {
-			return true
-		}
-		log.Printf("Rejected WebSocket connection from origin: %s", origin)
-		return false
-	},
-}
-
-// session represents an authenticated user session.
-type session struct {
-	token     string
-	expiresAt time.Time
-}
 
 // Server is an HTTP server that provides the web interface for the audio encoder.
 type Server struct {
-	config   *Config
-	manager  *Encoder
-	sessions map[string]*session
-	sessLock sync.RWMutex
+	config   *config.Config
+	encoder  *encoder.Encoder
+	sessions *server.SessionManager
+	commands *server.CommandHandler
 	version  *VersionChecker
 }
 
-// NewServer returns a new Server configured with the provided config and FFmpeg manager.
-func NewServer(config *Config, manager *Encoder) *Server {
+// NewServer returns a new Server configured with the provided config and encoder.
+func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
+	sessions := server.NewSessionManager()
+	commands := server.NewCommandHandler(
+		cfg,
+		enc.GetState,
+		enc.StartOutput,
+		enc.StopOutput,
+		enc.Restart,
+		enc.TriggerTestEmail,
+	)
+
 	return &Server{
-		config:   config,
-		manager:  manager,
-		sessions: make(map[string]*session),
+		config:   cfg,
+		encoder:  enc,
+		sessions: sessions,
+		commands: commands,
 		version:  NewVersionChecker(),
 	}
 }
 
-// generateToken creates a cryptographically secure random token.
-func generateToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(b)
-}
-
-// createSession creates a new session and returns the token.
-func (s *Server) createSession() string {
-	token := generateToken()
-	if token == "" {
-		return ""
-	}
-
-	s.sessLock.Lock()
-	defer s.sessLock.Unlock()
-
-	s.sessions[token] = &session{
-		token:     token,
-		expiresAt: time.Now().Add(sessionDuration),
-	}
-	return token
-}
-
-// validateSession checks if a session token is valid.
-func (s *Server) validateSession(token string) bool {
-	if token == "" {
-		return false
-	}
-
-	s.sessLock.RLock()
-	sess, exists := s.sessions[token]
-	s.sessLock.RUnlock()
-
-	if !exists {
-		return false
-	}
-
-	if time.Now().After(sess.expiresAt) {
-		s.sessLock.Lock()
-		delete(s.sessions, token)
-		s.sessLock.Unlock()
-		return false
-	}
-
-	return true
-}
-
-// basicAuth requires HTTP Basic Authentication or a valid session cookie.
-func (s *Server) basicAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Check for valid session cookie first
-		if cookie, err := r.Cookie(sessionCookieName); err == nil {
-			if s.validateSession(cookie.Value) {
-				next(w, r)
-				return
-			}
-		}
-
-		// Fall back to Basic Auth
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != s.config.WebUser || pass != s.config.WebPassword {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Encoder"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Basic Auth succeeded - create session cookie
-		token := s.createSession()
-		if token != "" {
-			http.SetCookie(w, &http.Cookie{
-				Name:     sessionCookieName,
-				Value:    token,
-				Path:     "/",
-				MaxAge:   int(sessionDuration.Seconds()),
-				HttpOnly: true,
-				Secure:   r.TLS != nil,
-				SameSite: http.SameSiteStrictMode,
-			})
-		}
-
-		next(w, r)
-	}
-}
-
-// WSCommand is a command received from a WebSocket client.
-type WSCommand struct {
-	Type string          `json:"type"`
-	ID   string          `json:"id,omitempty"`
-	Data json.RawMessage `json:"data,omitempty"`
-}
-
 // handleWebSocket streams real-time encoder status and audio levels to the client.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := server.UpgradeConnection(w, r)
 	if err != nil {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
@@ -184,12 +64,17 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Goroutine to read and process commands from client
 	go func() {
 		for {
-			var cmd WSCommand
+			var cmd server.WSCommand
 			if err := conn.ReadJSON(&cmd); err != nil {
 				close(done)
 				return
 			}
-			s.handleWSCommand(cmd, statusUpdate)
+			s.commands.Handle(cmd, conn, func() {
+				select {
+				case statusUpdate <- true:
+				default:
+				}
+			})
 		}
 	}()
 
@@ -200,14 +85,22 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Helper to send status
 	sendStatus := func() error {
-		status := s.manager.GetStatus()
+		status := s.encoder.GetStatus()
 		status.OutputCount = len(s.config.GetOutputs())
 		return conn.WriteJSON(map[string]interface{}{
-			"type":          "status",
-			"encoder":       status,
-			"outputs":       s.config.GetOutputs(),
-			"output_status": s.manager.GetAllOutputStatuses(),
-			"devices":       ListAudioDevices(),
+			"type":              "status",
+			"encoder":           status,
+			"outputs":           s.config.GetOutputs(),
+			"output_status":     s.encoder.GetAllOutputStatuses(),
+			"devices":           encoder.ListAudioDevices(),
+			"silence_threshold": s.config.GetSilenceThreshold(),
+			"silence_duration":  s.config.GetSilenceDuration(),
+			"silence_recovery":  s.config.GetSilenceRecovery(),
+			"silence_webhook":   s.config.GetSilenceWebhook(),
+			"email_smtp_host":   s.config.GetEmailSMTPHost(),
+			"email_smtp_port":   s.config.GetEmailSMTPPort(),
+			"email_username":    s.config.GetEmailUsername(),
+			"email_recipients":  s.config.GetEmailRecipients(),
 			"settings": map[string]interface{}{
 				"audio_input": s.config.GetAudioInput(),
 				"platform":    runtime.GOOS,
@@ -232,7 +125,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case <-levelsTicker.C:
 			if err := conn.WriteJSON(map[string]interface{}{
 				"type":   "levels",
-				"levels": s.manager.GetAudioLevels(),
+				"levels": s.encoder.GetAudioLevels(),
 			}); err != nil {
 				return
 			}
@@ -244,122 +137,16 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleWSCommand processes a WebSocket command and performs the requested action.
-func (s *Server) handleWSCommand(cmd WSCommand, statusUpdate chan<- bool) {
-	switch cmd.Type {
-	case "add_output":
-		var output Output
-		if err := json.Unmarshal(cmd.Data, &output); err != nil {
-			log.Printf("add_output: invalid JSON data: %v", err)
-			return
-		}
-		// Validate required fields
-		if output.Host == "" {
-			log.Printf("add_output: host is required")
-			return
-		}
-		if output.Port < 1 || output.Port > 65535 {
-			log.Printf("add_output: port must be between 1 and 65535, got %d", output.Port)
-			return
-		}
-		// Validate optional fields
-		if len(output.Host) > 253 {
-			log.Printf("add_output: host too long (max 253 chars)")
-			return
-		}
-		if len(output.StreamID) > 256 {
-			log.Printf("add_output: streamid too long (max 256 chars)")
-			return
-		}
-		// Limit number of outputs to prevent resource exhaustion
-		if len(s.config.GetOutputs()) >= 10 {
-			log.Printf("add_output: maximum of 10 outputs reached")
-			return
-		}
-		// Validate max_retries if provided
-		if output.MaxRetries < 0 || output.MaxRetries > 9999 {
-			log.Printf("add_output: max_retries must be between 0 and 9999, got %d", output.MaxRetries)
-			return
-		}
-		// Set defaults
-		if output.StreamID == "" {
-			output.StreamID = "studio"
-		}
-		if output.Codec == "" {
-			output.Codec = "mp3"
-		}
-		if err := s.config.AddOutput(output); err != nil {
-			log.Printf("add_output: failed to add: %v", err)
-			return
-		}
-		log.Printf("add_output: added %s:%d", output.Host, output.Port)
-		// Start if encoder running
-		if s.manager.GetState() == StateRunning {
-			outputs := s.config.GetOutputs()
-			if len(outputs) > 0 {
-				if err := s.manager.StartOutput(outputs[len(outputs)-1].ID); err != nil {
-					log.Printf("add_output: failed to start output: %v", err)
-				}
-			}
-		}
-
-	case "delete_output":
-		if cmd.ID == "" {
-			log.Printf("delete_output: no ID provided")
-			return
-		}
-		log.Printf("delete_output: deleting %s", cmd.ID)
-		if err := s.manager.StopOutput(cmd.ID); err != nil {
-			log.Printf("delete_output: failed to stop: %v", err)
-		}
-		if err := s.config.RemoveOutput(cmd.ID); err != nil {
-			log.Printf("delete_output: failed to remove from config: %v", err)
-		} else {
-			log.Printf("delete_output: removed %s from config", cmd.ID)
-		}
-
-	case "update_settings":
-		var settings struct {
-			AudioInput string `json:"audio_input"`
-		}
-		if err := json.Unmarshal(cmd.Data, &settings); err != nil {
-			log.Printf("update_settings: invalid JSON data: %v", err)
-			return
-		}
-		if settings.AudioInput != "" {
-			log.Printf("update_settings: changing audio input to %s", settings.AudioInput)
-			if err := s.config.SetAudioInput(settings.AudioInput); err != nil {
-				log.Printf("update_settings: failed to save: %v", err)
-			}
-			if s.manager.GetState() == StateRunning {
-				go func() {
-					if err := s.manager.Restart(); err != nil {
-						log.Printf("update_settings: failed to restart encoder: %v", err)
-					}
-				}()
-			}
-		}
-
-	default:
-		log.Printf("Unknown WebSocket command type: %s", cmd.Type)
-	}
-
-	// Trigger status update
-	select {
-	case statusUpdate <- true:
-	default:
-	}
-}
-
 // SetupRoutes returns an [http.Handler] configured with all application routes.
 func (s *Server) SetupRoutes() http.Handler {
 	mux := http.NewServeMux()
+	basicAuth := s.sessions.AuthMiddleware(s.config.GetWebUser(), s.config.GetWebPassword())
 
 	// WebSocket for all real-time communication (protected by basic auth)
-	mux.HandleFunc("/ws", s.basicAuth(s.handleWebSocket))
+	mux.HandleFunc("/ws", basicAuth(s.handleWebSocket))
 
 	// Static files (also protected)
-	mux.HandleFunc("/", s.basicAuth(s.handleStatic))
+	mux.HandleFunc("/", basicAuth(s.handleStatic))
 
 	return mux
 }
@@ -397,7 +184,10 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 
 // Start begins listening and serving HTTP requests on the configured port.
 func (s *Server) Start() error {
-	addr := fmt.Sprintf(":%d", s.config.WebPort)
+	addr := fmt.Sprintf(":%d", s.config.GetWebPort())
 	log.Printf("Starting web server on %s", addr)
 	return http.ListenAndServe(addr, s.SetupRoutes())
 }
+
+// Conn is an alias for websocket.Conn to avoid import in other packages.
+type Conn = websocket.Conn

@@ -15,6 +15,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"github.com/oszuidwest/zwfm-encoder/internal/config"
+	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
 )
 
 func main() {
@@ -40,16 +43,16 @@ func main() {
 	log.Printf("Using config file: %s", *configPath)
 
 	// Load configuration
-	config := NewConfig(*configPath)
-	if err := config.Load(); err != nil {
+	cfg := config.New(*configPath)
+	if err := cfg.Load(); err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Create FFmpeg manager
-	manager := NewEncoder(config)
+	// Create encoder
+	enc := encoder.New(cfg)
 
 	// Create HTTP server
-	server := NewServer(config, manager)
+	srv := NewServer(cfg, enc)
 
 	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
@@ -58,7 +61,7 @@ func main() {
 	go func() {
 		<-sigChan
 		log.Println("Shutting down...")
-		if err := manager.Stop(); err != nil {
+		if err := enc.Stop(); err != nil {
 			log.Printf("Error stopping encoder: %v", err)
 		}
 		os.Exit(0)
@@ -66,10 +69,10 @@ func main() {
 
 	// Always start encoder automatically
 	log.Println("Starting encoder...")
-	if err := manager.Start(); err != nil {
+	if err := enc.Start(); err != nil {
 		log.Printf("Failed to start encoder: %v", err)
 	}
 
 	// Start web server (blocks)
-	log.Fatal(server.Start())
+	log.Fatal(srv.Start())
 }
