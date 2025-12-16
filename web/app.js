@@ -167,10 +167,14 @@ function updateLevelsFromData(levels) {
     $('db-right').textContent = `${displayR.toFixed(1)} dB`;
 }
 
+function getVuModeLabel() {
+    return vuMode === 'peak' ? 'Peak' : 'RMS';
+}
+
 function toggleVuMode() {
     vuMode = vuMode === 'peak' ? 'rms' : 'peak';
     localStorage.vuMode = vuMode;
-    $('vu-mode-toggle').textContent = vuMode === 'peak' ? 'Peak' : 'RMS';
+    $('vu-mode-toggle').textContent = getVuModeLabel();
 }
 
 function resetVuMeter() {
@@ -269,5 +273,5 @@ for (const input of document.querySelectorAll('.modal-content input')) {
 }
 
 // Init
-$('vu-mode-toggle').textContent = vuMode === 'peak' ? 'Peak' : 'RMS';
+$('vu-mode-toggle').textContent = getVuModeLabel();
 connectWebSocket();
