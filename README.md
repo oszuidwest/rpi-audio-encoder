@@ -8,7 +8,6 @@ Audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radi
 
 - **Multi-output streaming** - Send to multiple SRT servers with different codecs simultaneously
 - **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, updated via WebSocket
-- **Low CPU usage** - Optimized audio capture using arecord, level metering in Go
 - **Web interface** - Configure outputs, select audio input, monitor levels
 - **Auto-recovery** - Automatic reconnection with exponential backoff
 - **Multiple codecs** - MP3, MP2, OGG Vorbis, or uncompressed WAV per output
