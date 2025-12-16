@@ -240,11 +240,6 @@ function connectWebSocket() {
 }
 
 // Event listeners
-$('theme-toggle').onclick = () => {
-    document.documentElement.classList.toggle('dark');
-    localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-};
-
 $('audio-input').onchange = (e) => {
     wsCommand('update_settings', null, { audio_input: e.target.value });
 };

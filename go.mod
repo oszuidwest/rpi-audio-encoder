@@ -1,4 +1,4 @@
-module github.com/oszuidwest/rpi-audio-encoder
+module github.com/oszuidwest/zwfm-encoder
 
 go 1.25
 

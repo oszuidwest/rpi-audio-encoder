@@ -20,7 +20,13 @@ import (
 func main() {
 	// Parse command line flags
 	configPath := flag.String("config", "", "Path to config file (default: config.json next to binary)")
+	showVersion := flag.Bool("version", false, "Print version information and exit")
 	flag.Parse()
+
+	if *showVersion {
+		log.Printf("Version: %s\nCommit: %s\nBuild time: %s", Version, Commit, BuildTime)
+		return
+	}
 
 	// Determine config path
 	if *configPath == "" {

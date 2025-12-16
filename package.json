@@ -1,5 +1,5 @@
 {
-  "name": "rpi-audio-encoder",
+  "name": "zwfm-encoder",
   "private": true,
   "type": "module",
   "scripts": {

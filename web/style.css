@@ -1,5 +1,5 @@
 /* =============================================================================
-   Audio Encoder - Design System
+   ZuidWest FM Encoder - Design System
 
    Brand customization: Change colors in :root to match your brand.
    The dark theme automatically derives from these base colors.
@@ -140,42 +140,6 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-}
-
-#theme-toggle {
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 50%;
-    background: var(--surface-card);
-    border: none;
-    box-shadow: var(--shadow-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-muted);
-    transition: all 0.2s;
-}
-
-#theme-toggle:hover {
-    color: var(--text-primary);
-}
-
-#theme-toggle svg {
-    width: var(--icon-md);
-    height: var(--icon-md);
-}
-
-.icon-sun {
-    display: none;
-}
-
-.dark .icon-sun {
-    display: block;
-}
-
-.dark .icon-moon {
-    display: none;
 }
 
 /* =============================================================================

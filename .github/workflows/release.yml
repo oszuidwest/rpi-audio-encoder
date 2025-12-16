@@ -19,11 +19,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -59,25 +59,22 @@ jobs:
           if [[ "$VERSION" == "edge" ]]; then
             VERSION="edge-$(git rev-parse --short HEAD)"
           fi
-          LDFLAGS="-w -s"
+
+          MODULE="github.com/oszuidwest/zwfm-encoder"
+          LDFLAGS="-w -s -X main.Version=$VERSION -X main.Commit=${{ github.sha }} -X main.BuildTime=$(date -u +%FT%TZ)"
+
+          build() {
+            local os=$1 arch=$2
+            local output="encoder-${os}-${arch}"
+            echo "Building $output"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "dist/$output" .
+          }
 
           mkdir -p dist
 
-          # Linux ARM64 (Raspberry Pi 4/5)
-          echo "Building encoder-linux-arm64"
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o dist/encoder-linux-arm64 .
-
-          # Linux AMD64 (for testing/servers)
-          echo "Building encoder-linux-amd64"
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o dist/encoder-linux-amd64 .
-
-          # macOS ARM64 (for development)
-          echo "Building encoder-darwin-arm64"
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o dist/encoder-darwin-arm64 .
-
-          # macOS AMD64 (for development)
-          echo "Building encoder-darwin-amd64"
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o dist/encoder-darwin-amd64 .
+          build linux arm64
+          build darwin arm64
+          build darwin amd64
 
       - name: Create release
         if: steps.version.outputs.is_release == 'true'
@@ -90,7 +87,7 @@ jobs:
 
             On Raspberry Pi 4/5 with HiFiBerry card:
             ```bash
-            curl -sSL https://raw.githubusercontent.com/oszuidwest/rpi-audio-encoder/main/deploy/install.sh | sudo bash
+            curl -sSL https://raw.githubusercontent.com/oszuidwest/zwfm-encoder/main/deploy/install.sh | sudo bash
             ```
 
             Binary downloads are available below as release assets.
@@ -99,7 +96,7 @@ jobs:
 
       - name: Upload edge artifacts
         if: steps.version.outputs.is_release == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: edge-${{ github.sha }}
           path: dist/*

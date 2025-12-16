@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Configuration
-GITHUB_REPO="oszuidwest/rpi-audio-encoder"
+GITHUB_REPO="oszuidwest/zwfm-encoder"
 ENCODER_SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/deploy/encoder.service"
 INSTALL_DIR="/usr/local/bin"
 SERVICE_PATH="/etc/systemd/system/encoder.service"
