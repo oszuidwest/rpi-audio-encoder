@@ -16,6 +16,7 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/output"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
 // LevelUpdateSamples is the number of samples before updating audio levels (~250ms).
@@ -222,16 +223,20 @@ func (e *Encoder) StopOutput(outputID string) error {
 	return e.outputManager.Stop(outputID)
 }
 
-// TriggerTestEmail sends a test email to verify configuration.
-func (e *Encoder) TriggerTestEmail() error {
-	cfg := notify.EmailConfig{
+// buildEmailConfig constructs an EmailConfig from the current configuration.
+func (e *Encoder) buildEmailConfig() notify.EmailConfig {
+	return notify.EmailConfig{
 		Host:       e.config.GetEmailSMTPHost(),
 		Port:       e.config.GetEmailSMTPPort(),
 		Username:   e.config.GetEmailUsername(),
 		Password:   e.config.GetEmailPassword(),
 		Recipients: e.config.GetEmailRecipients(),
 	}
-	return notify.SendTestEmail(cfg)
+}
+
+// TriggerTestEmail sends a test email to verify configuration.
+func (e *Encoder) TriggerTestEmail() error {
+	return notify.SendTestEmail(e.buildEmailConfig())
 }
 
 // runSourceLoop runs the audio capture process with auto-restart.
@@ -418,11 +423,17 @@ func (e *Encoder) runDistributor() {
 			if silenceState.TriggerEmail {
 				go e.triggerSilenceEmail(silenceState.Duration)
 			}
+			if silenceState.TriggerWebhook || silenceState.TriggerEmail {
+				go e.logSilenceStart(silenceState.Duration, silenceCfg.Threshold)
+			}
 			if silenceState.TriggerRecoveryWebhook {
 				go e.triggerRecoveryWebhook(silenceState.RecoveredAfter)
 			}
 			if silenceState.TriggerRecoveryEmail {
 				go e.triggerRecoveryEmail(silenceState.RecoveredAfter)
+			}
+			if silenceState.TriggerRecoveryWebhook || silenceState.TriggerRecoveryEmail {
+				go e.logSilenceEnd(silenceState.RecoveredAfter, silenceCfg.Threshold)
 			}
 
 			e.updateAudioLevels(levels.RMSL, levels.RMSR, heldPeakL, heldPeakR,
@@ -549,54 +560,68 @@ func (e *Encoder) updateAudioLevels(rmsL, rmsR, peakL, peakR float64, silence bo
 func (e *Encoder) triggerSilenceWebhook(duration float64) {
 	webhookURL := e.config.GetSilenceWebhook()
 	threshold := e.config.GetSilenceThreshold()
-	if err := notify.SendSilenceWebhook(webhookURL, duration, threshold); err != nil {
-		log.Printf("Silence webhook failed: %v", err)
-	} else if webhookURL != "" {
-		log.Printf("Silence webhook sent successfully (duration: %.1fs)", duration)
-	}
+	util.NotifyResultf(
+		func() error { return notify.SendSilenceWebhook(webhookURL, duration, threshold) },
+		"Silence webhook",
+		webhookURL != "",
+		"(duration: %.1fs)", duration,
+	)
 }
 
 // triggerSilenceEmail sends an email notification for critical silence.
 func (e *Encoder) triggerSilenceEmail(duration float64) {
-	cfg := notify.EmailConfig{
-		Host:       e.config.GetEmailSMTPHost(),
-		Port:       e.config.GetEmailSMTPPort(),
-		Username:   e.config.GetEmailUsername(),
-		Password:   e.config.GetEmailPassword(),
-		Recipients: e.config.GetEmailRecipients(),
-	}
+	cfg := e.buildEmailConfig()
 	threshold := e.config.GetSilenceThreshold()
-	if err := notify.SendSilenceAlert(cfg, duration, threshold); err != nil {
-		log.Printf("Silence email failed: %v", err)
-	} else if cfg.Host != "" && cfg.Recipients != "" {
-		log.Printf("Silence email sent successfully (duration: %.1fs)", duration)
-	}
+	util.NotifyResultf(
+		func() error { return notify.SendSilenceAlert(cfg, duration, threshold) },
+		"Silence email",
+		cfg.Host != "" && cfg.Recipients != "",
+		"(duration: %.1fs)", duration,
+	)
 }
 
 // triggerRecoveryWebhook sends a webhook notification when audio recovers.
 func (e *Encoder) triggerRecoveryWebhook(silenceDuration float64) {
 	webhookURL := e.config.GetSilenceWebhook()
-	if err := notify.SendRecoveryWebhook(webhookURL, silenceDuration); err != nil {
-		log.Printf("Recovery webhook failed: %v", err)
-	} else if webhookURL != "" {
-		log.Printf("Recovery webhook sent successfully (was silent for: %.1fs)", silenceDuration)
-	}
+	util.NotifyResultf(
+		func() error { return notify.SendRecoveryWebhook(webhookURL, silenceDuration) },
+		"Recovery webhook",
+		webhookURL != "",
+		"(was silent for: %.1fs)", silenceDuration,
+	)
 }
 
 // triggerRecoveryEmail sends an email notification when audio recovers.
 func (e *Encoder) triggerRecoveryEmail(silenceDuration float64) {
-	cfg := notify.EmailConfig{
-		Host:       e.config.GetEmailSMTPHost(),
-		Port:       e.config.GetEmailSMTPPort(),
-		Username:   e.config.GetEmailUsername(),
-		Password:   e.config.GetEmailPassword(),
-		Recipients: e.config.GetEmailRecipients(),
-	}
-	if err := notify.SendRecoveryAlert(cfg, silenceDuration); err != nil {
-		log.Printf("Recovery email failed: %v", err)
-	} else if cfg.Host != "" && cfg.Recipients != "" {
-		log.Printf("Recovery email sent successfully (was silent for: %.1fs)", silenceDuration)
-	}
+	cfg := e.buildEmailConfig()
+	util.NotifyResultf(
+		func() error { return notify.SendRecoveryAlert(cfg, silenceDuration) },
+		"Recovery email",
+		cfg.Host != "" && cfg.Recipients != "",
+		"(was silent for: %.1fs)", silenceDuration,
+	)
+}
+
+// logSilenceStart logs a silence start event to the configured log file.
+func (e *Encoder) logSilenceStart(duration, threshold float64) {
+	logPath := e.config.GetSilenceLogPath()
+	util.NotifyResultf(
+		func() error { return notify.LogSilenceStart(logPath, duration, threshold) },
+		"Silence log",
+		logPath != "",
+		"(duration: %.1fs)", duration,
+	)
+}
+
+// logSilenceEnd logs a silence end (recovery) event to the configured log file.
+func (e *Encoder) logSilenceEnd(silenceDuration, threshold float64) {
+	logPath := e.config.GetSilenceLogPath()
+	util.NotifyResultf(
+		func() error { return notify.LogSilenceEnd(logPath, silenceDuration, threshold) },
+		"Recovery log",
+		logPath != "",
+		"(was silent for: %.1fs)", silenceDuration,
+	)
 }
 
 // pollUntil signals when the given condition becomes true.

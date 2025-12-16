@@ -25,6 +25,7 @@ type VersionInfo struct {
 	Latest      string `json:"latest,omitempty"`
 	UpdateAvail bool   `json:"update_available"`
 	Commit      string `json:"commit,omitempty"`
+	BuildTime   string `json:"build_time,omitempty"`
 }
 
 // VersionChecker periodically checks GitHub for new releases.
@@ -159,9 +160,10 @@ func (vc *VersionChecker) GetInfo() VersionInfo {
 
 	current := normalizeVersion(Version)
 	info := VersionInfo{
-		Current: current,
-		Latest:  vc.latest,
-		Commit:  Commit,
+		Current:   current,
+		Latest:    vc.latest,
+		Commit:    Commit,
+		BuildTime: BuildTime,
 	}
 
 	// Only show update for non-dev builds with valid latest version

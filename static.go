@@ -17,6 +17,11 @@ var styleCSS string
 //go:embed web/app.js
 var appJS string
 
+// iconsJS contains the embedded SVG icons as JavaScript.
+//
+//go:embed web/icons.js
+var iconsJS string
+
 // alpineJS contains the embedded Alpine.js library.
 //
 //go:embed web/alpine.min.js

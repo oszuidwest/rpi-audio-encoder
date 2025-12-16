@@ -7,11 +7,12 @@ Audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radi
 ## Features
 
 - **Multi-output streaming** - Send to multiple SRT servers with different codecs simultaneously
-- **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, updated via WebSocket
-- **Silence detection** - Alerts via webhook or email when audio drops below threshold
+- **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, clip detection, updated via WebSocket
+- **Silence detection** - Alerts via webhook, email, or file log when audio drops below threshold
 - **Web interface** - Configure outputs, select audio input, monitor levels
-- **Auto-recovery** - Automatic reconnection with exponential backoff
+- **Auto-recovery** - Automatic reconnection with configurable retry limits per output
 - **Multiple codecs** - MP3, MP2, OGG Vorbis, or uncompressed WAV per output
+- **Update notifications** - Alerts when new versions are available
 - **Single binary** - Web interface embedded, minimal runtime dependencies
 
 ## Requirements
@@ -57,7 +58,7 @@ Connect the digital output of your audio processor to the HiFiBerry input.
 
 ## Silence Detection
 
-Monitors audio levels and sends alerts when silence is detected. Uses hysteresis to prevent alert flapping:
+Monitors audio levels and sends alerts when silence is detected or recovered. Uses hysteresis to prevent alert flapping:
 
 | Setting | Default | Range | Description |
 |---------|---------|-------|-------------|
@@ -65,15 +66,16 @@ Monitors audio levels and sends alerts when silence is detected. Uses hysteresis
 | Duration | 15 s | 1-300 | Seconds of silence before alerting |
 | Recovery | 5 s | 1-60 | Seconds of audio before considering recovered |
 
-**Alerting options:**
-- **Webhook** - POST request to a URL when silence starts
-- **Email** - SMTP notification to configured recipients
+**Alerting options** (can use multiple simultaneously):
+- **Webhook** - POST request to a URL on silence start and recovery
+- **Email** - SMTP notification to configured recipients on silence start and recovery
+- **File Log** - Append JSON Lines to a local file for each silence event
 
 Configure via the web interface under Settings → Alerts.
 
 ## Configuration
 
-Configuration is stored in `config.json`:
+Configuration is stored in `/etc/encoder/config.json`:
 
 ```json
 {
@@ -85,6 +87,12 @@ Configuration is stored in `config.json`:
   "silence_duration": 15,
   "silence_recovery": 5,
   "silence_webhook": "https://example.com/alert",
+  "silence_log_path": "/var/log/encoder/silence.jsonl",
+  "email_smtp_host": "smtp.example.com",
+  "email_smtp_port": 587,
+  "email_username": "alerts@example.com",
+  "email_password": "secret",
+  "email_recipients": "admin@example.com, tech@example.com",
   "outputs": [
     {
       "id": "output-1",
@@ -93,7 +101,7 @@ Configuration is stored in `config.json`:
       "streamid": "studio",
       "password": "secret",
       "codec": "mp3",
-      "enabled": true
+      "max_retries": 99
     }
   ]
 }
@@ -112,7 +120,7 @@ flowchart LR
     end
 
     subgraph Distribution
-        C[Go Distributor<br>+ Level Metering]
+        C[Go Distributor<br>Level Metering<br>Silence Detection]
     end
 
     subgraph Encoding
@@ -127,13 +135,27 @@ flowchart LR
         E3[SRT Server 3]
     end
 
+    subgraph Monitoring
+        F[Web Interface<br>WebSocket]
+    end
+
+    subgraph Alerts
+        G1[Webhook]
+        G2[Email]
+        G3[File Log]
+    end
+
     A --> B --> C
     C --> D1 --> E1
     C --> D2 --> E2
     C --> D3 --> E3
+    C -.->|levels| F
+    C -.->|silence| G1
+    C -.->|silence| G2
+    C -.->|silence| G3
 ```
 
-On Linux, `arecord` captures audio from ALSA with minimal CPU overhead. The Go distributor calculates RMS/peak audio levels directly from the PCM stream and fans out the audio to multiple FFmpeg encoder processes. Each encoder streams to its own SRT destination.
+On Linux, `arecord` captures audio from ALSA with minimal CPU overhead. The Go distributor calculates RMS/peak audio levels directly from the PCM stream, runs silence detection, and fans out the audio to multiple FFmpeg encoder processes. Each encoder streams to its own SRT destination. Audio levels are sent to the web interface via WebSocket, and silence events trigger configured alerts.
 
 On macOS (for development), FFmpeg with AVFoundation is used for capture instead of arecord.
 
