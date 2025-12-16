@@ -58,6 +58,7 @@ type Server struct {
 	manager  *Encoder
 	sessions map[string]*session
 	sessLock sync.RWMutex
+	version  *VersionChecker
 }
 
 // NewServer returns a new Server configured with the provided config and FFmpeg manager.
@@ -66,6 +67,7 @@ func NewServer(config *Config, manager *Encoder) *Server {
 		config:   config,
 		manager:  manager,
 		sessions: make(map[string]*session),
+		version:  NewVersionChecker(),
 	}
 }
 
@@ -210,6 +212,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				"audio_input": s.config.GetAudioInput(),
 				"platform":    runtime.GOOS,
 			},
+			"version": s.version.GetInfo(),
 		})
 	}
 

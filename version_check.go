@@ -1,0 +1,216 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	githubRepo           = "oszuidwest/zwfm-encoder"
+	versionCheckInterval = 24 * time.Hour
+	versionCheckDelay    = 30 * time.Second // Delay before first check to avoid blocking startup
+	versionCheckTimeout  = 30 * time.Second // HTTP request timeout
+	versionMaxRetries    = 3                // Max retries per check cycle
+	versionRetryDelay    = 1 * time.Minute  // Delay between retries
+)
+
+// VersionInfo contains version comparison data for the frontend.
+type VersionInfo struct {
+	Current     string `json:"current"`
+	Latest      string `json:"latest,omitempty"`
+	UpdateAvail bool   `json:"update_available"`
+	ReleaseURL  string `json:"release_url,omitempty"`
+}
+
+// VersionChecker periodically checks GitHub for new releases.
+type VersionChecker struct {
+	mu         sync.RWMutex
+	latest     string
+	releaseURL string
+	etag       string // For conditional requests (304 Not Modified)
+}
+
+// NewVersionChecker creates and starts a version checker.
+func NewVersionChecker() *VersionChecker {
+	vc := &VersionChecker{}
+	go vc.run()
+	return vc
+}
+
+// run is the main loop that periodically checks for updates.
+func (vc *VersionChecker) run() {
+	// Delay first check to avoid blocking startup
+	time.Sleep(versionCheckDelay)
+	vc.checkWithRetry()
+
+	ticker := time.NewTicker(versionCheckInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		vc.checkWithRetry()
+	}
+}
+
+// checkWithRetry attempts the version check with retries on failure.
+func (vc *VersionChecker) checkWithRetry() {
+	for attempt := range versionMaxRetries {
+		if vc.check() {
+			return
+		}
+		if attempt < versionMaxRetries-1 {
+			time.Sleep(versionRetryDelay)
+		}
+	}
+}
+
+// githubRelease represents the GitHub API response for a release.
+type githubRelease struct {
+	TagName    string `json:"tag_name"`
+	HTMLURL    string `json:"html_url"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+}
+
+// check fetches the latest release from GitHub. Returns true on success.
+func (vc *VersionChecker) check() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), versionCheckTimeout)
+	defer cancel()
+
+	url := "https://api.github.com/repos/" + githubRepo + "/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+
+	// GitHub API best practices
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "zwfm-encoder/"+Version)
+
+	// Conditional request to reduce bandwidth and avoid rate limits
+	vc.mu.RLock()
+	etag := vc.etag
+	vc.mu.RUnlock()
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// New data available
+	case http.StatusNotModified:
+		// No changes since last check - success
+		return true
+	case http.StatusNotFound:
+		// No releases exist yet - not an error
+		return true
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		// Rate limited - retry later
+		return false
+	default:
+		if resp.StatusCode >= 500 {
+			// Server error - retry
+			return false
+		}
+		// Other client errors - don't retry
+		return true
+	}
+
+	var release githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return false
+	}
+
+	// Skip drafts and prereleases
+	if release.Draft || release.Prerelease {
+		return true
+	}
+
+	// Validate required fields
+	if release.TagName == "" {
+		return false
+	}
+
+	vc.mu.Lock()
+	vc.latest = normalizeVersion(release.TagName)
+	vc.releaseURL = release.HTMLURL
+	if newEtag := resp.Header.Get("ETag"); newEtag != "" {
+		vc.etag = newEtag
+	}
+	vc.mu.Unlock()
+
+	return true
+}
+
+// GetInfo returns the current version info for the frontend.
+func (vc *VersionChecker) GetInfo() VersionInfo {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+
+	current := normalizeVersion(Version)
+	info := VersionInfo{
+		Current:    current,
+		Latest:     vc.latest,
+		ReleaseURL: vc.releaseURL,
+	}
+
+	// Only show update for non-dev builds with valid latest version
+	if vc.latest != "" && current != "dev" && current != "unknown" {
+		info.UpdateAvail = isNewerVersion(vc.latest, current)
+	}
+
+	return info
+}
+
+// normalizeVersion removes 'v' prefix and trims whitespace.
+func normalizeVersion(v string) string {
+	return strings.TrimPrefix(strings.TrimSpace(v), "v")
+}
+
+// isNewerVersion returns true if latest is newer than current using semver comparison.
+func isNewerVersion(latest, current string) bool {
+	latestParts := parseVersion(latest)
+	currentParts := parseVersion(current)
+
+	for i := 0; i < 3; i++ {
+		if latestParts[i] > currentParts[i] {
+			return true
+		}
+		if latestParts[i] < currentParts[i] {
+			return false
+		}
+	}
+	return false
+}
+
+// parseVersion extracts major, minor, patch from a version string.
+// Handles: "1.2.3", "1.2.3-beta", "1.2", "v1.2.3"
+func parseVersion(v string) [3]int {
+	v = normalizeVersion(v)
+
+	// Remove pre-release suffix (-beta, -rc1, +build)
+	if idx := strings.IndexAny(v, "-+"); idx != -1 {
+		v = v[:idx]
+	}
+
+	parts := strings.Split(v, ".")
+	var result [3]int
+
+	for i := 0; i < 3 && i < len(parts); i++ {
+		if n, err := strconv.Atoi(parts[i]); err == nil {
+			result[i] = n
+		}
+	}
+
+	return result
+}

@@ -478,6 +478,43 @@ input::placeholder {
 }
 
 /* =============================================================================
+   Upgrade Banner
+   ============================================================================= */
+
+.upgrade-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-hover) 100%);
+    color: var(--text-inverse);
+    font-size: 0.875rem;
+}
+
+.upgrade-banner[hidden] {
+    display: none;
+}
+
+.upgrade-banner svg {
+    width: var(--icon-sm);
+    height: var(--icon-sm);
+    flex-shrink: 0;
+}
+
+.upgrade-banner a {
+    margin-left: auto;
+    color: var(--text-inverse);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.upgrade-banner a:hover {
+    opacity: 0.9;
+}
+
+/* =============================================================================
    Outputs List
    ============================================================================= */
 

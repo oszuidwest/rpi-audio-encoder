@@ -42,6 +42,10 @@ function updateStatusFromData(data) {
     if (data.devices) {
         updateAudioDevices(data.devices, data.settings?.audio_input);
     }
+
+    if (data.version) {
+        updateVersionBanner(data.version);
+    }
 }
 
 function renderOutputs(outputs, statuses) {
@@ -181,6 +185,18 @@ function resetVuMeter() {
     $('vu-left-cover').style.width = $('vu-right-cover').style.width = '100%';
     $('peak-left').style.left = $('peak-right').style.left = '0%';
     $('db-left').textContent = $('db-right').textContent = '-60 dB';
+}
+
+// Version Banner
+function updateVersionBanner(version) {
+    const banner = $('upgrade-banner');
+    if (version.update_available && version.latest) {
+        $('upgrade-version').textContent = version.latest;
+        $('upgrade-link').href = version.release_url || '#';
+        banner.hidden = false;
+    } else {
+        banner.hidden = true;
+    }
 }
 
 // Audio Input
