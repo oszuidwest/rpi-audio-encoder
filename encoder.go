@@ -8,19 +8,18 @@ import (
 	"log"
 	"os/exec"
 	"runtime"
-	"slices"
 	"sync"
 	"syscall"
 	"time"
 )
 
-// Encoder manages the FFmpeg source audio capture and multiple output encoding processes.
+// Encoder manages audio capture and multiple output encoding processes.
 // It is safe for concurrent use.
 type Encoder struct {
 	config           *Config
 	sourceCmd        *exec.Cmd
 	sourceCancel     context.CancelFunc
-	sourceStdout     io.ReadCloser // Audio data from source FFmpeg
+	sourceStdout     io.ReadCloser // Raw PCM audio data from source
 	outputProcesses  map[string]*OutputProcess
 	state            EncoderState
 	stopChan         chan struct{}
@@ -42,25 +41,43 @@ func NewEncoder(config *Config) *Encoder {
 	}
 }
 
-// getAudioInputArgs returns platform-specific FFmpeg input arguments.
-func (m *Encoder) getAudioInputArgs() []string {
+// getSourceCommand returns the command and arguments for audio capture.
+// Linux uses arecord for minimal CPU overhead.
+// macOS uses FFmpeg with AVFoundation (for development).
+func (m *Encoder) getSourceCommand() (string, []string) {
 	input := m.config.GetAudioInput()
+
 	switch runtime.GOOS {
 	case "darwin":
 		if input == "" {
 			input = ":0"
 		}
-		return []string{"-f", "avfoundation", "-i", input}
+		return "ffmpeg", []string{
+			"-f", "avfoundation",
+			"-i", input,
+			"-nostdin",
+			"-hide_banner",
+			"-loglevel", "warning",
+			"-vn",
+			"-f", "s16le",
+			"-ac", "2",
+			"-ar", "48000",
+			"pipe:1",
+		}
 	default: // linux
 		if input == "" {
 			input = "default:CARD=sndrpihifiberry"
 		}
-		// Let ALSA use native device format - avoids unnecessary resampling
-		// HiFiBerry Digi+ I/O is clock slave, receives sample rate from S/PDIF source
-		return []string{
-			"-f", "alsa",
-			"-thread_queue_size", "512",
-			"-i", input,
+		// arecord: minimal ALSA capture tool, much lower overhead than FFmpeg
+		// ALSA plug layer handles sample rate conversion if source differs from 48kHz
+		return "arecord", []string{
+			"-D", input,
+			"-f", "S16_LE",
+			"-r", "48000",
+			"-c", "2",
+			"-t", "raw",
+			"-q",
+			"-",
 		}
 	}
 }
@@ -110,7 +127,7 @@ func (m *Encoder) GetStatus() EncoderStatus {
 	}
 }
 
-// Start begins the source FFmpeg process and all output processes.
+// Start begins audio capture and all output processes.
 func (m *Encoder) Start() error {
 	m.mu.Lock()
 
@@ -130,7 +147,7 @@ func (m *Encoder) Start() error {
 	return nil
 }
 
-// Stop stops all FFmpeg processes with graceful shutdown.
+// Stop stops all processes with graceful shutdown.
 func (m *Encoder) Stop() error {
 	m.mu.Lock()
 
@@ -171,9 +188,9 @@ func (m *Encoder) Stop() error {
 
 	select {
 	case <-stopped:
-		log.Printf("Source FFmpeg stopped gracefully")
+		log.Printf("Source capture stopped gracefully")
 	case <-time.After(shutdownTimeout):
-		log.Printf("Source FFmpeg did not stop in time, forcing kill")
+		log.Printf("Source capture did not stop in time, forcing kill")
 		// Force kill via context cancellation
 		if sourceCancel != nil {
 			sourceCancel()
@@ -198,7 +215,7 @@ func (m *Encoder) Restart() error {
 	return m.Start()
 }
 
-// runSourceLoop runs the source FFmpeg process with auto-restart.
+// runSourceLoop runs the audio capture process with auto-restart.
 func (m *Encoder) runSourceLoop() {
 	for {
 		m.mu.Lock()
@@ -219,7 +236,7 @@ func (m *Encoder) runSourceLoop() {
 				errMsg = stderrOutput
 			}
 			m.lastError = errMsg
-			log.Printf("Source FFmpeg error: %s", errMsg)
+			log.Printf("Source capture error: %s", errMsg)
 
 			if runDuration >= successThreshold {
 				m.sourceRetryCount = 0
@@ -229,7 +246,7 @@ func (m *Encoder) runSourceLoop() {
 			}
 
 			if m.sourceRetryCount >= maxRetries {
-				log.Printf("Source FFmpeg failed %d times, giving up", maxRetries)
+				log.Printf("Source capture failed %d times, giving up", maxRetries)
 				m.state = StateStopped
 				m.lastError = fmt.Sprintf("Stopped after %d failed attempts: %s", maxRetries, errMsg)
 				m.mu.Unlock()
@@ -266,26 +283,14 @@ func (m *Encoder) runSourceLoop() {
 	}
 }
 
-// runSource executes the source FFmpeg process.
+// runSource executes the audio capture process.
 func (m *Encoder) runSource() (string, error) {
-	// Build args: audio input (platform-specific) + output raw PCM to stdout
-	// Level metering is done in Go for efficiency (no FFmpeg filters)
-	// Only resample/convert if input differs from 48kHz stereo S16LE
-	args := slices.Concat(m.getAudioInputArgs(), []string{
-		"-nostdin",
-		"-hide_banner",
-		"-loglevel", "warning",
-		"-vn",
-		"-f", "s16le",
-		"-ac", "2",
-		"-ar", "48000",
-		"pipe:1",
-	})
+	cmdName, args := m.getSourceCommand()
 
-	log.Printf("Starting source FFmpeg: %s -> stdout", m.config.GetAudioInput())
+	log.Printf("Starting audio capture: %s %s", cmdName, m.config.GetAudioInput())
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := exec.CommandContext(ctx, cmdName, args...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
