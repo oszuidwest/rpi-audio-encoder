@@ -50,17 +50,16 @@ func (m *Encoder) getAudioInputArgs() []string {
 		if input == "" {
 			input = ":0"
 		}
-		// macOS: avfoundation uses device's native settings
 		return []string{"-f", "avfoundation", "-i", input}
 	default: // linux
 		if input == "" {
 			input = "default:CARD=sndrpihifiberry"
 		}
-		// Linux: ALSA with sample rate and channels before -i
+		// Let ALSA use native device format - avoids unnecessary resampling
+		// HiFiBerry Digi+ I/O is clock slave, receives sample rate from S/PDIF source
 		return []string{
 			"-f", "alsa",
-			"-sample_rate", "48000",
-			"-channels", "2",
+			"-thread_queue_size", "512",
 			"-i", input,
 		}
 	}
@@ -270,12 +269,14 @@ func (m *Encoder) runSourceLoop() {
 // runSource executes the source FFmpeg process.
 func (m *Encoder) runSource() (string, error) {
 	// Build args: audio input (platform-specific) + output raw PCM to stdout
-	// No audio filters - level metering is done in Go for efficiency
+	// Level metering is done in Go for efficiency (no FFmpeg filters)
+	// Only resample/convert if input differs from 48kHz stereo S16LE
 	args := slices.Concat(m.getAudioInputArgs(), []string{
+		"-nostdin",
 		"-hide_banner",
 		"-loglevel", "warning",
+		"-vn",
 		"-f", "s16le",
-		"-acodec", "pcm_s16le",
 		"-ac", "2",
 		"-ar", "48000",
 		"pipe:1",
