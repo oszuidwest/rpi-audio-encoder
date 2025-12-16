@@ -10,3 +10,6 @@ var styleCSS string
 
 //go:embed web/app.js
 var appJS string
+
+//go:embed web/alpine.min.js
+var alpineJS string

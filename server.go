@@ -177,6 +177,11 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte(appJS)); err != nil {
 			log.Printf("Failed to write app.js: %v", err)
 		}
+	case "/alpine.min.js":
+		w.Header().Set("Content-Type", "application/javascript")
+		if _, err := w.Write([]byte(alpineJS)); err != nil {
+			log.Printf("Failed to write alpine.min.js: %v", err)
+		}
 	default:
 		http.NotFound(w, r)
 	}
