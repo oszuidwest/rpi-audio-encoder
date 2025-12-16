@@ -24,15 +24,13 @@ type VersionInfo struct {
 	Current     string `json:"current"`
 	Latest      string `json:"latest,omitempty"`
 	UpdateAvail bool   `json:"update_available"`
-	ReleaseURL  string `json:"release_url,omitempty"`
 }
 
 // VersionChecker periodically checks GitHub for new releases.
 type VersionChecker struct {
-	mu         sync.RWMutex
-	latest     string
-	releaseURL string
-	etag       string // For conditional requests (304 Not Modified)
+	mu     sync.RWMutex
+	latest string
+	etag   string // For conditional requests (304 Not Modified)
 }
 
 // NewVersionChecker creates and starts a version checker.
@@ -71,7 +69,6 @@ func (vc *VersionChecker) checkWithRetry() {
 // githubRelease represents the GitHub API response for a release.
 type githubRelease struct {
 	TagName    string `json:"tag_name"`
-	HTMLURL    string `json:"html_url"`
 	Draft      bool   `json:"draft"`
 	Prerelease bool   `json:"prerelease"`
 }
@@ -143,7 +140,6 @@ func (vc *VersionChecker) check() bool {
 
 	vc.mu.Lock()
 	vc.latest = normalizeVersion(release.TagName)
-	vc.releaseURL = release.HTMLURL
 	if newEtag := resp.Header.Get("ETag"); newEtag != "" {
 		vc.etag = newEtag
 	}
@@ -159,9 +155,8 @@ func (vc *VersionChecker) GetInfo() VersionInfo {
 
 	current := normalizeVersion(Version)
 	info := VersionInfo{
-		Current:    current,
-		Latest:     vc.latest,
-		ReleaseURL: vc.releaseURL,
+		Current: current,
+		Latest:  vc.latest,
 	}
 
 	// Only show update for non-dev builds with valid latest version
