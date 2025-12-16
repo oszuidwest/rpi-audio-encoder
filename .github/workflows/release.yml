@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v prefix (e.g., 1.0.0) or "edge" for development build'
+        required: true
+        default: '1.0.0'
+
+env:
+  GO_VERSION: '1.25'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set version
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ inputs.version }}" == "edge" ]]; then
+            echo "version=edge" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          else
+            TAG="v${{ inputs.version }}"
+            echo "version=$TAG" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git config --global user.name "github-actions[bot]"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Test
+        run: |
+          go mod download
+          go test -v ./...
+          go vet ./...
+
+      - name: Build binaries
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" == "edge" ]]; then
+            VERSION="edge-$(git rev-parse --short HEAD)"
+          fi
+
+          MODULE="github.com/oszuidwest/zwfm-encoder"
+          LDFLAGS="-w -s -X main.Version=$VERSION -X main.Commit=${{ github.sha }} -X main.BuildTime=$(date -u +%FT%TZ)"
+
+          build() {
+            local os=$1 arch=$2
+            local output="encoder-${os}-${arch}"
+            echo "Building $output"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "dist/$output" .
+          }
+
+          mkdir -p dist
+
+          build linux arm64
+          build darwin arm64
+          build darwin amd64
+
+      - name: Create release
+        if: steps.version.outputs.is_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            ## Installation
+
+            On Raspberry Pi 4/5 with HiFiBerry card:
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/oszuidwest/zwfm-encoder/main/deploy/install.sh | sudo bash
+            ```
+
+            Binary downloads are available below as release assets.
+          files: dist/*
+          generate_release_notes: true
+
+      - name: Upload edge artifacts
+        if: steps.version.outputs.is_release == 'false'
+        uses: actions/upload-artifact@v6
+        with:
+          name: edge-${{ github.sha }}
+          path: dist/*
+          retention-days: 7

@@ -1,0 +1,21 @@
+[Unit]
+Description=ZuidWest FM Encoder
+After=network.target sound.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/encoder
+WorkingDirectory=/usr/local/bin
+Restart=always
+RestartSec=5
+User=root
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/usr/local/bin
+
+[Install]
+WantedBy=multi-user.target

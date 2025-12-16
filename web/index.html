@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Web interface for Raspberry Pi audio encoder - stream audio to SRT servers">
+    <title>ZuidWest FM Encoder</title>
+    <link rel="canonical" href="/">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <script>
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        if (mq.matches) document.documentElement.classList.add('dark');
+        mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
+    </script>
+    <main class="container">
+        <header>
+            <h1>ZuidWest FM Encoder</h1>
+            <div id="status-pill">
+                <span id="status-dot"></span>
+                <span id="status-text">Connecting</span>
+            </div>
+        </header>
+
+        <section class="card">
+            <div class="card-header brand">
+                <h2>Audio Source</h2>
+                <span class="badge">Input</span>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="audio-input">Input Device</label>
+                    <select id="audio-input"></select>
+                </div>
+
+                <div id="vu-meter">
+                    <div class="vu-mode">
+                        <button class="vu-mode-btn" id="vu-mode-toggle" type="button" title="Toggle Peak/RMS">Peak</button>
+                    </div>
+                    <div class="vu-row">
+                        <span class="vu-label">L</span>
+                        <div class="vu-bar">
+                            <div class="vu-gradient"></div>
+                            <div class="vu-cover" id="vu-left-cover"></div>
+                            <div class="vu-peak" id="peak-left"></div>
+                        </div>
+                        <span class="vu-db" id="db-left">-60 dB</span>
+                    </div>
+                    <div class="vu-row">
+                        <span class="vu-label">R</span>
+                        <div class="vu-bar">
+                            <div class="vu-gradient"></div>
+                            <div class="vu-cover" id="vu-right-cover"></div>
+                            <div class="vu-peak" id="peak-right"></div>
+                        </div>
+                        <span class="vu-db" id="db-right">-60 dB</span>
+                    </div>
+                    <div class="vu-scale">
+                        <span class="vu-mark-48">-48</span>
+                        <span class="vu-mark-24">-24</span>
+                        <span class="vu-mark-18">-18</span>
+                        <span class="vu-mark-12">-12</span>
+                        <span class="vu-mark-6">-6</span>
+                        <span class="vu-mark-0">0</span>
+                    </div>
+                </div>
+
+                <div class="alert" id="source-status" hidden="hidden">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div>
+                        <span id="source-retry"></span>
+                        <p id="source-error"></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header slate">
+                <h2>Outputs</h2>
+                <div class="header-actions">
+                    <span class="badge" id="output-count">0</span>
+                    <button class="btn-add" id="add-btn" type="button">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                        Add
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="outputs-list"></div>
+            </div>
+        </section>
+
+        <footer>
+            <div>
+                <a rel="noopener" href="https://github.com/oszuidwest/zwfm-encoder" title="View source on GitHub" target="_blank">
+                    <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+                    GitHub
+                </a>
+                <span class="sep">|</span>
+                <span>Version <span id="version">{{VERSION}}</span></span>
+            </div>
+            <div class="copyright">© {{YEAR}} Streekomroep ZuidWest • MIT License</div>
+        </footer>
+    </main>
+
+    <div class="modal" id="modal" hidden="hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h3>New Output</h3>
+            <div class="form-group">
+                <label for="input-host">Server</label>
+                <input id="input-host" type="text" placeholder="stream.example.com">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="input-port">Port</label>
+                    <input id="input-port" type="number" value="8080">
+                </div>
+                <div class="form-group">
+                    <label for="input-streamid">Stream ID</label>
+                    <input id="input-streamid" type="text" placeholder="studio">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="input-password">Password</label>
+                <input id="input-password" type="password" placeholder="optional">
+            </div>
+            <div class="form-group">
+                <label for="input-codec">Codec</label>
+                <select id="input-codec">
+                    <option value="mp3">MP3 (320 kbit/s)</option>
+                    <option value="mp2">MP2 (384 kbit/s)</option>
+                    <option value="ogg">OGG Vorbis (Q10)</option>
+                    <option value="wav">WAV (uncompressed)</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn secondary" id="cancel-btn" type="button">Cancel</button>
+                <button class="btn primary" id="save-btn" type="button">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.9/schema.json",
+	"files": {
+		"includes": ["**/web/**/*.js", "**/web/**/*.css"]
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true
+		}
+	},
+	"javascript": {
+		"globals": [
+			"document",
+			"window",
+			"localStorage",
+			"WebSocket",
+			"location",
+			"confirm",
+			"setTimeout"
+		]
+	},
+	"css": {
+		"linter": {
+			"enabled": true
+		}
+	},
+	"formatter": {
+		"enabled": false
+	}
+}
