@@ -26,11 +26,11 @@ type Config struct {
 	WebPort          int            `json:"web_port"`
 	WebUser          string         `json:"web_user"`
 	WebPassword      string         `json:"web_password"`
-	AudioInput       string  `json:"audio_input"`
-	SilenceThreshold float64 `json:"silence_threshold,omitempty"`
-	SilenceDuration  float64 `json:"silence_duration,omitempty"`
-	SilenceRecovery  float64 `json:"silence_recovery,omitempty"`
-	SilenceWebhook   string  `json:"silence_webhook,omitempty"`
+	AudioInput       string         `json:"audio_input"`
+	SilenceThreshold float64        `json:"silence_threshold,omitempty"`
+	SilenceDuration  float64        `json:"silence_duration,omitempty"`
+	SilenceRecovery  float64        `json:"silence_recovery,omitempty"`
+	SilenceWebhook   string         `json:"silence_webhook,omitempty"`
 	EmailSMTPHost    string         `json:"email_smtp_host,omitempty"`
 	EmailSMTPPort    int            `json:"email_smtp_port,omitempty"`
 	EmailUsername    string         `json:"email_username,omitempty"`
