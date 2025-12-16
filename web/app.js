@@ -151,17 +151,29 @@ function addOutput() {
 }
 
 // VU Meter
+let vuMode = localStorage.vuMode || 'peak';
+
 function dbToPercent(db) {
     return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
 }
 
 function updateLevelsFromData(levels) {
+    const showPeak = vuMode === 'peak';
+    const displayL = showPeak ? levels.peak_left : levels.left;
+    const displayR = showPeak ? levels.peak_right : levels.right;
+
     $('vu-left-cover').style.width = `${100 - dbToPercent(levels.left)}%`;
     $('vu-right-cover').style.width = `${100 - dbToPercent(levels.right)}%`;
     $('peak-left').style.left = `${dbToPercent(levels.peak_left)}%`;
     $('peak-right').style.left = `${dbToPercent(levels.peak_right)}%`;
-    $('db-left').textContent = `${levels.peak_left.toFixed(1)} dB`;
-    $('db-right').textContent = `${levels.peak_right.toFixed(1)} dB`;
+    $('db-left').textContent = `${displayL.toFixed(1)} dB`;
+    $('db-right').textContent = `${displayR.toFixed(1)} dB`;
+}
+
+function toggleVuMode() {
+    vuMode = vuMode === 'peak' ? 'rms' : 'peak';
+    localStorage.vuMode = vuMode;
+    $('vu-mode-toggle').textContent = vuMode === 'peak' ? 'Peak' : 'RMS';
 }
 
 function resetVuMeter() {
@@ -250,6 +262,7 @@ $('outputs-list').onclick = (e) => {
 $('add-btn').onclick = showModal;
 $('cancel-btn').onclick = hideModal;
 $('save-btn').onclick = addOutput;
+$('vu-mode-toggle').onclick = toggleVuMode;
 document.querySelector('.modal-overlay').onclick = hideModal;
 
 for (const input of document.querySelectorAll('.modal-content input')) {
@@ -259,4 +272,5 @@ for (const input of document.querySelectorAll('.modal-content input')) {
 }
 
 // Init
+$('vu-mode-toggle').textContent = vuMode === 'peak' ? 'Peak' : 'RMS';
 connectWebSocket();

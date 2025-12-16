@@ -322,6 +322,31 @@ input::placeholder {
     padding: 0.75rem;
 }
 
+.vu-mode {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+}
+
+.vu-mode-btn {
+    font-size: 0.625rem;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border: none;
+    background: var(--surface-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vu-mode-btn:hover {
+    color: var(--text-primary);
+}
+
 .vu-row {
     display: flex;
     align-items: center;
