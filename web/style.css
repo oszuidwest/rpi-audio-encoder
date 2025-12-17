@@ -191,7 +191,6 @@
 .state-danger { --state-color: var(--danger); --state-bg: var(--danger-bg); }
 .state-stopped { --state-color: var(--stopped); --state-bg: var(--stopped-bg); }
 
-
 /* Empty State - Base class for loading/error/empty content
    Usage: Apply to container, optionally add .empty-state--error for danger color */
 .empty-state {
@@ -355,6 +354,7 @@ header h1 {
     color: var(--state-color, var(--text-secondary));
 }
 
+/* Uses .status-dot--lg base + currentcolor for pill text matching */
 #status-dot {
     width: 0.75rem;
     height: 0.75rem;
@@ -792,6 +792,7 @@ select {
     gap: 0.75rem;
 }
 
+/* Inherits from .status-dot base class */
 .output-dot {
     width: 0.5rem;
     height: 0.5rem;
