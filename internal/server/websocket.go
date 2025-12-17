@@ -8,7 +8,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// upgrader configures the WebSocket upgrader with origin validation for same-origin and local network connections.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")

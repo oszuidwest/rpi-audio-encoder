@@ -205,14 +205,12 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	if settings.EmailSMTPHost != nil || settings.EmailSMTPPort != nil ||
 		settings.EmailUsername != nil || settings.EmailPassword != nil ||
 		settings.EmailRecipients != nil {
-
 		// Get current values for fields not being updated
 		host := h.cfg.GetEmailSMTPHost()
 		port := h.cfg.GetEmailSMTPPort()
 		username := h.cfg.GetEmailUsername()
 		password := h.cfg.GetEmailPassword()
 		recipients := h.cfg.GetEmailRecipients()
-
 		// Apply updates
 		if settings.EmailSMTPHost != nil {
 			host = *settings.EmailSMTPHost

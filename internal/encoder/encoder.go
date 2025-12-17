@@ -1,3 +1,6 @@
+// Package encoder provides the audio capture and encoding engine.
+// It manages real-time PCM audio distribution to multiple FFmpeg output
+// processes, with automatic retry, silence detection, and level metering.
 package encoder
 
 import (
@@ -22,7 +25,10 @@ import (
 // LevelUpdateSamples is the number of samples before updating audio levels (~250ms).
 const LevelUpdateSamples = 12000
 
-// Encoder manages audio capture and multiple output encoding processes.
+// Encoder orchestrates audio capture from a platform-specific source (arecord
+// on Linux, FFmpeg on macOS) and distributes PCM audio to multiple output
+// FFmpeg processes. It handles automatic retry with exponential backoff,
+// calculates real-time audio levels, and detects silence conditions.
 type Encoder struct {
 	config        *config.Config
 	outputManager *output.Manager
@@ -574,7 +580,6 @@ func (e *Encoder) triggerSilenceWebhook(duration float64) {
 		func() error { return notify.SendSilenceWebhook(webhookURL, duration, threshold) },
 		"Silence webhook",
 		webhookURL != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -586,7 +591,6 @@ func (e *Encoder) triggerSilenceEmail(duration float64) {
 		func() error { return notify.SendSilenceAlert(cfg, duration, threshold) },
 		"Silence email",
 		cfg.Host != "" && cfg.Recipients != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -597,7 +601,6 @@ func (e *Encoder) triggerRecoveryWebhook(silenceDuration float64) {
 		func() error { return notify.SendRecoveryWebhook(webhookURL, silenceDuration) },
 		"Recovery webhook",
 		webhookURL != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 
@@ -608,7 +611,6 @@ func (e *Encoder) triggerRecoveryEmail(silenceDuration float64) {
 		func() error { return notify.SendRecoveryAlert(cfg, silenceDuration) },
 		"Recovery email",
 		cfg.Host != "" && cfg.Recipients != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 
@@ -619,7 +621,6 @@ func (e *Encoder) logSilenceStart(duration, threshold float64) {
 		func() error { return notify.LogSilenceStart(logPath, duration, threshold) },
 		"Silence log",
 		logPath != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -630,7 +631,6 @@ func (e *Encoder) logSilenceEnd(silenceDuration, threshold float64) {
 		func() error { return notify.LogSilenceEnd(logPath, silenceDuration, threshold) },
 		"Recovery log",
 		logPath != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 
