@@ -8,12 +8,20 @@ Type=simple
 ExecStart=/usr/local/bin/encoder -config /etc/encoder/config.json
 Restart=always
 RestartSec=5
-User=root
+
+# Run as dedicated service user
+User=encoder
+Group=encoder
+
+# Systemd-managed directories
+LogsDirectory=encoder
+LogsDirectoryMode=0750
 
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=true
+PrivateTmp=true
 ReadWritePaths=/etc/encoder
 
 [Install]
