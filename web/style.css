@@ -13,6 +13,7 @@
     /* Semantic state colors */
     --success: #22c55e;
     --warning: #facc15;
+    --warning-urgent: #f97316;
     --danger: #ef4444;
     --stopped: var(--neutral-400);
 
@@ -181,7 +182,8 @@
 
    pulse: Breathing effect for status indicators (used by .animate-pulse)
    fadeIn: View transition animation using --fade-offset CSS variable
-          Applied directly to #settings-view and component panels
+          Applied to .settings-view and component panels
+   slide-out-right: Delete animation for output items
    ============================================================================= */
 
 @keyframes pulse {
@@ -192,6 +194,38 @@
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(var(--fade-offset, 0)); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes successBump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@keyframes connect-confirm {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 var(--success);
+    }
+    50% {
+        transform: scale(1.8);
+        box-shadow: 0 0 8px var(--success);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 var(--success);
+    }
+}
+
+@keyframes slide-out-right {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(30%);
+        opacity: 0;
+    }
 }
 
 .animate-pulse { animation: pulse 2s infinite; }
@@ -273,7 +307,7 @@ body {
    Header
    ============================================================================= */
 
-header {
+.header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -281,7 +315,7 @@ header {
     padding-top: 0.75rem;
 }
 
-header h1 {
+.header__title {
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--brand);
@@ -298,7 +332,7 @@ header h1 {
    Status Pill
    ============================================================================= */
 
-#status-pill {
+.status-pill {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -311,7 +345,7 @@ header h1 {
 }
 
 /* Status indicator dot - uses currentcolor to match pill text */
-#status-dot {
+.status-pill__dot {
     width: 0.75rem;
     height: 0.75rem;
     border-radius: 50%;
@@ -431,12 +465,12 @@ select {
     cursor: pointer;
 }
 
-.input--with-unit {
+.input__group {
     position: relative;
     display: flex;
 }
 
-.input--with-unit input {
+.input__group input {
     padding-right: 3rem;
 }
 
@@ -462,7 +496,7 @@ select {
    VU Meter
    ============================================================================= */
 
-#vu-meter {
+.vu-meter {
     background: var(--vu-bg);
     border-radius: var(--radius-lg);
     padding: 0.75rem;
@@ -517,12 +551,27 @@ select {
     flex-shrink: 0;
 }
 
-/* Silence indicator - slow 0.5s pulse for sustained silence detection */
+/* Silence indicator - escalating urgency based on configured threshold
+   Thresholds are multiples of the "Alert after" setting (silenceDuration):
+   active (1x): Amber warning, slow pulse
+   warning (2x): Orange, faster pulse
+   critical (4x): Red, rapid pulse */
 .vu__indicator-dot.silence.active {
+    background: var(--warning);
+    box-shadow: 0 0 6px var(--warning);
+    animation: pulse 2s infinite;
+}
+
+.vu__indicator-dot.silence.warning {
+    background: var(--warning-urgent);
+    box-shadow: 0 0 8px var(--warning-urgent);
+    animation: pulse 1s infinite;
+}
+
+.vu__indicator-dot.silence.critical {
     background: var(--danger);
-    /* Larger 6px glow radius for silence - softer, ambient warning */
-    box-shadow: 0 0 6px var(--danger);
-    animation: pulse 0.5s infinite;
+    box-shadow: 0 0 10px var(--danger);
+    animation: pulse 0.4s infinite;
 }
 
 /* Clip indicator - rapid 0.15s flash for transient peak clipping */
@@ -596,7 +645,7 @@ select {
     width: 3px;
     background: var(--vu-peak);
     border-radius: 1px;
-    transition: left 75ms linear;
+    transition: left 75ms cubic-bezier(0.34, 1.56, 0.64, 1);
     left: 0;
     z-index: 1;
     opacity: 0;
@@ -617,6 +666,14 @@ select {
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
     border-bottom: 4px solid var(--vu-peak);
+    transition: filter 75ms ease;
+}
+
+/* Peak marker glow in danger zone (>90%)
+   Adds subtle red glow when peaks approach clipping levels */
+.vu__peak[style*="left: 9"][style*="%"]::after,
+.vu__peak[style*="left: 10"][style*="%"]::after {
+    filter: drop-shadow(0 0 3px var(--danger)) drop-shadow(0 0 5px var(--danger));
 }
 
 .vu__db {
@@ -646,12 +703,12 @@ select {
 /* VU meter scale markings - positioned as percentage of meter width
    Maps to decibel values: 0%=-60dB, 20%=-48dB, 60%=-24dB,
    80%=-12dB, 90%=-6dB, 100%=0dB */
-.vu__scale .mark-60 { left: 0%; }
-.vu__scale .mark-48 { left: 20%; }
-.vu__scale .mark-24 { left: 60%; }
-.vu__scale .mark-12 { left: 80%; }
-.vu__scale .mark-6 { left: 90%; }
-.vu__scale .mark-0 { left: 100%; }
+.vu__mark--60 { left: 0%; }
+.vu__mark--48 { left: 20%; }
+.vu__mark--24 { left: 60%; }
+.vu__mark--12 { left: 80%; }
+.vu__mark--6 { left: 90%; }
+.vu__mark--0 { left: 100%; }
 
 /* =============================================================================
    Alert
@@ -720,7 +777,7 @@ select {
    Outputs List
    ============================================================================= */
 
-#outputs-list:empty::before {
+.outputs-list:empty::before {
     content: 'No outputs configured';
     display: block;
     text-align: center;
@@ -742,7 +799,7 @@ select {
 }
 
 .output__item.output__item--deleting {
-    opacity: 0.5;
+    animation: slide-out-right 0.3s ease forwards;
     pointer-events: none;
 }
 
@@ -759,6 +816,11 @@ select {
     border-radius: 50%;
     flex-shrink: 0;
     background: var(--state-color, var(--stopped));
+    transition: transform var(--transition-fast);
+}
+
+.output__dot--just-connected {
+    animation: connect-confirm 0.4s ease-out;
 }
 
 .output__host {
@@ -862,27 +924,21 @@ select {
    Footer
    ============================================================================= */
 
-footer {
+.footer {
     padding: 1.5rem 0 1rem;
     text-align: center;
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
 
-footer > div:first-child {
+.footer__links {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
 }
 
-footer .copyright {
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
-footer a {
+.footer__links a {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -890,19 +946,25 @@ footer a {
     text-decoration: none;
 }
 
-footer a:hover {
+.footer__links a:hover {
     color: var(--text-primary);
 }
 
-footer .sep {
+.footer__sep {
     color: var(--border-default);
+}
+
+.footer__copyright {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
 /* =============================================================================
    Settings View
    ============================================================================= */
 
-#settings-view {
+.settings-view {
     --fade-offset: 8px;
     animation: fadeIn 0.2s ease;
 }
@@ -954,6 +1016,13 @@ footer .sep {
 .nav-btn--save:hover {
     background: var(--brand-hover);
     border-color: var(--brand-hover);
+    color: var(--text-inverse);
+}
+
+/* Success state - temporary visual feedback after saving */
+.nav-btn--saved {
+    background: var(--success);
+    border-color: var(--success);
     color: var(--text-inverse);
 }
 
@@ -1187,21 +1256,21 @@ footer .sep {
     color: var(--text-primary);
 }
 
-.license__text {
+.about__text {
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--text-muted);
 }
 
-.license__text p {
+.about__text p {
     margin: 0 0 0.75rem;
 }
 
-.license__text p:last-child {
+.about__text p:last-child {
     margin-bottom: 0;
 }
 
-.license__text strong {
+.about__text strong {
     color: var(--text-secondary);
     font-weight: 600;
 }
@@ -1398,6 +1467,14 @@ footer .sep {
     color: var(--success);
 }
 
+.log__entry.log__entry--test::before {
+    background: var(--text-muted);
+}
+
+.log__entry.log__entry--test .log__event {
+    color: var(--text-secondary);
+}
+
 .log__entry-details {
     display: flex;
     flex-wrap: wrap;
@@ -1419,6 +1496,39 @@ footer .sep {
     white-space: nowrap;
     flex-shrink: 0;
     margin-top: 0.125rem;
+}
+
+/* =============================================================================
+   Alert Banner
+   ============================================================================= */
+
+.alert-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.alert-banner--info {
+    background: var(--brand);
+    color: #fff;
+}
+
+.alert-banner--warning {
+    background: var(--warning);
+    color: #000;
+}
+
+.alert-banner--danger {
+    background: var(--danger);
+    color: #fff;
+}
+
+.alert-banner__message {
+    text-align: center;
 }
 
 /* Responsive - stack on small screens */
