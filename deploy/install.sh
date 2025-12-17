@@ -79,6 +79,7 @@ fi
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
 
 # Ask for heartbeat monitoring
+unset ENABLE_HEARTBEAT HEARTBEAT_URL
 ask_user "ENABLE_HEARTBEAT" "n" "Do you want to enable heartbeat monitoring via UptimeRobot? (y/n)" "y/n"
 if [ "$ENABLE_HEARTBEAT" == "y" ]; then
   ask_user "HEARTBEAT_URL" "https://heartbeat.uptimerobot.com/xxx" "Enter the heartbeat URL to ping every minute" "str"
