@@ -224,7 +224,7 @@
 
              Cancel/Save workflow:
              - Cancel restores original values, Save persists all changes
-             - Test Email disabled when unsaved changes exist
+             - Test buttons disabled when unsaved changes exist
              - Settings not overwritten by status updates while editing -->
         <div id="settings-view" x-show="view === 'settings'" x-transition:enter.duration.200ms x-cloak>
             <header class="modal-nav">
@@ -301,6 +301,7 @@
                             <label for="silence-webhook">Webhook URL</label>
                             <input id="silence-webhook" type="url" placeholder="https://hooks.example.com/..." x-model="settings.silenceWebhook" @input="markSettingsDirty()">
                         </div>
+                        <button class="btn secondary btn-test" type="button" @click="sendTest('webhook')" :disabled="testStates.webhook.pending || settingsDirty" x-text="testStates.webhook.text">Test</button>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
@@ -313,6 +314,7 @@
                             <input id="silence-log-path" type="text" placeholder="/var/log/encoder/silence.jsonl" x-model="settings.silenceLogPath" @input="markSettingsDirty()">
                             <span class="input-hint">Leave empty to disable file logging</span>
                         </div>
+                        <button class="btn secondary btn-test" type="button" @click="sendTest('log')" :disabled="testStates.log.pending || settingsDirty" x-text="testStates.log.text">Test</button>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
@@ -344,7 +346,7 @@
                             <input id="email-recipients" type="text" placeholder="admin@example.com, tech@example.com" x-model="settings.email.recipients" @input="markSettingsDirty()">
                             <span class="input-hint">Comma-separated email addresses</span>
                         </div>
-                        <button class="btn secondary" id="email-test" type="button" @click="sendTestEmail()" :disabled="emailTestPending || settingsDirty" x-text="emailTestText">Send Test Email</button>
+                        <button class="btn secondary btn-test" type="button" @click="sendTest('email')" :disabled="testStates.email.pending || settingsDirty" x-text="testStates.email.text">Test</button>
                     </div>
                 </div>
 

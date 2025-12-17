@@ -12,13 +12,13 @@
  * WebSocket Message Types (incoming):
  *   - levels: Audio RMS/peak levels, ~4 updates per second
  *   - status: Encoder state, outputs, devices, settings (every 3s)
- *   - test_email_result: Email test success/failure response
+ *   - test_result: Unified notification test result with test_type field
  *
  * WebSocket Commands (outgoing):
  *   - start/stop: Control encoder
  *   - update_settings: Persist configuration changes
  *   - add_output/remove_output: Manage stream outputs
- *   - test_email: Trigger email test
+ *   - test_<type>: Trigger notification test (webhook, log, email)
  *
  * Dependencies:
  *   - Alpine.js 3.x (loaded before this script)
@@ -154,9 +154,12 @@ document.addEventListener('alpine:init', () => {
         // Version
         version: { current: '', latest: '', updateAvail: false, commit: '', build_time: '' },
 
-        // Email test state
-        emailTestPending: false,
-        emailTestText: 'Send Test Email',
+        // Notification test state (unified object for all test types)
+        testStates: {
+            webhook: { pending: false, text: 'Test' },
+            log: { pending: false, text: 'Test' },
+            email: { pending: false, text: 'Test' }
+        },
 
         // WebSocket
         ws: null,
@@ -215,8 +218,8 @@ document.addEventListener('alpine:init', () => {
                     this.handleLevels(msg.levels);
                 } else if (msg.type === 'status') {
                     this.handleStatus(msg);
-                } else if (msg.type === 'test_email_result') {
-                    this.handleTestEmailResult(msg);
+                } else if (msg.type === 'test_result') {
+                    this.handleTestResult(msg);
                 }
             };
 
@@ -321,16 +324,19 @@ document.addEventListener('alpine:init', () => {
         },
 
         /**
-         * Handles email test result from backend.
+         * Handles notification test result from backend.
          * Updates UI feedback and auto-clears after EMAIL_FEEDBACK_MS.
          *
-         * @param {Object} msg - Result message with success and optional error
+         * @param {Object} msg - Result with test_type, success, and optional error
          */
-        handleTestEmailResult(msg) {
-            this.emailTestPending = false;
-            this.emailTestText = msg.success ? 'Sent!' : 'Failed';
-            if (!msg.success) alert(`Test email failed: ${msg.error || 'Unknown error'}`);
-            setTimeout(() => { this.emailTestText = 'Send Test Email'; }, EMAIL_FEEDBACK_MS);
+        handleTestResult(msg) {
+            const type = msg.test_type;
+            if (!this.testStates[type]) return;
+
+            this.testStates[type].pending = false;
+            this.testStates[type].text = msg.success ? 'Sent!' : 'Failed';
+            if (!msg.success) alert(`${type} test failed: ${msg.error || 'Unknown error'}`);
+            setTimeout(() => { this.testStates[type].text = 'Test'; }, EMAIL_FEEDBACK_MS);
         },
 
         // Navigation
@@ -525,15 +531,18 @@ document.addEventListener('alpine:init', () => {
             this.levels = { ...DEFAULT_LEVELS };
         },
 
-        // Settings
+        // Notification Tests
         /**
-         * Triggers email test via WebSocket.
-         * Temporarily disables button and shows sending state.
+         * Triggers a notification test via WebSocket.
+         * Temporarily disables button and shows testing state.
+         *
+         * @param {string} type - Test type: 'webhook', 'log', or 'email'
          */
-        sendTestEmail() {
-            this.emailTestPending = true;
-            this.emailTestText = 'Sending...';
-            this.send('test_email', null, null);
+        sendTest(type) {
+            if (!this.testStates[type]) return;
+            this.testStates[type].pending = true;
+            this.testStates[type].text = 'Testing...';
+            this.send(`test_${type}`, null, null);
         }
     }));
 });

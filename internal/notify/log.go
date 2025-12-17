@@ -2,6 +2,7 @@ package notify
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
@@ -32,6 +33,20 @@ func LogSilenceEnd(logPath string, silenceDuration, threshold float64) error {
 		Event:       "silence_end",
 		DurationSec: silenceDuration,
 		ThresholdDB: threshold,
+	})
+}
+
+// WriteTestLog writes a test entry to verify log file configuration.
+func WriteTestLog(logPath string) error {
+	if logPath == "" {
+		return fmt.Errorf("log file path not configured")
+	}
+
+	return appendLogEntry(logPath, SilenceLogEntry{
+		Timestamp:   util.RFC3339Now(),
+		Event:       "test",
+		DurationSec: 0,
+		ThresholdDB: 0,
 	})
 }
 

@@ -33,7 +33,11 @@ func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
 		enc.StartOutput,
 		enc.StopOutput,
 		enc.Restart,
-		enc.TriggerTestEmail,
+		map[string]func() error{
+			"webhook": enc.TriggerTestWebhook,
+			"log":     enc.TriggerTestLog,
+			"email":   enc.TriggerTestEmail,
+		},
 	)
 
 	return &Server{

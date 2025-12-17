@@ -24,14 +24,14 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 		return nil // Silently skip if not configured
 	}
 
-	subject := "⚠️ ZuidWest FM Encoder: Silence Detected"
+	subject := "[ALERT] Silence Detected - ZuidWest FM Encoder"
 	body := fmt.Sprintf(
-		"Critical silence detected on audio encoder.\n\n"+
-			"Duration: %.1f seconds\n"+
+		"Silence detected on the audio encoder.\n\n"+
+			"Duration:  %.1f seconds\n"+
 			"Threshold: %.1f dB\n"+
-			"Time: %s\n\n"+
+			"Time:      %s\n\n"+
 			"Please check the audio source.",
-		duration, threshold, util.RFC3339Now(),
+		duration, threshold, util.HumanTime(),
 	)
 
 	return sendEmail(cfg, subject, body)
@@ -43,12 +43,12 @@ func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
 		return nil // Silently skip if not configured
 	}
 
-	subject := "✅ ZuidWest FM Encoder: Audio Recovered"
+	subject := "[OK] Audio Recovered - ZuidWest FM Encoder"
 	body := fmt.Sprintf(
-		"Audio has recovered on the encoder.\n\n"+
-			"Silence duration: %.1f seconds\n"+
-			"Time: %s",
-		silenceDuration, util.RFC3339Now(),
+		"Audio recovered on the encoder.\n\n"+
+			"Silence lasted: %.1f seconds\n"+
+			"Time:           %s",
+		silenceDuration, util.HumanTime(),
 	)
 
 	return sendEmail(cfg, subject, body)
@@ -66,12 +66,12 @@ func SendTestEmail(cfg EmailConfig) error {
 		return fmt.Errorf("email recipients not configured")
 	}
 
-	subject := "ZuidWest FM Encoder: Test Email"
+	subject := "[TEST] ZuidWest FM Encoder"
 	body := fmt.Sprintf(
-		"This is a test email from your ZuidWest FM Encoder.\n\n"+
+		"Test email from the audio encoder.\n\n"+
 			"Time: %s\n\n"+
-			"If you received this email, your SMTP configuration is working correctly.",
-		util.RFC3339Now(),
+			"SMTP configuration is working correctly.",
+		util.HumanTime(),
 	)
 
 	return sendEmail(cfg, subject, body)
