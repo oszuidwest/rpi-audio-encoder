@@ -102,6 +102,11 @@ if systemctl is-active --quiet encoder 2>/dev/null; then
   systemctl stop encoder
 fi
 
+# Kill any rogue encoder processes not managed by systemd
+if pkill -x encoder 2>/dev/null; then
+  echo -e "${YELLOW}Killed orphaned encoder process(es)${NC}"
+fi
+
 # Create dedicated service user
 if ! id -u encoder &>/dev/null; then
   echo -e "${BLUE}►► Creating encoder service user...${NC}"
