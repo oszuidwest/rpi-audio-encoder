@@ -640,7 +640,7 @@ document.addEventListener('alpine:init', () => {
             return {
                 time: date.toLocaleString(),
                 event: eventText,
-                eventClass: isStart ? 'log-silence' : isEnd ? 'log-recovery' : 'log-test',
+                eventClass: isStart ? 'log__entry--silence' : isEnd ? 'log__entry--recovery' : 'log__entry--test',
                 // Only show threshold, duration is now in the event name for ended events
                 threshold: `${entry.threshold_db.toFixed(0)} dB`
             };
