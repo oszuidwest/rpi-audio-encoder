@@ -78,11 +78,26 @@ fi
 # Ask for OS updates
 ask_user "DO_UPDATES" "y" "Do you want to perform all OS updates? (y/n)" "y/n"
 
-# Ask for heartbeat monitoring
-unset ENABLE_HEARTBEAT HEARTBEAT_URL
-ask_user "ENABLE_HEARTBEAT" "n" "Do you want to enable heartbeat monitoring via UptimeRobot? (y/n)" "y/n"
+# Ask for heartbeat monitoring (read from /dev/tty to work with bash -c)
+ENABLE_HEARTBEAT="n"
+while true; do
+  read -r -p "Do you want to enable heartbeat monitoring via UptimeRobot? (y/n) [default: n]: " answer < /dev/tty
+  answer="${answer:-n}"
+  if [[ "$answer" =~ ^[yn]$ ]]; then
+    ENABLE_HEARTBEAT="$answer"
+    break
+  fi
+  echo "Invalid input. Please enter 'y' or 'n'."
+done
+
 if [ "$ENABLE_HEARTBEAT" == "y" ]; then
-  ask_user "HEARTBEAT_URL" "https://heartbeat.uptimerobot.com/xxx" "Enter the heartbeat URL to ping every minute" "str"
+  while true; do
+    read -r -p "Enter the heartbeat URL to ping every minute: " HEARTBEAT_URL < /dev/tty
+    if [[ -n "$HEARTBEAT_URL" ]]; then
+      break
+    fi
+    echo "URL cannot be empty."
+  done
 fi
 
 # Timezone configuration
