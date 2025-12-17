@@ -331,7 +331,7 @@ document.addEventListener('alpine:init', () => {
          */
         handleTestResult(msg) {
             const type = msg.test_type;
-            if (!this.testStates[type]) return;
+            if (!Object.hasOwn(this.testStates, type)) return;
 
             this.testStates[type].pending = false;
             this.testStates[type].text = msg.success ? 'Sent!' : 'Failed';
