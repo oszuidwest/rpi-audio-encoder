@@ -29,6 +29,19 @@ func SendRecoveryWebhook(webhookURL string, silenceDuration float64) error {
 	})
 }
 
+// SendTestWebhook sends a test POST request to verify webhook configuration.
+func SendTestWebhook(webhookURL string) error {
+	if webhookURL == "" {
+		return fmt.Errorf("webhook URL not configured")
+	}
+
+	return sendWebhook(webhookURL, map[string]any{
+		"event":     "test",
+		"message":   "This is a test notification from ZuidWest FM Encoder",
+		"timestamp": util.RFC3339Now(),
+	})
+}
+
 // sendWebhook sends a POST request with JSON payload to the webhook URL.
 func sendWebhook(webhookURL string, payload map[string]any) error {
 	if !util.IsConfigured(webhookURL) {

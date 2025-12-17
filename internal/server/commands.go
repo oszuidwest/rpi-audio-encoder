@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"log"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
@@ -24,7 +25,7 @@ type CommandHandler struct {
 	startOutput  func(string) error
 	stopOutput   func(string) error
 	restartEnc   func() error
-	triggerEmail func() error
+	testTriggers map[string]func() error
 }
 
 // NewCommandHandler creates a new command handler.
@@ -34,7 +35,7 @@ func NewCommandHandler(
 	startOutput func(string) error,
 	stopOutput func(string) error,
 	restartEnc func() error,
-	triggerEmail func() error,
+	testTriggers map[string]func() error,
 ) *CommandHandler {
 	return &CommandHandler{
 		cfg:          cfg,
@@ -42,7 +43,7 @@ func NewCommandHandler(
 		startOutput:  startOutput,
 		stopOutput:   stopOutput,
 		restartEnc:   restartEnc,
-		triggerEmail: triggerEmail,
+		testTriggers: testTriggers,
 	}
 }
 
@@ -55,8 +56,8 @@ func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStat
 		h.handleDeleteOutput(cmd)
 	case "update_settings":
 		h.handleUpdateSettings(cmd)
-	case "test_email":
-		h.handleTestEmail(conn)
+	case "test_webhook", "test_log", "test_email":
+		h.handleTest(conn, cmd.Type)
 	default:
 		log.Printf("Unknown WebSocket command type: %s", cmd.Type)
 	}
@@ -240,27 +241,33 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	}
 }
 
-func (h *CommandHandler) handleTestEmail(conn *websocket.Conn) {
+// handleTest executes a notification test and sends the result to the client.
+// testCmd should be in format "test_<type>" (e.g., "test_email", "test_webhook").
+func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
+	testType := strings.TrimPrefix(testCmd, "test_")
+	trigger, ok := h.testTriggers[testType]
+	if !ok {
+		log.Printf("%s: unknown test type", testCmd)
+		return
+	}
+
 	go func() {
-		if err := h.triggerEmail(); err != nil {
-			log.Printf("test_email: failed: %v", err)
-			// Send error response to client
-			if wsErr := conn.WriteJSON(map[string]interface{}{
-				"type":    "test_email_result",
-				"success": false,
-				"error":   err.Error(),
-			}); wsErr != nil {
-				log.Printf("test_email: failed to send response: %v", wsErr)
-			}
+		result := map[string]interface{}{
+			"type":      "test_result",
+			"test_type": testType,
+			"success":   true,
+		}
+
+		if err := trigger(); err != nil {
+			log.Printf("%s: failed: %v", testCmd, err)
+			result["success"] = false
+			result["error"] = err.Error()
 		} else {
-			log.Printf("test_email: sent successfully")
-			// Send success response to client
-			if wsErr := conn.WriteJSON(map[string]interface{}{
-				"type":    "test_email_result",
-				"success": true,
-			}); wsErr != nil {
-				log.Printf("test_email: failed to send response: %v", wsErr)
-			}
+			log.Printf("%s: success", testCmd)
+		}
+
+		if wsErr := conn.WriteJSON(result); wsErr != nil {
+			log.Printf("%s: failed to send response: %v", testCmd, wsErr)
 		}
 	}()
 }

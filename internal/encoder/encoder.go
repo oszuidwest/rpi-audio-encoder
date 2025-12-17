@@ -239,6 +239,16 @@ func (e *Encoder) TriggerTestEmail() error {
 	return notify.SendTestEmail(e.buildEmailConfig())
 }
 
+// TriggerTestWebhook sends a test webhook to verify configuration.
+func (e *Encoder) TriggerTestWebhook() error {
+	return notify.SendTestWebhook(e.config.GetSilenceWebhook())
+}
+
+// TriggerTestLog writes a test entry to verify log file configuration.
+func (e *Encoder) TriggerTestLog() error {
+	return notify.WriteTestLog(e.config.GetSilenceLogPath())
+}
+
 // runSourceLoop runs the audio capture process with auto-restart.
 func (e *Encoder) runSourceLoop() {
 	for {

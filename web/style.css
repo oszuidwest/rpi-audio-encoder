@@ -858,6 +858,18 @@ select {
     background: var(--border-default);
 }
 
+/* Test buttons in settings sections */
+.btn-test {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    margin-top: 0.75rem;
+}
+
+.btn-test:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Form Actions */
 .form-actions {
     display: grid;

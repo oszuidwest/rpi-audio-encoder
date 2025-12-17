@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
 const (
@@ -163,7 +165,7 @@ func (vc *VersionChecker) GetInfo() VersionInfo {
 		Current:   current,
 		Latest:    vc.latest,
 		Commit:    Commit,
-		BuildTime: BuildTime,
+		BuildTime: util.FormatHumanTime(BuildTime),
 	}
 
 	// Only show update for non-dev builds with valid latest version
