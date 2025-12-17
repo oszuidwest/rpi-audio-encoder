@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -59,7 +59,7 @@ func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStat
 	case "test_webhook", "test_log", "test_email":
 		h.handleTest(conn, cmd.Type)
 	default:
-		log.Printf("Unknown WebSocket command type: %s", cmd.Type)
+		slog.Warn("unknown WebSocket command type", "type", cmd.Type)
 	}
 
 	triggerStatusUpdate()
@@ -68,35 +68,35 @@ func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStat
 func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 	var output types.Output
 	if err := json.Unmarshal(cmd.Data, &output); err != nil {
-		log.Printf("add_output: invalid JSON data: %v", err)
+		slog.Warn("add_output: invalid JSON data", "error", err)
 		return
 	}
 	// Validate required fields
 	if err := util.ValidateRequired("host", output.Host); err != nil {
-		log.Printf("add_output: %s", err.Message)
+		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
 	if err := util.ValidatePort("port", output.Port); err != nil {
-		log.Printf("add_output: %s", err.Message)
+		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
 	// Validate optional fields
 	if err := util.ValidateMaxLength("host", output.Host, 253); err != nil {
-		log.Printf("add_output: %s", err.Message)
+		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
 	if err := util.ValidateMaxLength("streamid", output.StreamID, 256); err != nil {
-		log.Printf("add_output: %s", err.Message)
+		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
 	// Limit number of outputs to prevent resource exhaustion
 	if len(h.cfg.GetOutputs()) >= 10 {
-		log.Printf("add_output: maximum of 10 outputs reached")
+		slog.Warn("add_output: maximum of 10 outputs reached")
 		return
 	}
 	// Validate max_retries if provided
 	if err := util.ValidateRange("max_retries", output.MaxRetries, 0, 9999); err != nil {
-		log.Printf("add_output: %s", err.Message)
+		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
 	// Set defaults
@@ -107,16 +107,16 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		output.Codec = "mp3"
 	}
 	if err := h.cfg.AddOutput(output); err != nil {
-		log.Printf("add_output: failed to add: %v", err)
+		slog.Error("add_output: failed to add", "error", err)
 		return
 	}
-	log.Printf("add_output: added %s:%d", output.Host, output.Port)
+	slog.Info("add_output: added output", "host", output.Host, "port", output.Port)
 	// Start if encoder running
 	if h.getState() == types.StateRunning {
 		outputs := h.cfg.GetOutputs()
 		if len(outputs) > 0 {
 			if err := h.startOutput(outputs[len(outputs)-1].ID); err != nil {
-				log.Printf("add_output: failed to start output: %v", err)
+				slog.Error("add_output: failed to start output", "error", err)
 			}
 		}
 	}
@@ -124,17 +124,17 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 
 func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 	if cmd.ID == "" {
-		log.Printf("delete_output: no ID provided")
+		slog.Warn("delete_output: no ID provided")
 		return
 	}
-	log.Printf("delete_output: deleting %s", cmd.ID)
+	slog.Info("delete_output: deleting", "output_id", cmd.ID)
 	if err := h.stopOutput(cmd.ID); err != nil {
-		log.Printf("delete_output: failed to stop: %v", err)
+		slog.Error("delete_output: failed to stop", "error", err)
 	}
 	if err := h.cfg.RemoveOutput(cmd.ID); err != nil {
-		log.Printf("delete_output: failed to remove from config: %v", err)
+		slog.Error("delete_output: failed to remove from config", "error", err)
 	} else {
-		log.Printf("delete_output: removed %s from config", cmd.ID)
+		slog.Info("delete_output: removed from config", "output_id", cmd.ID)
 	}
 }
 
@@ -145,12 +145,12 @@ func updateFloatSetting(value *float64, min, max float64, name string, setter fu
 	}
 	v := *value
 	if err := util.ValidateRangeFloat(name, v, min, max); err != nil {
-		log.Printf("update_settings: %s", err.Message)
+		slog.Warn("update_settings: validation failed", "setting", name, "error", err.Message)
 		return
 	}
-	log.Printf("update_settings: changing %s to %.1f", name, v)
+	slog.Info("update_settings: changing setting", "setting", name, "value", v)
 	if err := setter(v); err != nil {
-		log.Printf("update_settings: failed to save: %v", err)
+		slog.Error("update_settings: failed to save", "error", err)
 	}
 }
 
@@ -159,9 +159,9 @@ func updateStringSetting(value *string, name string, setter func(string) error) 
 	if value == nil {
 		return
 	}
-	log.Printf("update_settings: changing %s", name)
+	slog.Info("update_settings: changing setting", "setting", name)
 	if err := setter(*value); err != nil {
-		log.Printf("update_settings: failed to save: %v", err)
+		slog.Error("update_settings: failed to save", "error", err)
 	}
 }
 
@@ -180,18 +180,18 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		EmailRecipients  *string  `json:"email_recipients"`
 	}
 	if err := json.Unmarshal(cmd.Data, &settings); err != nil {
-		log.Printf("update_settings: invalid JSON data: %v", err)
+		slog.Warn("update_settings: invalid JSON data", "error", err)
 		return
 	}
 	if settings.AudioInput != "" {
-		log.Printf("update_settings: changing audio input to %s", settings.AudioInput)
+		slog.Info("update_settings: changing audio input", "input", settings.AudioInput)
 		if err := h.cfg.SetAudioInput(settings.AudioInput); err != nil {
-			log.Printf("update_settings: failed to save: %v", err)
+			slog.Error("update_settings: failed to save", "error", err)
 		}
 		if h.getState() == types.StateRunning {
 			go func() {
 				if err := h.restartEnc(); err != nil {
-					log.Printf("update_settings: failed to restart encoder: %v", err)
+					slog.Error("update_settings: failed to restart encoder", "error", err)
 				}
 			}()
 		}
@@ -220,7 +220,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		if settings.EmailSMTPPort != nil {
 			port = *settings.EmailSMTPPort
 			if port < 1 || port > 65535 {
-				log.Printf("update_settings: invalid SMTP port %d, using default", port)
+				slog.Warn("update_settings: invalid SMTP port, using default", "port", port)
 				port = config.DefaultEmailSMTPPort
 			}
 		}
@@ -234,9 +234,9 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 			recipients = *settings.EmailRecipients
 		}
 
-		log.Printf("update_settings: updating email configuration")
+		slog.Info("update_settings: updating email configuration")
 		if err := h.cfg.SetEmailConfig(host, port, username, password, recipients); err != nil {
-			log.Printf("update_settings: failed to save email config: %v", err)
+			slog.Error("update_settings: failed to save email config", "error", err)
 		}
 	}
 }
@@ -247,7 +247,7 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 	testType := strings.TrimPrefix(testCmd, "test_")
 	trigger, ok := h.testTriggers[testType]
 	if !ok {
-		log.Printf("%s: unknown test type", testCmd)
+		slog.Warn("unknown test type", "command", testCmd)
 		return
 	}
 
@@ -259,15 +259,15 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 		}
 
 		if err := trigger(); err != nil {
-			log.Printf("%s: failed: %v", testCmd, err)
+			slog.Error("test failed", "command", testCmd, "error", err)
 			result["success"] = false
 			result["error"] = err.Error()
 		} else {
-			log.Printf("%s: success", testCmd)
+			slog.Info("test succeeded", "command", testCmd)
 		}
 
 		if wsErr := conn.WriteJSON(result); wsErr != nil {
-			log.Printf("%s: failed to send response: %v", testCmd, wsErr)
+			slog.Error("failed to send test response", "command", testCmd, "error", wsErr)
 		}
 	}()
 }

@@ -1,7 +1,7 @@
 package server
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -28,7 +28,7 @@ var upgrader = websocket.Upgrader{
 		if strings.Contains(origin, "192.168.") || strings.Contains(origin, "10.") {
 			return true
 		}
-		log.Printf("Rejected WebSocket connection from origin: %s", origin)
+		slog.Warn("rejected WebSocket connection", "origin", origin)
 		return false
 	},
 }

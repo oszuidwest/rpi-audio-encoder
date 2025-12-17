@@ -9,12 +9,14 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
@@ -27,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		log.Printf("Version: %s\nCommit: %s\nBuild time: %s", Version, Commit, BuildTime)
+		slog.Info("version info", "version", Version, "commit", Commit, "build_time", BuildTime)
 		return
 	}
 
@@ -35,17 +37,19 @@ func main() {
 	if *configPath == "" {
 		execPath, err := os.Executable()
 		if err != nil {
-			log.Fatalf("Failed to get executable path: %v", err)
+			slog.Error("failed to get executable path", "error", err)
+			os.Exit(1)
 		}
 		*configPath = filepath.Join(filepath.Dir(execPath), "config.json")
 	}
 
-	log.Printf("Using config file: %s", *configPath)
+	slog.Info("using config file", "path", *configPath)
 
 	// Load configuration
 	cfg := config.New(*configPath)
 	if err := cfg.Load(); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
 
 	// Create encoder
@@ -54,25 +58,34 @@ func main() {
 	// Create HTTP server
 	srv := NewServer(cfg, enc)
 
+	// Always start encoder automatically
+	slog.Info("starting encoder")
+	if err := enc.Start(); err != nil {
+		slog.Error("failed to start encoder", "error", err)
+	}
+
+	// Start web server (non-blocking, returns *http.Server)
+	httpServer := srv.Start()
+
 	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
 
-	go func() {
-		<-sigChan
-		log.Println("Shutting down...")
-		if err := enc.Stop(); err != nil {
-			log.Printf("Error stopping encoder: %v", err)
-		}
-		os.Exit(0)
-	}()
+	slog.Info("shutting down")
 
-	// Always start encoder automatically
-	log.Println("Starting encoder...")
-	if err := enc.Start(); err != nil {
-		log.Printf("Failed to start encoder: %v", err)
+	// Graceful HTTP server shutdown with timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("HTTP server shutdown error", "error", err)
 	}
 
-	// Start web server (blocks)
-	log.Fatal(srv.Start())
+	// Stop encoder
+	if err := enc.Stop(); err != nil {
+		slog.Error("error stopping encoder", "error", err)
+	}
+
+	slog.Info("shutdown complete")
 }

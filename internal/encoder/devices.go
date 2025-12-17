@@ -2,7 +2,7 @@
 package encoder
 
 import (
-	"log"
+	"log/slog"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -32,7 +32,7 @@ func listMacOSDevices() []AudioDevice {
 	// The device list is still in the output even though the command "fails"
 	output, err := cmd.CombinedOutput()
 	if err != nil && len(output) == 0 {
-		log.Printf("Failed to list macOS audio devices: %v", err)
+		slog.Error("failed to list macOS audio devices", "error", err)
 		return nil
 	}
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
@@ -53,7 +53,7 @@ func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := server.UpgradeConnection(w, r)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
+		slog.Error("WebSocket upgrade failed", "error", err)
 		return
 	}
 	defer util.SafeCloseFunc(conn, "WebSocket connection")()
@@ -197,7 +197,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		html := strings.Replace(indexHTML, "{{VERSION}}", Version, 1)
 		html = strings.ReplaceAll(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()))
 		if _, err := w.Write([]byte(html)); err != nil {
-			log.Printf("Failed to write index.html: %v", err)
+			slog.Error("failed to write index.html", "error", err)
 		}
 		return
 	}
@@ -206,7 +206,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	if file, ok := staticFiles[path]; ok {
 		w.Header().Set("Content-Type", file.contentType)
 		if _, err := w.Write([]byte(file.content)); err != nil {
-			log.Printf("Failed to write %s: %v", file.name, err)
+			slog.Error("failed to write static file", "file", file.name, "error", err)
 		}
 		return
 	}
@@ -216,10 +216,23 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start begins listening and serving HTTP requests on the configured port.
-func (s *Server) Start() error {
+// Returns an *http.Server that can be used for graceful shutdown.
+func (s *Server) Start() *http.Server {
 	addr := fmt.Sprintf(":%d", s.config.GetWebPort())
-	log.Printf("Starting web server on %s", addr)
-	return http.ListenAndServe(addr, s.SetupRoutes())
+	slog.Info("starting web server", "addr", addr)
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: s.SetupRoutes(),
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP server error", "error", err)
+		}
+	}()
+
+	return srv
 }
 
 // Conn is an alias for websocket.Conn to avoid import in other packages.
