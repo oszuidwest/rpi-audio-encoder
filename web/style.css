@@ -83,27 +83,9 @@
     --transition-fast: 0.2s ease;
     --transition-precise: 0.15s ease;
 
-    /* Spacing scale */
-    --space-xs: 0.25rem;
-    --space-sm: 0.5rem;
-    --space-md: 0.75rem;
-    --space-lg: 1rem;
-    --space-xl: 1.5rem;
-
-    /* Font sizes */
+    /* Small text (11px) - used for monospace labels */
     --text-xs: 0.6875rem;
-    --text-sm: 0.75rem;
-    --text-base: 0.8125rem;
-    --text-md: 0.875rem;
-    --text-lg: 1rem;
-    --text-xl: 1.125rem;
-    --text-2xl: 1.25rem;
-    --text-3xl: 1.5rem;
 
-    /* Icon sizes */
-    --icon-xs: 1rem;
-    --icon-sm: 1.125rem;
-    --icon-md: 1.25rem;
 }
 
 /* Dark theme overrides */
@@ -131,17 +113,6 @@
 
 [x-cloak] { display: none !important; }
 
-/* Flex utilities */
-.flex { display: flex; }
-.flex-center { display: flex; align-items: center; }
-.flex-between { display: flex; align-items: center; justify-content: space-between; }
-.flex-col { display: flex; flex-direction: column; }
-
-/* Icon utilities - standardize SVG sizes */
-.icon-xs { width: var(--icon-xs); height: var(--icon-xs); }
-.icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
-.icon-md { width: var(--icon-md); height: var(--icon-md); }
-
 /* Icon Container - handles span > svg pattern from icons.js
    Apply to parent element, sets size on both span and nested svg
    Usage: class="icon-container" or use component-specific overrides */
@@ -157,18 +128,8 @@
     height: 100%;
 }
 
-/* Text utilities */
-.text-mono {
-    font-family: var(--font-mono);
-}
-
-.text-mono-sm {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-}
-
 /* List Item - Base pattern for bordered list items
-   Used by: .output-item, .log-entry
+   Used by: .output__item, .log__entry
    Provides: border separator, last-child cleanup, optional hover */
 .list-item {
     border-bottom: 1px solid var(--border-default);
@@ -184,7 +145,7 @@
 
 /* Disabled state - applies to buttons and interactive elements */
 .btn:disabled,
-.btn-test:disabled,
+.btn--test:disabled,
 .nav-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -198,19 +159,6 @@
 .state-warning { --state-color: var(--warning); --state-bg: var(--warning-bg); }
 .state-danger { --state-color: var(--danger); --state-bg: var(--danger-bg); }
 .state-stopped { --state-color: var(--stopped); --state-bg: var(--stopped-bg); }
-
-/* Status Dot - Base class for all circular status indicators
-   Sizes: sm (0.375rem), md (0.5rem), lg (0.75rem) */
-.status-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: var(--state-color, var(--stopped));
-}
-
-.status-dot--sm { width: 0.375rem; height: 0.375rem; }
-.status-dot--lg { width: 0.75rem; height: 0.75rem; }
 
 /* Empty State - Base class for loading/error/empty content
    Usage: Apply to container, optionally add .empty-state--error for danger color */
@@ -226,23 +174,15 @@
     text-align: center;
 }
 
-.empty-state--padded { padding: 3rem 1rem; }
 .empty-state--error { color: var(--danger); }
 
 /* =============================================================================
-   Animations - Reusable keyframes with CSS variable customization
+   Animations
+
+   pulse: Breathing effect for status indicators (used by .animate-pulse)
+   fadeIn: View transition animation using --fade-offset CSS variable
+          Applied directly to #settings-view and component panels
    ============================================================================= */
-
-/* === Animations ===
-
-   pulse: Breathing effect for status indicators (2s default, 0.5s/0.15s for alerts)
-   fadeIn: Unified fade+slide animation using --fade-offset CSS variable
-          Default offset 0 = pure fade, set offset for slide direction
-
-   Usage:
-   - .animate-fade-in: Pure opacity fade
-   - .animate-fade-slide: Fade with vertical slide (set --fade-offset)
-   - Settings view uses --fade-offset: 8px for subtle slide-up */
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -255,10 +195,6 @@
 }
 
 .animate-pulse { animation: pulse 2s infinite; }
-.animate-pulse-fast { animation: pulse 0.5s infinite; }
-.animate-pulse-flash { --pulse-opacity: 0.4; animation: pulse 0.15s infinite; }
-.animate-fade-in { animation: fadeIn var(--transition-precise); }
-.animate-fade-slide { --fade-offset: 8px; animation: fadeIn 0.2s ease; }
 
 /* =============================================================================
    Base & Reset
@@ -333,8 +269,6 @@ body {
     color: var(--danger);
 }
 
-/* Icon sizing handled by .icon-container utility */
-
 /* =============================================================================
    Header
    ============================================================================= */
@@ -354,7 +288,7 @@ header h1 {
     letter-spacing: -0.025em;
 }
 
-.header-controls {
+.header__controls {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -376,7 +310,7 @@ header h1 {
     color: var(--state-color, var(--text-secondary));
 }
 
-/* Uses .status-dot--lg base + currentcolor for pill text matching */
+/* Status indicator dot - uses currentcolor to match pill text */
 #status-dot {
     width: 0.75rem;
     height: 0.75rem;
@@ -401,7 +335,7 @@ header h1 {
     box-shadow: var(--shadow-md);
 }
 
-.card-header {
+.card__header {
     padding: 1rem;
     color: var(--text-inverse);
     display: flex;
@@ -409,15 +343,15 @@ header h1 {
     align-items: center;
 }
 
-.card-header.brand { background: var(--header-primary); }
-.card-header.slate { background: var(--header-secondary); }
+.card__header--brand { background: var(--header-primary); }
+.card__header--slate { background: var(--header-secondary); }
 
-.card-header h2 {
+.card__header h2 {
     font-size: 1.125rem;
     font-weight: 700;
 }
 
-.header-actions {
+.card__actions {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -432,7 +366,7 @@ header h1 {
     border: 1px solid rgb(255 255 255 / 30%);
 }
 
-.card-body {
+.card__body {
     padding: 1.25rem;
 }
 
@@ -440,15 +374,15 @@ header h1 {
    Forms
    ============================================================================= */
 
-.form-group {
+.form__group {
     margin-bottom: 1rem;
 }
 
-.form-group:last-child {
+.form__group:last-child {
     margin-bottom: 0;
 }
 
-.form-group label {
+.form__group label {
     display: block;
     font-size: 0.875rem;
     font-weight: 500;
@@ -456,7 +390,7 @@ header h1 {
     margin-bottom: 0.5rem;
 }
 
-.form-row {
+.form__row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
@@ -489,8 +423,7 @@ input::placeholder {
 select {
     appearance: none;
     /* Custom dropdown arrow - inline SVG chevron icon
-       Uses neutral-600 color (#52525b) encoded as URL-safe SVG
-       Positioned 0.75rem from right edge with no-repeat */
+       Uses neutral-500 color (#6b7280) encoded as URL-safe SVG */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 1rem center;
@@ -498,16 +431,16 @@ select {
     cursor: pointer;
 }
 
-.input-with-unit {
+.input--with-unit {
     position: relative;
     display: flex;
 }
 
-.input-with-unit input {
+.input--with-unit input {
     padding-right: 3rem;
 }
 
-.input-unit {
+.input__unit {
     position: absolute;
     right: 1rem;
     top: 50%;
@@ -518,7 +451,7 @@ select {
     pointer-events: none;
 }
 
-.input-hint {
+.input__hint {
     display: block;
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -535,14 +468,14 @@ select {
     padding: 0.75rem;
 }
 
-.vu-header {
+.vu__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.5rem;
 }
 
-.vu-mode-btn {
+.vu__mode-btn {
     font-size: 0.625rem;
     font-family: var(--font-mono);
     font-weight: 600;
@@ -557,16 +490,16 @@ select {
     transition: color var(--transition-fast);
 }
 
-.vu-mode-btn:hover {
+.vu__mode-btn:hover {
     color: var(--text-primary);
 }
 
-.vu-indicators {
+.vu__indicators {
     display: flex;
     gap: 0.75rem;
 }
 
-.vu-indicator {
+.vu__indicator {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -575,7 +508,7 @@ select {
     color: var(--text-muted);
 }
 
-.indicator-dot {
+.vu__indicator-dot {
     width: 0.375rem;
     height: 0.375rem;
     border-radius: 50%;
@@ -585,7 +518,7 @@ select {
 }
 
 /* Silence indicator - slow 0.5s pulse for sustained silence detection */
-.indicator-dot.silence.active {
+.vu__indicator-dot.silence.active {
     background: var(--danger);
     /* Larger 6px glow radius for silence - softer, ambient warning */
     box-shadow: 0 0 6px var(--danger);
@@ -593,7 +526,7 @@ select {
 }
 
 /* Clip indicator - rapid 0.15s flash for transient peak clipping */
-.indicator-dot.clip.active {
+.vu__indicator-dot.clip.active {
     background: var(--danger);
     /* Smaller 4px glow radius for clip - sharper, urgent alert */
     box-shadow: 0 0 4px var(--danger);
@@ -601,18 +534,18 @@ select {
     animation: pulse 0.15s infinite;
 }
 
-.vu-channel {
+.vu__channel {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.375rem;
 }
 
-.vu-channel:last-of-type {
+.vu__channel:last-of-type {
     margin-bottom: 0;
 }
 
-.vu-label {
+.vu__label {
     width: 0.875rem;
     font-size: 0.6875rem;
     font-family: var(--font-mono);
@@ -620,7 +553,7 @@ select {
     color: var(--text-muted);
 }
 
-.vu-track {
+.vu__track {
     flex: 1;
     height: 1.125rem;
     border-radius: var(--radius-md);
@@ -629,7 +562,7 @@ select {
     box-shadow: var(--shadow-inset);
 }
 
-.vu-gradient {
+.vu__gradient {
     position: absolute;
     inset: 0;
     /* Audio level color zones:
@@ -646,7 +579,7 @@ select {
     );
 }
 
-.vu-cover {
+.vu__cover {
     position: absolute;
     top: 0;
     right: 0;
@@ -656,7 +589,7 @@ select {
     transition: width 75ms linear;
 }
 
-.vu-peak {
+.vu__peak {
     position: absolute;
     top: -2px;
     height: calc(100% + 4px);
@@ -669,13 +602,13 @@ select {
     opacity: 0;
 }
 
-.vu-peak.visible {
+.vu__peak.vu__peak--visible {
     opacity: 1;
 }
 
 /* Peak hold indicator - triangular marker above the level bar
    Shows maximum peak level, held for 1.5s before decay */
-.vu-peak::after {
+.vu__peak::after {
     content: '';
     position: absolute;
     top: -4px;
@@ -686,7 +619,7 @@ select {
     border-bottom: 4px solid var(--vu-peak);
 }
 
-.vu-db {
+.vu__db {
     width: 3.5rem;
     font-size: 0.6875rem;
     font-family: var(--font-mono);
@@ -696,17 +629,16 @@ select {
     white-space: nowrap;
 }
 
-.vu-scale {
+.vu__scale {
     position: relative;
-    margin: 0.25rem 0 0 1.375rem;
-    margin-right: 4rem;
+    margin: 0.25rem 4rem 0 1.375rem;
     height: 0.875rem;
     font-size: 0.5625rem;
     font-family: var(--font-mono);
     color: var(--text-muted);
 }
 
-.vu-scale span {
+.vu__scale span {
     position: absolute;
     transform: translateX(-50%);
 }
@@ -714,18 +646,18 @@ select {
 /* VU meter scale markings - positioned as percentage of meter width
    Maps to decibel values: 0%=-60dB, 20%=-48dB, 60%=-24dB,
    80%=-12dB, 90%=-6dB, 100%=0dB */
-.vu-scale .mark-60 { left: 0%; }
-.vu-scale .mark-48 { left: 20%; }
-.vu-scale .mark-24 { left: 60%; }
-.vu-scale .mark-12 { left: 80%; }
-.vu-scale .mark-6 { left: 90%; }
-.vu-scale .mark-0 { left: 100%; }
+.vu__scale .mark-60 { left: 0%; }
+.vu__scale .mark-48 { left: 20%; }
+.vu__scale .mark-24 { left: 60%; }
+.vu__scale .mark-12 { left: 80%; }
+.vu__scale .mark-6 { left: 90%; }
+.vu__scale .mark-0 { left: 100%; }
 
 /* =============================================================================
    Alert
    ============================================================================= */
 
-.alert-box {
+.alert {
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
@@ -735,33 +667,33 @@ select {
     margin-top: 1rem;
 }
 
-/* Alert icon - uses .icon-container base, adds color + positioning */
-.alert-box > span,
-.alert-box > svg {
+/* Alert icon styling - color and vertical alignment */
+.alert > span,
+.alert > svg {
     color: var(--warning);
     margin-top: 0.125rem;
 }
 
-.alert-box span,
-.alert-box p {
+.alert span,
+.alert p {
     font-size: 0.875rem;
     color: var(--warning-text);
 }
 
-.alert-box span {
+.alert span {
     font-weight: 500;
 }
 
-.alert-box p {
+.alert p {
     margin-top: 0.25rem;
     word-break: break-word;
 }
 
 /* =============================================================================
-   Upgrade Banner
+   Banner
    ============================================================================= */
 
-.upgrade-banner {
+.banner {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -773,16 +705,14 @@ select {
     font-size: 0.875rem;
 }
 
-/* Icon uses .icon-container base */
-
-.upgrade-banner a {
+.banner a {
     margin-left: auto;
     color: var(--text-inverse);
     text-decoration: underline;
     text-underline-offset: 2px;
 }
 
-.upgrade-banner a:hover {
+.banner a:hover {
     opacity: 0.9;
 }
 
@@ -799,23 +729,31 @@ select {
 }
 
 /* Extends .list-item base */
-.output-item {
-    padding: 0.75rem 0;
+.output__item {
+    padding: 1rem 0;
 }
 
-.output-item.deleting {
+.output__item:first-child {
+    padding-top: 0.5rem;
+}
+
+.output__item:last-child {
+    padding-bottom: 0.5rem;
+}
+
+.output__item.output__item--deleting {
     opacity: 0.5;
     pointer-events: none;
 }
 
-.output-row {
+.output__row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.625rem;
 }
 
-/* Inherits from .status-dot base class */
-.output-dot {
+/* Output status indicator dot */
+.output__dot {
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
@@ -823,20 +761,20 @@ select {
     background: var(--state-color, var(--stopped));
 }
 
-.output-host {
+.output__host {
     flex: 1;
     font-weight: 500;
 }
 
-.output-details {
+.output__details {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin: 0.5rem 0 0 1.25rem;
+    gap: 0.625rem;
+    margin: 0.375rem 0 0 1.125rem;
     font-size: 0.8125rem;
 }
 
-.output-codec {
+.output__codec {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 600;
@@ -847,12 +785,12 @@ select {
     color: var(--text-secondary);
 }
 
-.output-streamid {
+.output__streamid {
     font-family: var(--font-mono);
     color: var(--text-muted);
 }
 
-.output-status {
+.output__status {
     margin-left: auto;
     padding: 0.125rem 0.5rem;
     border-radius: var(--radius-full);
@@ -862,7 +800,7 @@ select {
     color: var(--state-color, var(--text-muted));
 }
 
-.output-error {
+.output__error {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin: 0.375rem 0 0 1.25rem;
@@ -873,7 +811,7 @@ select {
    Buttons
    ============================================================================= */
 
-.btn-add {
+.btn--add {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -888,11 +826,9 @@ select {
     transition: background var(--transition-fast);
 }
 
-.btn-add:hover {
+.btn--add:hover {
     background: rgb(255 255 255 / 30%);
 }
-
-/* Icon uses .icon-container base */
 
 .btn {
     padding: 1rem;
@@ -904,42 +840,23 @@ select {
     transition: background var(--transition-fast);
 }
 
-.btn.primary {
-    background: var(--brand);
-    color: var(--text-inverse);
-}
-
-.btn.primary:hover {
-    background: var(--brand-hover);
-}
-
-.btn.secondary {
+.btn--secondary {
     background: var(--surface-elevated);
     color: var(--text-primary);
 }
 
-.btn.secondary:hover {
+.btn--secondary:hover {
     background: var(--border-default);
 }
 
 /* Test buttons in settings sections */
-.btn-test {
+.btn--test {
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
     margin-top: 0.75rem;
 }
 
 /* Disabled state handled by utility */
-
-/* Form Actions */
-.form-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border);
-}
 
 /* =============================================================================
    Footer
@@ -977,8 +894,6 @@ footer a:hover {
     color: var(--text-primary);
 }
 
-/* Icon uses .icon-container base */
-
 footer .sep {
     color: var(--border-default);
 }
@@ -992,27 +907,8 @@ footer .sep {
     animation: fadeIn 0.2s ease;
 }
 
-/* Settings Header */
-.settings-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding-top: 0.75rem;
-}
-
-.settings-header h1 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.settings-header-spacer {
-    width: 4.5rem;
-}
-
 /* Modal Navigation Bar */
-.modal-nav {
+.modal__nav {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -1020,7 +916,7 @@ footer .sep {
     padding-top: 0.75rem;
 }
 
-.modal-nav h1 {
+.modal__nav h1 {
     flex: 1;
     font-size: 1.5rem;
     font-weight: 600;
@@ -1068,10 +964,8 @@ footer .sep {
     color: var(--text-muted);
 }
 
-/* .settings-back removed - use .nav-btn instead */
-
 /* Settings Tabs - Segmented Control */
-.settings-tabs {
+.settings__tabs {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.25rem;
@@ -1083,19 +977,14 @@ footer .sep {
 }
 
 /* Sliding tab indicator - animated background behind active tab
-   Uses ::before pseudo-element positioned absolutely within .settings-tabs
+   Uses ::before pseudo-element positioned absolutely within .settings__tabs
 
-   Width calculation: (100% - left-padding - right-padding) / 3 tabs
-   = (100% - 0.375rem - 0.5rem) / 3
-
-   Position shifts via transform based on which tab has .active class:
-   - Tab 1 (nth-child 2, accounting for <template>): translateX(0)
-   - Tab 2 (nth-child 3): translateX(100% + gap)
-   - Tab 3 (nth-child 4): translateX(200% + 2*gap)
+   Width: Each tab is 1/3 of inner width (after subtracting padding and gaps)
+   Position: Shifts via transform based on which tab has .active class
 
    Note: nth-child indices are offset by 1 because Alpine's <template x-for>
    element counts as the first child even though it renders no visible content */
-.settings-tabs::before {
+.settings__tabs::before {
     content: '';
     position: absolute;
     top: 0.1875rem;
@@ -1110,15 +999,15 @@ footer .sep {
 }
 
 /* nth-child accounts for <template> element being child 1 */
-.settings-tabs:has(.settings-tab:nth-child(3).active)::before {
+.settings__tabs:has(.settings__tab:nth-child(3).active)::before {
     transform: translateX(calc(100% + 0.25rem));
 }
 
-.settings-tabs:has(.settings-tab:nth-child(4).active)::before {
+.settings__tabs:has(.settings__tab:nth-child(4).active)::before {
     transform: translateX(calc(200% + 0.5rem));
 }
 
-.settings-tab {
+.settings__tab {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1137,54 +1026,54 @@ footer .sep {
     -webkit-tap-highlight-color: transparent;
 }
 
-.settings-tab svg {
+.settings__tab svg {
     width: 1.125rem;
     height: 1.125rem;
     flex-shrink: 0;
 }
 
-.settings-tab span {
+.settings__tab span {
     white-space: nowrap;
 }
 
-.settings-tab:hover {
+.settings__tab:hover {
     color: var(--text-secondary);
 }
 
-.settings-tab.active {
+.settings__tab.active {
     color: var(--brand);
     font-weight: 600;
 }
 
 /* Compact on small screens */
 @media (max-width: 360px) {
-    .settings-tab {
+    .settings__tab {
         padding: 0.5rem;
         gap: 0.375rem;
         font-size: 0.75rem;
     }
 
-    .settings-tab svg {
+    .settings__tab svg {
         width: 1rem;
         height: 1rem;
     }
 }
 
 /* Settings Panels */
-.settings-panels {
+.settings__panels {
     position: relative;
 }
 
-.settings-panel {
+.settings__panel {
     animation: fadeIn var(--transition-precise);
 }
 
-.settings-panel[hidden] {
+.settings__panel[hidden] {
     display: none;
 }
 
 /* Settings Sections - Card-like containers */
-.settings-section {
+.settings__section {
     background: var(--surface-card);
     border-radius: var(--radius-lg);
     padding: 1.25rem;
@@ -1192,31 +1081,31 @@ footer .sep {
     box-shadow: var(--shadow-sm);
 }
 
-.settings-section:last-child {
+.settings__section:last-child {
     margin-bottom: 0;
 }
 
-.settings-section-header {
+.settings__section-header {
     display: flex;
     align-items: center;
     gap: 0.625rem;
     margin-bottom: 0.5rem;
 }
 
-.settings-section-header svg {
+.settings__section-header svg {
     width: 1.25rem;
     height: 1.25rem;
     color: var(--brand);
 }
 
-.settings-section-header h3 {
+.settings__section-header h3 {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
 }
 
-.settings-section-desc {
+.settings__section-desc {
     font-size: 0.8125rem;
     color: var(--text-muted);
     line-height: 1.5;
@@ -1224,33 +1113,33 @@ footer .sep {
 }
 
 /* About Section */
-.about-section {
+.about__section {
     text-align: center;
 }
 
-.about-logo {
+.about__logo {
     margin-bottom: 1.5rem;
 }
 
-.about-logo svg.app-logo {
+.about__logo svg.app-logo {
     width: 5rem;
     height: 5rem;
     color: var(--brand);
     margin-bottom: 1rem;
 }
 
-.about-logo h2 {
+.about__logo h2 {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
 }
 
-.about-info {
+.about__info {
     margin-bottom: 1.5rem;
 }
 
-.about-list {
+.about__list {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 0.5rem 1rem;
@@ -1259,27 +1148,27 @@ footer .sep {
     margin: 0 auto;
 }
 
-.about-list dt {
+.about__list dt {
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-muted);
 }
 
-.about-list dd {
+.about__list dd {
     font-size: 0.8125rem;
     font-family: var(--font-mono);
     color: var(--text-primary);
     margin: 0;
 }
 
-.about-links {
+.about__links {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.5rem;
 }
 
-.about-links a {
+.about__links a {
     display: flex;
     align-items: center;
     gap: 0.375rem;
@@ -1293,28 +1182,26 @@ footer .sep {
     transition: all var(--transition-fast);
 }
 
-.about-links a:hover {
+.about__links a:hover {
     background: var(--border-default);
     color: var(--text-primary);
 }
 
-/* Icon uses .icon-container base */
-
-.license-text {
+.license__text {
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--text-muted);
 }
 
-.license-text p {
+.license__text p {
     margin: 0 0 0.75rem;
 }
 
-.license-text p:last-child {
+.license__text p:last-child {
     margin-bottom: 0;
 }
 
-.license-text strong {
+.license__text strong {
     color: var(--text-secondary);
     font-weight: 600;
 }
@@ -1328,7 +1215,7 @@ footer .sep {
     gap: 0.5rem;
 }
 
-.btn-group .btn-test {
+.btn-group .btn--test {
     flex: 1;
 }
 
@@ -1336,7 +1223,7 @@ footer .sep {
    Log Viewer Modal - Matches existing UI patterns
    ============================================================================= */
 
-.modal-overlay {
+.modal__overlay {
     position: fixed;
     inset: 0;
     background: rgb(0 0 0 / 40%);
@@ -1348,7 +1235,7 @@ footer .sep {
     animation: fadeIn var(--transition-precise);
 }
 
-.modal-content {
+.modal__content {
     background: var(--surface-card);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md), 0 0 0 1px var(--border-default);
@@ -1372,7 +1259,7 @@ footer .sep {
     }
 }
 
-.modal-header {
+.modal__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1381,7 +1268,7 @@ footer .sep {
     color: var(--text-inverse);
 }
 
-.modal-header h2 {
+.modal__header h2 {
     font-size: 1.125rem;
     font-weight: 700;
     margin: 0;
@@ -1398,13 +1285,13 @@ footer .sep {
     background: rgb(255 255 255 / 25%);
 }
 
-.modal-body {
+.modal__body {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
 }
 
-.modal-footer {
+.modal__footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1414,7 +1301,7 @@ footer .sep {
     gap: 0.75rem;
 }
 
-.log-path {
+.log__path {
     font-size: 0.6875rem;
     font-family: var(--font-mono);
     color: var(--text-muted);
@@ -1425,17 +1312,17 @@ footer .sep {
 }
 
 /* =============================================================================
-   Log Entries - Matches output-item pattern
+   Log Entries - Matches output__item pattern
    ============================================================================= */
 
 /* Log states extend .empty-state base class */
-.log-loading,
-.log-error,
-.log-empty {
+.log__loading,
+.log__error,
+.log__empty {
     padding: 3rem 1rem; /* Override base padding */
 }
 
-.log-loading::before {
+.log__loading::before {
     content: '';
     width: 1.5rem;
     height: 1.5rem;
@@ -1449,18 +1336,18 @@ footer .sep {
     to { transform: rotate(360deg); }
 }
 
-.log-error svg {
+.log__error svg {
     width: 1.25rem;
     height: 1.25rem;
 }
 
-.log-entries {
+.log__entries {
     display: flex;
     flex-direction: column;
 }
 
 /* Extends .list-item and .list-item--hover base */
-.log-entry {
+.log__entry {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
@@ -1468,8 +1355,8 @@ footer .sep {
     transition: background var(--transition-fast);
 }
 
-/* Status dot - matches output-dot pattern */
-.log-entry::before {
+/* Status dot - matches output__dot pattern */
+.log__entry::before {
     content: '';
     width: 0.5rem;
     height: 0.5rem;
@@ -1479,39 +1366,39 @@ footer .sep {
     margin-top: 0.375rem;
 }
 
-.log-entry.log-silence::before {
+.log__entry.log__entry--silence::before {
     background: var(--warning);
 }
 
-.log-entry.log-recovery::before {
+.log__entry.log__entry--recovery::before {
     background: var(--success);
 }
 
-.log-entry-content {
+.log__entry-content {
     flex: 1;
     min-width: 0;
 }
 
-.log-event {
+.log__event {
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 0.125rem;
 }
 
-.log-entry.log-silence .log-event {
+.log__entry.log__entry--silence .log__event {
     color: var(--warning-text);
 }
 
-.dark .log-entry.log-silence .log-event {
+.dark .log__entry.log__entry--silence .log__event {
     color: var(--warning);
 }
 
-.log-entry.log-recovery .log-event {
+.log__entry.log__entry--recovery .log__event {
     color: var(--success);
 }
 
-.log-entry-details {
+.log__entry-details {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem 0.75rem;
@@ -1519,13 +1406,13 @@ footer .sep {
     color: var(--text-secondary);
 }
 
-.log-entry-details strong {
+.log__entry-details strong {
     font-family: var(--font-mono);
     font-weight: 600;
     color: var(--text-primary);
 }
 
-.log-time {
+.log__time {
     font-size: 0.6875rem;
     font-family: var(--font-mono);
     color: var(--text-muted);
@@ -1536,11 +1423,11 @@ footer .sep {
 
 /* Responsive - stack on small screens */
 @media (max-width: 400px) {
-    .log-entry {
+    .log__entry {
         flex-wrap: wrap;
     }
 
-    .log-time {
+    .log__time {
         width: 100%;
         margin-top: 0.375rem;
         padding-left: 1.25rem;

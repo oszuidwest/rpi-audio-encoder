@@ -112,15 +112,17 @@ Configuration is stored in `/etc/encoder/config.json`:
 ```mermaid
 flowchart LR
     subgraph Input
-        A[Audio Source<br>S/PDIF]
+        A[S/PDIF Audio]
     end
 
     subgraph Capture
-        B[arecord<br>Raw PCM]
+        B[arecord]
     end
 
-    subgraph Distribution
-        C[Go Distributor<br>Level Metering<br>Silence Detection]
+    subgraph Processing
+        C[Distributor]
+        SD[Silence Detector]
+        SN[Silence Notifier]
     end
 
     subgraph Encoding
@@ -136,7 +138,7 @@ flowchart LR
     end
 
     subgraph Monitoring
-        F[Web Interface<br>WebSocket]
+        F[WebSocket]
     end
 
     subgraph Alerts
@@ -145,19 +147,84 @@ flowchart LR
         G3[File Log]
     end
 
-    A --> B --> C
-    C --> D1 --> E1
-    C --> D2 --> E2
-    C --> D3 --> E3
+    A ==> B ==> C
+    C ==> D1 ==> E1
+    C ==> D2 ==> E2
+    C ==> D3 ==> E3
+    C -.-> SD -.-> SN
+    SN -.-> G1
+    SN -.-> G2
+    SN -.-> G3
     C -.->|levels| F
-    C -.->|silence| G1
-    C -.->|silence| G2
-    C -.->|silence| G3
 ```
 
 On Linux, `arecord` captures audio from ALSA with minimal CPU overhead. The Go distributor calculates RMS/peak audio levels directly from the PCM stream, runs silence detection, and fans out the audio to multiple FFmpeg encoder processes. Each encoder streams to its own SRT destination. Audio levels are sent to the web interface via WebSocket, and silence events trigger configured alerts.
 
 On macOS (for development), FFmpeg with AVFoundation is used for capture instead of arecord.
+
+### Component Architecture
+
+```mermaid
+graph TB
+    subgraph External Processes
+        ARECORD[arecord]
+        FFM1[FFmpeg 1]
+        FFM2[FFmpeg 2]
+        FFM3[FFmpeg n]
+    end
+
+    subgraph Go Application
+        subgraph Engine
+            ENCODER[Encoder]
+            DIST[Distributor]
+            OUTMGR[Output Manager]
+        end
+
+        subgraph Audio
+            METER[Level Metering]
+            SILENCE[Silence Detector]
+        end
+
+        subgraph Notifications
+            NOTIFIER[Silence Notifier]
+            WEBHOOK[Webhook]
+            EMAIL[Email]
+            FLOG[File Log]
+        end
+
+        subgraph HTTP
+            SERVER[Server]
+            WS[WebSocket]
+        end
+    end
+
+    subgraph Outputs
+        SRT1[SRT Server 1]
+        SRT2[SRT Server 2]
+        SRT3[SRT Server n]
+    end
+
+    ARECORD ==>|PCM| ENCODER
+    ENCODER ==> DIST
+    DIST ==> OUTMGR
+    OUTMGR ==>|PCM| FFM1
+    OUTMGR ==>|PCM| FFM2
+    OUTMGR ==>|PCM| FFM3
+    FFM1 ==>|SRT| SRT1
+    FFM2 ==>|SRT| SRT2
+    FFM3 ==>|SRT| SRT3
+
+    DIST -.-> METER
+    DIST -.-> SILENCE
+    DIST -.->|levels| WS
+    SILENCE -.-> NOTIFIER
+    NOTIFIER -.-> WEBHOOK
+    NOTIFIER -.-> EMAIL
+    NOTIFIER -.-> FLOG
+    SERVER -.-> ENCODER
+```
+
+**Legend:** `══►` PCM/audio stream | `┄┄►` control/data
 
 ## Post-installation
 

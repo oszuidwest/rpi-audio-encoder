@@ -9,20 +9,35 @@ import (
 // SilenceConfig holds the configurable thresholds for silence detection.
 type SilenceConfig struct {
 	Threshold float64 // dB level below which audio is considered silent
-	Duration  float64 // seconds of silence before alerting
+	Duration  float64 // seconds of silence before triggering
 	Recovery  float64 // seconds of audio before considering recovered
+}
+
+// SilenceEvent represents what happened during a silence detection update.
+// This is a pure detection result with no notification concerns.
+type SilenceEvent struct {
+	// Current state
+	InSilence bool               // Currently in confirmed silence state
+	Duration  float64            // Current silence duration (0 if not silent)
+	Level     types.SilenceLevel // "active" when in silence, "" otherwise
+
+	// State transitions (for triggering notifications)
+	JustEntered   bool    // True on the frame when silence is first confirmed
+	JustRecovered bool    // True on the frame when recovery completes
+	TotalDuration float64 // Total silence duration (only set when JustRecovered)
 }
 
 // SilenceDetector tracks silence state with hysteresis.
 // It only reports "in silence" after Duration seconds of continuous silence,
 // and only reports "recovered" after Recovery seconds of continuous audio.
+//
+// This is a pure detection component with no notification concerns.
+// Use SilenceNotifier to handle webhook/email/log orchestration.
 type SilenceDetector struct {
 	silenceStart    time.Time // when current silence period started
 	recoveryStart   time.Time // when audio returned after silence
 	inSilence       bool      // currently in confirmed silence state
-	silenceDuration float64   // total duration of last silence period (for recovery notification)
-	webhookSent     bool
-	emailSent       bool
+	silenceDuration float64   // tracks duration for recovery reporting
 }
 
 // NewSilenceDetector creates a new silence detector.
@@ -30,28 +45,15 @@ func NewSilenceDetector() *SilenceDetector {
 	return &SilenceDetector{}
 }
 
-// SilenceState contains the result of silence detection.
-type SilenceState struct {
-	IsSilent               bool               // True if in confirmed silence state
-	Duration               float64            // How long in current silence (0 if not silent)
-	Level                  types.SilenceLevel // "active" when in silence, "" otherwise
-	TriggerWebhook         bool               // True when entering silence state for first time
-	TriggerEmail           bool               // True when entering silence state for first time
-	TriggerRecoveryWebhook bool               // True when recovering from silence
-	TriggerRecoveryEmail   bool               // True when recovering from silence
-	RecoveredAfter         float64            // Duration of silence that was recovered from
-}
-
-// Update checks audio levels and returns the current silence state.
+// Update checks audio levels and returns a SilenceEvent describing what happened.
 // Uses hysteresis: only enters silence after Duration seconds of quiet,
 // only exits silence after Recovery seconds of audio.
-func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.Time) SilenceState {
+func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.Time) SilenceEvent {
 	audioIsSilent := dbL < cfg.Threshold && dbR < cfg.Threshold
 
-	state := SilenceState{}
+	event := SilenceEvent{}
 
 	if audioIsSilent {
-		// Audio is currently below threshold
 		d.recoveryStart = time.Time{}
 
 		if d.silenceStart.IsZero() {
@@ -59,34 +61,29 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 		}
 
 		silenceDuration := now.Sub(d.silenceStart).Seconds()
-		d.silenceDuration = silenceDuration // track for recovery notification
+		d.silenceDuration = silenceDuration
 
 		if d.inSilence {
 			// Already in confirmed silence state
-			state.IsSilent = true
-			state.Duration = silenceDuration
-			state.Level = types.SilenceLevelActive
+			event.InSilence = true
+			event.Duration = silenceDuration
+			event.Level = types.SilenceLevelActive
 		} else if silenceDuration >= cfg.Duration {
 			// Just crossed the duration threshold - enter silence state
 			d.inSilence = true
-			state.IsSilent = true
-			state.Duration = silenceDuration
-			state.Level = types.SilenceLevelActive
-
-			// Trigger notifications once when entering silence
-			if !d.webhookSent {
-				d.webhookSent = true
-				state.TriggerWebhook = true
-			}
-			if !d.emailSent {
-				d.emailSent = true
-				state.TriggerEmail = true
-			}
+			event.InSilence = true
+			event.Duration = silenceDuration
+			event.Level = types.SilenceLevelActive
+			event.JustEntered = true
 		}
-		// If not yet at duration threshold, state remains default (not in silence)
 	} else {
 		// Audio is above threshold
-		d.silenceStart = time.Time{}
+		// Only reset silenceStart if not in confirmed silence state.
+		// During recovery, preserve silenceStart so brief audio dips
+		// don't corrupt the total silence duration calculation.
+		if !d.inSilence {
+			d.silenceStart = time.Time{}
+		}
 
 		if d.inSilence {
 			// Was in silence, now have audio - check recovery
@@ -98,24 +95,22 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 
 			if recoveryDuration >= cfg.Recovery {
 				// Recovery complete - exit silence state
-				state.RecoveredAfter = d.silenceDuration
-				state.TriggerRecoveryWebhook = d.webhookSent // only send recovery if we sent silence alert
-				state.TriggerRecoveryEmail = d.emailSent
+				event.JustRecovered = true
+				event.TotalDuration = d.silenceDuration
 
 				d.inSilence = false
-				d.webhookSent = false
-				d.emailSent = false
 				d.silenceDuration = 0
+				d.silenceStart = time.Time{}
 				d.recoveryStart = time.Time{}
 			} else {
 				// Still in recovery period - remain in silence state
-				state.IsSilent = true
-				state.Level = types.SilenceLevelActive
+				event.InSilence = true
+				event.Level = types.SilenceLevelActive
 			}
 		}
 	}
 
-	return state
+	return event
 }
 
 // Reset clears the silence detection state.
@@ -124,6 +119,4 @@ func (d *SilenceDetector) Reset() {
 	d.recoveryStart = time.Time{}
 	d.inSilence = false
 	d.silenceDuration = 0
-	d.webhookSent = false
-	d.emailSent = false
 }
