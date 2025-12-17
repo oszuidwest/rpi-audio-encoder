@@ -124,6 +124,15 @@ func (c *Config) saveLocked() error {
 	return nil
 }
 
+// defaultIfZero returns def if val equals the zero value of type T, otherwise returns val.
+func defaultIfZero[T comparable](val, def T) T {
+	var zero T
+	if val == zero {
+		return def
+	}
+	return val
+}
+
 // GetOutputs returns a copy of all outputs.
 func (c *Config) GetOutputs() []types.Output {
 	c.mu.RLock()
@@ -223,10 +232,7 @@ func (c *Config) SetAudioInput(input string) error {
 func (c *Config) GetSilenceThreshold() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.SilenceThreshold == 0 {
-		return DefaultSilenceThreshold
-	}
-	return c.SilenceThreshold
+	return defaultIfZero(c.SilenceThreshold, DefaultSilenceThreshold)
 }
 
 // SetSilenceThreshold updates the silence detection threshold and saves the configuration.
@@ -241,10 +247,7 @@ func (c *Config) SetSilenceThreshold(threshold float64) error {
 func (c *Config) GetSilenceDuration() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.SilenceDuration == 0 {
-		return DefaultSilenceDuration
-	}
-	return c.SilenceDuration
+	return defaultIfZero(c.SilenceDuration, DefaultSilenceDuration)
 }
 
 // SetSilenceDuration updates the silence duration and saves the configuration.
@@ -259,10 +262,7 @@ func (c *Config) SetSilenceDuration(seconds float64) error {
 func (c *Config) GetSilenceRecovery() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.SilenceRecovery == 0 {
-		return DefaultSilenceRecovery
-	}
-	return c.SilenceRecovery
+	return defaultIfZero(c.SilenceRecovery, DefaultSilenceRecovery)
 }
 
 // SetSilenceRecovery updates the silence recovery time and saves the configuration.
@@ -314,10 +314,7 @@ func (c *Config) GetEmailSMTPHost() string {
 func (c *Config) GetEmailSMTPPort() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.EmailSMTPPort == 0 {
-		return DefaultEmailSMTPPort
-	}
-	return c.EmailSMTPPort
+	return defaultIfZero(c.EmailSMTPPort, DefaultEmailSMTPPort)
 }
 
 // GetEmailUsername returns the configured SMTP username.

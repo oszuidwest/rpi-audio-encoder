@@ -30,32 +30,34 @@ const LevelUpdateSamples = 12000
 // FFmpeg processes. It handles automatic retry with exponential backoff,
 // calculates real-time audio levels, and detects silence conditions.
 type Encoder struct {
-	config        *config.Config
-	outputManager *output.Manager
-	sourceCmd     *exec.Cmd
-	sourceCancel  context.CancelFunc
-	sourceStdout  io.ReadCloser
-	state         types.EncoderState
-	stopChan      chan struct{}
-	mu            sync.RWMutex
-	lastError     string
-	startTime     time.Time
-	retryCount    int
-	retryDelay    time.Duration
-	audioLevels   types.AudioLevels
-	silenceDetect *audio.SilenceDetector
-	peakHolder    *audio.PeakHolder
+	config          *config.Config
+	outputManager   *output.Manager
+	sourceCmd       *exec.Cmd
+	sourceCancel    context.CancelFunc
+	sourceStdout    io.ReadCloser
+	state           types.EncoderState
+	stopChan        chan struct{}
+	mu              sync.RWMutex
+	lastError       string
+	startTime       time.Time
+	retryCount      int
+	backoff         *util.Backoff
+	audioLevels     types.AudioLevels
+	silenceDetect   *audio.SilenceDetector
+	silenceNotifier *notify.SilenceNotifier
+	peakHolder      *audio.PeakHolder
 }
 
 // New creates a new Encoder with the given configuration.
 func New(cfg *config.Config) *Encoder {
 	return &Encoder{
-		config:        cfg,
-		outputManager: output.NewManager(),
-		state:         types.StateStopped,
-		retryDelay:    types.InitialRetryDelay,
-		silenceDetect: audio.NewSilenceDetector(),
-		peakHolder:    audio.NewPeakHolder(),
+		config:          cfg,
+		outputManager:   output.NewManager(),
+		state:           types.StateStopped,
+		backoff:         util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
+		silenceDetect:   audio.NewSilenceDetector(),
+		silenceNotifier: notify.NewSilenceNotifier(cfg),
+		peakHolder:      audio.NewPeakHolder(),
 	}
 }
 
@@ -118,8 +120,9 @@ func (e *Encoder) Start() error {
 	e.state = types.StateStarting
 	e.stopChan = make(chan struct{})
 	e.retryCount = 0
-	e.retryDelay = types.InitialRetryDelay
+	e.backoff.Reset(types.InitialRetryDelay)
 	e.silenceDetect.Reset()
+	e.silenceNotifier.Reset()
 	e.peakHolder.Reset()
 	e.mu.Unlock()
 
@@ -200,6 +203,7 @@ func (e *Encoder) StartOutput(outputID string) error {
 		e.mu.RUnlock()
 		return fmt.Errorf("encoder not running")
 	}
+	stopChan := e.stopChan
 	e.mu.RUnlock()
 
 	out := e.config.GetOutput(outputID)
@@ -207,19 +211,22 @@ func (e *Encoder) StartOutput(outputID string) error {
 		return fmt.Errorf("output not found: %s", outputID)
 	}
 
-	// Get existing retry state if any
-	_, retryCount, retryDelay, exists := e.outputManager.GetProcess(outputID)
-	if !exists {
-		retryCount = 0
-		retryDelay = types.InitialRetryDelay
-	}
-
-	if err := e.outputManager.Start(out, retryCount, retryDelay); err != nil {
+	// Start preserves existing retry state automatically
+	if err := e.outputManager.Start(out); err != nil {
 		return fmt.Errorf("failed to start output: %w", err)
 	}
 
-	// Start monitoring goroutine
-	go e.monitorOutput(outputID)
+	// Start monitoring and retry logic in OutputManager
+	go e.outputManager.MonitorAndRetry(
+		outputID,
+		func() *types.Output { return e.config.GetOutput(outputID) },
+		stopChan,
+		func() bool {
+			e.mu.RLock()
+			defer e.mu.RUnlock()
+			return e.state == types.StateRunning
+		},
+	)
 
 	return nil
 }
@@ -280,7 +287,7 @@ func (e *Encoder) runSourceLoop() {
 
 			if runDuration >= types.SuccessThreshold {
 				e.retryCount = 0
-				e.retryDelay = types.InitialRetryDelay
+				e.backoff.Reset(types.InitialRetryDelay)
 			} else {
 				e.retryCount++
 			}
@@ -295,7 +302,7 @@ func (e *Encoder) runSourceLoop() {
 			}
 		} else {
 			e.retryCount = 0
-			e.retryDelay = types.InitialRetryDelay
+			e.backoff.Reset(types.InitialRetryDelay)
 		}
 
 		if e.state == types.StateStopping || e.state == types.StateStopped {
@@ -304,7 +311,7 @@ func (e *Encoder) runSourceLoop() {
 		}
 
 		e.state = types.StateStarting
-		retryDelay := e.retryDelay
+		retryDelay := e.backoff.Next()
 		e.mu.Unlock()
 
 		slog.Info("source stopped, waiting before restart",
@@ -313,12 +320,6 @@ func (e *Encoder) runSourceLoop() {
 		case <-e.stopChan:
 			return
 		case <-time.After(retryDelay):
-			e.mu.Lock()
-			e.retryDelay *= 2
-			if e.retryDelay > types.MaxRetryDelay {
-				e.retryDelay = types.MaxRetryDelay
-			}
-			e.mu.Unlock()
 		}
 	}
 }
@@ -386,7 +387,22 @@ func (e *Encoder) startEnabledOutputs() {
 // runDistributor delivers audio from the source to all output processes and calculates audio levels.
 func (e *Encoder) runDistributor() {
 	buf := make([]byte, 19200) // ~100ms of audio at 48kHz stereo
-	levelData := &audio.LevelData{}
+
+	// Snapshot silence config once at startup (avoids mutex contention in hot path)
+	silenceCfg := audio.SilenceConfig{
+		Threshold: e.config.GetSilenceThreshold(),
+		Duration:  e.config.GetSilenceDuration(),
+		Recovery:  e.config.GetSilenceRecovery(),
+	}
+
+	// Create distributor with callback to update audio levels
+	distributor := NewDistributor(
+		e.silenceDetect,
+		e.silenceNotifier,
+		e.peakHolder,
+		silenceCfg,
+		e.updateAudioLevels,
+	)
 
 	for {
 		e.mu.RLock()
@@ -413,145 +429,14 @@ func (e *Encoder) runDistributor() {
 			continue
 		}
 
-		// Process samples for level metering
-		audio.ProcessSamples(buf, n, levelData)
-
-		// Update levels periodically
-		if levelData.SampleCount >= LevelUpdateSamples {
-			levels := audio.CalculateLevels(levelData)
-
-			// Update peak hold
-			now := time.Now()
-			heldPeakL, heldPeakR := e.peakHolder.Update(levels.PeakL, levels.PeakR, now)
-
-			// Silence detection
-			silenceCfg := audio.SilenceConfig{
-				Threshold: e.config.GetSilenceThreshold(),
-				Duration:  e.config.GetSilenceDuration(),
-				Recovery:  e.config.GetSilenceRecovery(),
-			}
-			silenceState := e.silenceDetect.Update(levels.RMSL, levels.RMSR, silenceCfg, now)
-
-			// Trigger notifications if needed
-			if silenceState.TriggerWebhook {
-				go e.triggerSilenceWebhook(silenceState.Duration)
-			}
-			if silenceState.TriggerEmail {
-				go e.triggerSilenceEmail(silenceState.Duration)
-			}
-			if silenceState.TriggerWebhook || silenceState.TriggerEmail {
-				go e.logSilenceStart(silenceState.Duration, silenceCfg.Threshold)
-			}
-			if silenceState.TriggerRecoveryWebhook {
-				go e.triggerRecoveryWebhook(silenceState.RecoveredAfter)
-			}
-			if silenceState.TriggerRecoveryEmail {
-				go e.triggerRecoveryEmail(silenceState.RecoveredAfter)
-			}
-			if silenceState.TriggerRecoveryWebhook || silenceState.TriggerRecoveryEmail {
-				go e.logSilenceEnd(silenceState.RecoveredAfter, silenceCfg.Threshold)
-			}
-
-			e.updateAudioLevels(levels.RMSL, levels.RMSR, heldPeakL, heldPeakR,
-				silenceState.IsSilent, silenceState.Duration, silenceState.Level,
-				levels.ClipL, levels.ClipR)
-
-			audio.ResetLevelData(levelData)
-		}
+		// Process samples for level metering and silence detection
+		distributor.ProcessSamples(buf, n)
 
 		// Distribute to all running outputs
 		for _, out := range e.config.GetOutputs() {
 			// WriteAudio logs errors internally and marks output as stopped
 			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck
 		}
-	}
-}
-
-// monitorOutput monitors an output process and restarts on failure.
-func (e *Encoder) monitorOutput(outputID string) {
-	cmd, retryCount, retryDelay, exists := e.outputManager.GetProcess(outputID)
-	if !exists || cmd == nil {
-		return
-	}
-
-	startTime := time.Now()
-	err := cmd.Wait()
-	runDuration := time.Since(startTime)
-
-	e.outputManager.MarkStopped(outputID)
-
-	if err != nil {
-		// Extract error and update state
-		var errMsg string
-		if stderr, ok := cmd.Stderr.(*bytes.Buffer); ok && stderr != nil {
-			errMsg = extractLastError(stderr.String())
-		}
-		if errMsg == "" {
-			errMsg = err.Error()
-		}
-		e.outputManager.SetError(outputID, errMsg)
-		slog.Error("output error", "output_id", outputID, "error", errMsg)
-
-		if runDuration >= types.SuccessThreshold {
-			retryCount = 0
-			retryDelay = types.InitialRetryDelay
-		} else {
-			retryCount++
-			retryDelay *= 2
-			if retryDelay > types.MaxRetryDelay {
-				retryDelay = types.MaxRetryDelay
-			}
-		}
-		e.outputManager.UpdateRetry(outputID, retryCount, retryDelay)
-	} else {
-		e.outputManager.UpdateRetry(outputID, 0, types.InitialRetryDelay)
-	}
-
-	// Check if we should retry
-	e.mu.RLock()
-	state := e.state
-	e.mu.RUnlock()
-
-	if state != types.StateRunning {
-		e.outputManager.Remove(outputID)
-		return
-	}
-
-	out := e.config.GetOutput(outputID)
-	if out == nil {
-		e.outputManager.Remove(outputID)
-		return
-	}
-
-	maxRetries := out.GetMaxRetries()
-	if retryCount > maxRetries {
-		slog.Warn("output gave up after retries", "output_id", outputID, "retries", maxRetries)
-		return // Keep in outputProcesses for status reporting
-	}
-
-	slog.Info("output stopped, waiting before retry",
-		"output_id", outputID, "delay", retryDelay, "retry", retryCount, "max_retries", maxRetries)
-	time.Sleep(retryDelay)
-
-	// Abort if output was removed or encoder stopped during wait
-	out = e.config.GetOutput(outputID)
-	if out == nil {
-		slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
-		e.outputManager.Remove(outputID)
-		return
-	}
-
-	e.mu.RLock()
-	state = e.state
-	e.mu.RUnlock()
-	if state != types.StateRunning {
-		e.outputManager.Remove(outputID)
-		return
-	}
-
-	if err := e.StartOutput(outputID); err != nil {
-		slog.Error("failed to restart output", "output_id", outputID, "error", err)
-		e.outputManager.Remove(outputID)
 	}
 }
 
@@ -570,68 +455,6 @@ func (e *Encoder) updateAudioLevels(rmsL, rmsR, peakL, peakR float64, silence bo
 		ClipRight:       clipR,
 	}
 	e.mu.Unlock()
-}
-
-// triggerSilenceWebhook sends a webhook notification for critical silence.
-func (e *Encoder) triggerSilenceWebhook(duration float64) {
-	webhookURL := e.config.GetSilenceWebhook()
-	threshold := e.config.GetSilenceThreshold()
-	util.NotifyResultf(
-		func() error { return notify.SendSilenceWebhook(webhookURL, duration, threshold) },
-		"Silence webhook",
-		webhookURL != "",
-	)
-}
-
-// triggerSilenceEmail sends an email notification for critical silence.
-func (e *Encoder) triggerSilenceEmail(duration float64) {
-	cfg := e.buildEmailConfig()
-	threshold := e.config.GetSilenceThreshold()
-	util.NotifyResultf(
-		func() error { return notify.SendSilenceAlert(cfg, duration, threshold) },
-		"Silence email",
-		cfg.Host != "" && cfg.Recipients != "",
-	)
-}
-
-// triggerRecoveryWebhook sends a webhook notification when audio recovers.
-func (e *Encoder) triggerRecoveryWebhook(silenceDuration float64) {
-	webhookURL := e.config.GetSilenceWebhook()
-	util.NotifyResultf(
-		func() error { return notify.SendRecoveryWebhook(webhookURL, silenceDuration) },
-		"Recovery webhook",
-		webhookURL != "",
-	)
-}
-
-// triggerRecoveryEmail sends an email notification when audio recovers.
-func (e *Encoder) triggerRecoveryEmail(silenceDuration float64) {
-	cfg := e.buildEmailConfig()
-	util.NotifyResultf(
-		func() error { return notify.SendRecoveryAlert(cfg, silenceDuration) },
-		"Recovery email",
-		cfg.Host != "" && cfg.Recipients != "",
-	)
-}
-
-// logSilenceStart logs a silence start event to the configured log file.
-func (e *Encoder) logSilenceStart(duration, threshold float64) {
-	logPath := e.config.GetSilenceLogPath()
-	util.NotifyResultf(
-		func() error { return notify.LogSilenceStart(logPath, duration, threshold) },
-		"Silence log",
-		logPath != "",
-	)
-}
-
-// logSilenceEnd logs a silence end (recovery) event to the configured log file.
-func (e *Encoder) logSilenceEnd(silenceDuration, threshold float64) {
-	logPath := e.config.GetSilenceLogPath()
-	util.NotifyResultf(
-		func() error { return notify.LogSilenceEnd(logPath, silenceDuration, threshold) },
-		"Recovery log",
-		logPath != "",
-	)
 }
 
 // pollUntil signals when the given condition becomes true.

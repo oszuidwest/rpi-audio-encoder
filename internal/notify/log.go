@@ -12,16 +12,16 @@ import (
 type SilenceLogEntry struct {
 	Timestamp   string  `json:"timestamp"`
 	Event       string  `json:"event"`
-	DurationSec float64 `json:"duration_sec"`
+	DurationSec float64 `json:"duration_sec,omitempty"` // Only set for silence_end events
 	ThresholdDB float64 `json:"threshold_db"`
 }
 
 // LogSilenceStart appends a silence start event to the log file.
-func LogSilenceStart(logPath string, duration, threshold float64) error {
+// Duration is not included because we don't know how long silence will last.
+func LogSilenceStart(logPath string, threshold float64) error {
 	return appendLogEntry(logPath, SilenceLogEntry{
 		Timestamp:   util.RFC3339Now(),
 		Event:       "silence_start",
-		DurationSec: duration,
 		ThresholdDB: threshold,
 	})
 }

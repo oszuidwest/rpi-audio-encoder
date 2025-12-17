@@ -602,20 +602,46 @@ document.addEventListener('alpine:init', () => {
         },
 
         /**
+         * Formats duration in human-readable format.
+         * @param {number} seconds - Duration in seconds
+         * @returns {string} Formatted duration (e.g., "1m 6s" or "45s")
+         */
+        formatDuration(seconds) {
+            if (seconds < 60) return `${Math.round(seconds)}s`;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+        },
+
+        /**
          * Formats a silence log entry for display.
+         * For "ended" events, duration is the key metric (total silence time).
+         * For "started" events, duration is just detection delay (not shown).
          * @param {Object} entry - Log entry with timestamp, event, duration_sec, threshold_db
          * @returns {Object} Formatted entry with human-readable values
          */
         formatLogEntry(entry) {
             const date = new Date(entry.timestamp);
+            const isEnd = entry.event === 'silence_end';
+            const isStart = entry.event === 'silence_start';
+            const isTest = entry.event === 'test';
+
+            // For ended events, show duration prominently in the event name
+            let eventText = 'Unknown Event';
+            if (isEnd) {
+                const dur = entry.duration_sec > 0 ? this.formatDuration(entry.duration_sec) : '';
+                eventText = dur ? `Silence Ended · ${dur}` : 'Silence Ended';
+            } else if (isStart) {
+                eventText = 'Silence Detected';
+            } else if (isTest) {
+                eventText = 'Test Entry';
+            }
+
             return {
                 time: date.toLocaleString(),
-                event: entry.event === 'silence_start' ? 'Silence Started' :
-                       entry.event === 'silence_end' ? 'Silence Ended' :
-                       entry.event === 'test' ? 'Test Entry' : entry.event,
-                eventClass: entry.event === 'silence_start' ? 'log-silence' :
-                            entry.event === 'silence_end' ? 'log-recovery' : 'log-test',
-                duration: entry.duration_sec > 0 ? `${entry.duration_sec.toFixed(1)}s` : '-',
+                event: eventText,
+                eventClass: isStart ? 'log-silence' : isEnd ? 'log-recovery' : 'log-test',
+                // Only show threshold, duration is now in the event name for ended events
                 threshold: `${entry.threshold_db.toFixed(0)} dB`
             };
         }
