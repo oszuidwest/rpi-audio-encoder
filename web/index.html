@@ -75,7 +75,7 @@
         </div>
 
         <section class="card">
-            <div class="card-header brand">
+            <div class="card-header card-header--brand">
                 <h2>Audio Source</h2>
                 <span class="badge">Input</span>
             </div>
@@ -165,7 +165,7 @@
              - Red: Failed (shows error)
              - Gray: Encoder not running -->
         <section class="card">
-            <div class="card-header slate">
+            <div class="card-header card-header--slate">
                 <h2>Outputs</h2>
                 <div class="header-actions">
                     <span class="badge" x-text="outputs.length"></span>
@@ -297,7 +297,7 @@
                             <label for="silence-webhook">Webhook URL</label>
                             <input id="silence-webhook" type="url" placeholder="https://hooks.example.com/..." x-model="settings.silenceWebhook" @input="markSettingsDirty()">
                         </div>
-                        <button class="btn secondary btn-test" type="button" @click="sendTest('webhook')" :disabled="testStates.webhook.pending || settingsDirty" x-text="testStates.webhook.text">Test</button>
+                        <button class="btn btn--secondary btn-test" type="button" @click="sendTest('webhook')" :disabled="testStates.webhook.pending || settingsDirty" x-text="testStates.webhook.text">Test</button>
                     </div>
                     <div class="settings-section">
                         <div class="settings-section-header">
@@ -311,8 +311,8 @@
                             <span class="input-hint">Leave empty to disable file logging</span>
                         </div>
                         <div class="btn-group">
-                            <button class="btn secondary btn-test" type="button" @click="sendTest('log')" :disabled="testStates.log.pending || settingsDirty" x-text="testStates.log.text">Test</button>
-                            <button class="btn secondary btn-test" type="button" @click="viewSilenceLog()" :disabled="!settings.silenceLogPath || settingsDirty">View Log</button>
+                            <button class="btn btn--secondary btn-test" type="button" @click="sendTest('log')" :disabled="testStates.log.pending || settingsDirty" x-text="testStates.log.text">Test</button>
+                            <button class="btn btn--secondary btn-test" type="button" @click="viewSilenceLog()" :disabled="!settings.silenceLogPath || settingsDirty">View Log</button>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -345,7 +345,7 @@
                             <input id="email-recipients" type="text" placeholder="admin@example.com, tech@example.com" x-model="settings.email.recipients" @input="markSettingsDirty()">
                             <span class="input-hint">Comma-separated email addresses</span>
                         </div>
-                        <button class="btn secondary btn-test" type="button" @click="sendTest('email')" :disabled="testStates.email.pending || settingsDirty" x-text="testStates.email.text">Test</button>
+                        <button class="btn btn--secondary btn-test" type="button" @click="sendTest('email')" :disabled="testStates.email.pending || settingsDirty" x-text="testStates.email.text">Test</button>
                     </div>
                 </div>
 
@@ -524,7 +524,7 @@
                 </div>
                 <footer class="modal-footer">
                     <span class="log-path" x-show="silenceLogModal.path" x-text="silenceLogModal.path"></span>
-                    <button class="btn secondary" type="button" @click="refreshSilenceLog()" :disabled="silenceLogModal.loading">Refresh</button>
+                    <button class="btn btn--secondary" type="button" @click="refreshSilenceLog()" :disabled="silenceLogModal.loading">Refresh</button>
                 </footer>
             </div>
         </div>

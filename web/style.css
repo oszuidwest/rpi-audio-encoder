@@ -354,7 +354,7 @@ header h1 {
     color: var(--state-color, var(--text-secondary));
 }
 
-/* Uses .status-dot--lg base + currentcolor for pill text matching */
+/* Status indicator dot - uses currentcolor to match pill text */
 #status-dot {
     width: 0.75rem;
     height: 0.75rem;
@@ -387,8 +387,8 @@ header h1 {
     align-items: center;
 }
 
-.card-header.brand { background: var(--header-primary); }
-.card-header.slate { background: var(--header-secondary); }
+.card-header--brand { background: var(--header-primary); }
+.card-header--slate { background: var(--header-secondary); }
 
 .card-header h2 {
     font-size: 1.125rem;
@@ -792,7 +792,7 @@ select {
     gap: 0.75rem;
 }
 
-/* Inherits from .status-dot base class */
+/* Output status indicator dot */
 .output-dot {
     width: 0.5rem;
     height: 0.5rem;
@@ -882,21 +882,21 @@ select {
     transition: background var(--transition-fast);
 }
 
-.btn.primary {
+.btn--primary {
     background: var(--brand);
     color: var(--text-inverse);
 }
 
-.btn.primary:hover {
+.btn--primary:hover {
     background: var(--brand-hover);
 }
 
-.btn.secondary {
+.btn--secondary {
     background: var(--surface-elevated);
     color: var(--text-primary);
 }
 
-.btn.secondary:hover {
+.btn--secondary:hover {
     background: var(--border-default);
 }
 
