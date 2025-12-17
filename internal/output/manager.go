@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -49,7 +49,7 @@ func (m *Manager) Start(output *types.Output, retryCount int, retryDelay time.Du
 
 	args := BuildFFmpegArgs(output)
 
-	log.Printf("Starting output %s: %s:%d", output.ID, output.Host, output.Port)
+	slog.Info("starting output", "output_id", output.ID, "host", output.Host, "port", output.Port)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
@@ -78,7 +78,7 @@ func (m *Manager) Start(output *types.Output, retryCount int, retryDelay time.Du
 	if err := cmd.Start(); err != nil {
 		cancel()
 		if closeErr := stdinPipe.Close(); closeErr != nil {
-			log.Printf("Failed to close stdin pipe: %v", closeErr)
+			slog.Warn("failed to close stdin pipe", "error", closeErr)
 		}
 		delete(m.processes, output.ID)
 		return err
@@ -109,11 +109,11 @@ func (m *Manager) Stop(outputID string) error {
 	proc.stdin = nil
 	m.mu.Unlock()
 
-	log.Printf("Stopping output %s", outputID)
+	slog.Info("stopping output", "output_id", outputID)
 
 	if stdin != nil {
 		if err := stdin.Close(); err != nil {
-			log.Printf("Failed to close stdin: %v", err)
+			slog.Warn("failed to close stdin", "error", err)
 		}
 	}
 
@@ -145,7 +145,7 @@ func (m *Manager) StopAll() {
 
 	for _, id := range ids {
 		if err := m.Stop(id); err != nil {
-			log.Printf("Failed to stop output %s: %v", id, err)
+			slog.Error("failed to stop output", "output_id", id, "error", err)
 		}
 	}
 }
@@ -161,11 +161,11 @@ func (m *Manager) WriteAudio(outputID string, data []byte) error {
 	}
 
 	if _, err := proc.stdin.Write(data); err != nil {
-		log.Printf("Output write failed, marking as stopped: %v", err)
+		slog.Warn("output write failed, marking as stopped", "error", err)
 		proc.running = false
 		if proc.stdin != nil {
 			if closeErr := proc.stdin.Close(); closeErr != nil {
-				log.Printf("Failed to close stdin: %v", closeErr)
+				slog.Warn("failed to close stdin", "error", closeErr)
 			}
 			proc.stdin = nil
 		}

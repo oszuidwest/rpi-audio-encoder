@@ -3,6 +3,7 @@ package output
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 )
@@ -23,10 +24,17 @@ func BuildFFmpegArgs(output *types.Output) []string {
 	return args
 }
 
-// BuildSRTURL constructs the SRT URL for an output.
+// BuildSRTURL constructs the SRT URL for an output with properly encoded parameters.
 func BuildSRTURL(output *types.Output) string {
-	return fmt.Sprintf(
-		"srt://%s:%d?pkt_size=1316&oheadbw=100&maxbw=-1&latency=10000000&mode=caller&transtype=live&streamid=%s&passphrase=%s",
-		output.Host, output.Port, output.StreamID, output.Password,
-	)
+	params := url.Values{}
+	params.Set("pkt_size", "1316")
+	params.Set("oheadbw", "100")
+	params.Set("maxbw", "-1")
+	params.Set("latency", "10000000")
+	params.Set("mode", "caller")
+	params.Set("transtype", "live")
+	params.Set("streamid", output.StreamID)
+	params.Set("passphrase", output.Password)
+
+	return fmt.Sprintf("srt://%s:%d?%s", output.Host, output.Port, params.Encode())
 }

@@ -1,3 +1,6 @@
+// Package encoder provides the audio capture and encoding engine.
+// It manages real-time PCM audio distribution to multiple FFmpeg output
+// processes, with automatic retry, silence detection, and level metering.
 package encoder
 
 import (
@@ -5,7 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -22,7 +25,10 @@ import (
 // LevelUpdateSamples is the number of samples before updating audio levels (~250ms).
 const LevelUpdateSamples = 12000
 
-// Encoder manages audio capture and multiple output encoding processes.
+// Encoder orchestrates audio capture from a platform-specific source (arecord
+// on Linux, FFmpeg on macOS) and distributes PCM audio to multiple output
+// FFmpeg processes. It handles automatic retry with exponential backoff,
+// calculates real-time audio levels, and detects silence conditions.
 type Encoder struct {
 	config        *config.Config
 	outputManager *output.Manager
@@ -148,7 +154,7 @@ func (e *Encoder) Stop() error {
 	// Send SIGINT to source for graceful shutdown
 	if sourceProcess != nil && sourceProcess.Process != nil {
 		if err := sourceProcess.Process.Signal(syscall.SIGINT); err != nil {
-			log.Printf("Failed to send SIGINT to source: %v", err)
+			slog.Warn("failed to send SIGINT to source", "error", err)
 		}
 	}
 
@@ -161,9 +167,9 @@ func (e *Encoder) Stop() error {
 
 	select {
 	case <-stopped:
-		log.Printf("Source capture stopped gracefully")
+		slog.Info("source capture stopped gracefully")
 	case <-time.After(types.ShutdownTimeout):
-		log.Printf("Source capture did not stop in time, forcing kill")
+		slog.Warn("source capture did not stop in time, forcing kill")
 		if sourceCancel != nil {
 			sourceCancel()
 		}
@@ -270,7 +276,7 @@ func (e *Encoder) runSourceLoop() {
 				errMsg = stderrOutput
 			}
 			e.lastError = errMsg
-			log.Printf("Source capture error: %s", errMsg)
+			slog.Error("source capture error", "error", errMsg)
 
 			if runDuration >= types.SuccessThreshold {
 				e.retryCount = 0
@@ -280,7 +286,7 @@ func (e *Encoder) runSourceLoop() {
 			}
 
 			if e.retryCount >= types.MaxRetries {
-				log.Printf("Source capture failed %d times, giving up", types.MaxRetries)
+				slog.Error("source capture failed, giving up", "attempts", types.MaxRetries)
 				e.state = types.StateStopped
 				e.lastError = fmt.Sprintf("Stopped after %d failed attempts: %s", types.MaxRetries, errMsg)
 				e.mu.Unlock()
@@ -301,8 +307,8 @@ func (e *Encoder) runSourceLoop() {
 		retryDelay := e.retryDelay
 		e.mu.Unlock()
 
-		log.Printf("Source stopped, waiting %v before restart (attempt %d/%d)...",
-			retryDelay, e.retryCount+1, types.MaxRetries)
+		slog.Info("source stopped, waiting before restart",
+			"delay", retryDelay, "attempt", e.retryCount+1, "max_retries", types.MaxRetries)
 		select {
 		case <-e.stopChan:
 			return
@@ -321,7 +327,7 @@ func (e *Encoder) runSourceLoop() {
 func (e *Encoder) runSource() (string, error) {
 	cmdName, args := GetSourceCommand(e.config.GetAudioInput())
 
-	log.Printf("Starting audio capture: %s %s", cmdName, e.config.GetAudioInput())
+	slog.Info("starting audio capture", "command", cmdName, "input", e.config.GetAudioInput())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, cmdName, args...)
@@ -372,7 +378,7 @@ func (e *Encoder) startEnabledOutputs() {
 
 	for _, out := range e.config.GetOutputs() {
 		if err := e.StartOutput(out.ID); err != nil {
-			log.Printf("Failed to start output %s: %v", out.ID, err)
+			slog.Error("failed to start output", "output_id", out.ID, "error", err)
 		}
 	}
 }
@@ -484,7 +490,7 @@ func (e *Encoder) monitorOutput(outputID string) {
 			errMsg = err.Error()
 		}
 		e.outputManager.SetError(outputID, errMsg)
-		log.Printf("Output %s error: %s", outputID, errMsg)
+		slog.Error("output error", "output_id", outputID, "error", errMsg)
 
 		if runDuration >= types.SuccessThreshold {
 			retryCount = 0
@@ -519,18 +525,18 @@ func (e *Encoder) monitorOutput(outputID string) {
 
 	maxRetries := out.GetMaxRetries()
 	if retryCount > maxRetries {
-		log.Printf("Output %s gave up after %d retries", outputID, maxRetries)
+		slog.Warn("output gave up after retries", "output_id", outputID, "retries", maxRetries)
 		return // Keep in outputProcesses for status reporting
 	}
 
-	log.Printf("Output %s stopped, waiting %v before retry %d/%d...",
-		outputID, retryDelay, retryCount, maxRetries)
+	slog.Info("output stopped, waiting before retry",
+		"output_id", outputID, "delay", retryDelay, "retry", retryCount, "max_retries", maxRetries)
 	time.Sleep(retryDelay)
 
 	// Abort if output was removed or encoder stopped during wait
 	out = e.config.GetOutput(outputID)
 	if out == nil {
-		log.Printf("Output %s was removed during retry wait, not restarting", outputID)
+		slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
 		e.outputManager.Remove(outputID)
 		return
 	}
@@ -544,7 +550,7 @@ func (e *Encoder) monitorOutput(outputID string) {
 	}
 
 	if err := e.StartOutput(outputID); err != nil {
-		log.Printf("Failed to restart output %s: %v", outputID, err)
+		slog.Error("failed to restart output", "output_id", outputID, "error", err)
 		e.outputManager.Remove(outputID)
 	}
 }
@@ -574,7 +580,6 @@ func (e *Encoder) triggerSilenceWebhook(duration float64) {
 		func() error { return notify.SendSilenceWebhook(webhookURL, duration, threshold) },
 		"Silence webhook",
 		webhookURL != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -586,7 +591,6 @@ func (e *Encoder) triggerSilenceEmail(duration float64) {
 		func() error { return notify.SendSilenceAlert(cfg, duration, threshold) },
 		"Silence email",
 		cfg.Host != "" && cfg.Recipients != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -597,7 +601,6 @@ func (e *Encoder) triggerRecoveryWebhook(silenceDuration float64) {
 		func() error { return notify.SendRecoveryWebhook(webhookURL, silenceDuration) },
 		"Recovery webhook",
 		webhookURL != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 
@@ -608,7 +611,6 @@ func (e *Encoder) triggerRecoveryEmail(silenceDuration float64) {
 		func() error { return notify.SendRecoveryAlert(cfg, silenceDuration) },
 		"Recovery email",
 		cfg.Host != "" && cfg.Recipients != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 
@@ -619,7 +621,6 @@ func (e *Encoder) logSilenceStart(duration, threshold float64) {
 		func() error { return notify.LogSilenceStart(logPath, duration, threshold) },
 		"Silence log",
 		logPath != "",
-		"(duration: %.1fs)", duration,
 	)
 }
 
@@ -630,7 +631,6 @@ func (e *Encoder) logSilenceEnd(silenceDuration, threshold float64) {
 		func() error { return notify.LogSilenceEnd(logPath, silenceDuration, threshold) },
 		"Recovery log",
 		logPath != "",
-		"(was silent for: %.1fs)", silenceDuration,
 	)
 }
 

@@ -1,14 +1,13 @@
 package server
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gorilla/websocket"
 )
 
-// upgrader configures the WebSocket upgrader with origin validation for same-origin and local network connections.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
@@ -28,7 +27,7 @@ var upgrader = websocket.Upgrader{
 		if strings.Contains(origin, "192.168.") || strings.Contains(origin, "10.") {
 			return true
 		}
-		log.Printf("Rejected WebSocket connection from origin: %s", origin)
+		slog.Warn("rejected WebSocket connection", "origin", origin)
 		return false
 	},
 }

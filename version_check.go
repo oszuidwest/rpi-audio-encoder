@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -181,39 +181,20 @@ func normalizeVersion(v string) string {
 	return strings.TrimPrefix(strings.TrimSpace(v), "v")
 }
 
-// isNewerVersion returns true if latest is newer than current using semver comparison.
-func isNewerVersion(latest, current string) bool {
-	latestParts := parseVersion(latest)
-	currentParts := parseVersion(current)
-
-	for i := 0; i < 3; i++ {
-		if latestParts[i] > currentParts[i] {
-			return true
-		}
-		if latestParts[i] < currentParts[i] {
-			return false
-		}
+// canonicalVersion ensures a version string is in semver canonical form (v prefix).
+func canonicalVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
 	}
-	return false
+	return v
 }
 
-// parseVersion extracts major, minor, patch from a version string like "1.2.3" or "1.2.3-beta".
-func parseVersion(v string) [3]int {
-	v = normalizeVersion(v)
+// isNewerVersion returns true if latest is newer than current using semver comparison.
+func isNewerVersion(latest, current string) bool {
+	latestCanon := canonicalVersion(latest)
+	currentCanon := canonicalVersion(current)
 
-	// Remove pre-release suffix (-beta, -rc1, +build)
-	if idx := strings.IndexAny(v, "-+"); idx != -1 {
-		v = v[:idx]
-	}
-
-	parts := strings.Split(v, ".")
-	var result [3]int
-
-	for i := 0; i < 3 && i < len(parts); i++ {
-		if n, err := strconv.Atoi(parts[i]); err == nil {
-			result[i] = n
-		}
-	}
-
-	return result
+	// semver.Compare returns 1 if latestCanon > currentCanon
+	return semver.Compare(latestCanon, currentCanon) > 0
 }

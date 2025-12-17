@@ -53,7 +53,7 @@ func WriteTestLog(logPath string) error {
 // appendLogEntry appends a JSON log entry to the file.
 func appendLogEntry(logPath string, entry SilenceLogEntry) error {
 	if !util.IsConfigured(logPath) {
-		return nil // Silently skip if not configured
+		return nil
 	}
 
 	jsonData, err := json.Marshal(entry)

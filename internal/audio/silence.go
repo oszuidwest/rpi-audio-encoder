@@ -52,7 +52,7 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 
 	if audioIsSilent {
 		// Audio is currently below threshold
-		d.recoveryStart = time.Time{} // reset recovery timer
+		d.recoveryStart = time.Time{}
 
 		if d.silenceStart.IsZero() {
 			d.silenceStart = now
@@ -86,7 +86,7 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 		// If not yet at duration threshold, state remains default (not in silence)
 	} else {
 		// Audio is above threshold
-		d.silenceStart = time.Time{} // reset silence timer
+		d.silenceStart = time.Time{}
 
 		if d.inSilence {
 			// Was in silence, now have audio - check recovery

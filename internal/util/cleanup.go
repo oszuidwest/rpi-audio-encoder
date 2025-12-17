@@ -3,7 +3,7 @@ package util
 
 import (
 	"io"
-	"log"
+	"log/slog"
 )
 
 // SafeClose closes an io.Closer and logs any error that occurs.
@@ -13,7 +13,7 @@ func SafeClose(closer io.Closer, name string) {
 		return
 	}
 	if err := closer.Close(); err != nil {
-		log.Printf("Failed to close %s: %v", name, err)
+		slog.Warn("failed to close resource", "resource", name, "error", err)
 	}
 }
 
