@@ -2,11 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
+	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
@@ -58,6 +61,8 @@ func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStat
 		h.handleUpdateSettings(cmd)
 	case "test_webhook", "test_log", "test_email":
 		h.handleTest(conn, cmd.Type)
+	case "view_silence_log":
+		h.handleViewSilenceLog(conn)
 	default:
 		slog.Warn("unknown WebSocket command type", "type", cmd.Type)
 	}
@@ -268,4 +273,79 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 			slog.Error("failed to send test response", "command", testCmd, "error", wsErr)
 		}
 	}()
+}
+
+// handleViewSilenceLog reads and returns the silence log file contents.
+func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
+	go func() {
+		result := map[string]interface{}{
+			"type":    "silence_log_result",
+			"success": true,
+		}
+
+		logPath := h.cfg.GetSilenceLogPath()
+		if logPath == "" {
+			result["success"] = false
+			result["error"] = "Log file path not configured"
+			if wsErr := conn.WriteJSON(result); wsErr != nil {
+				slog.Error("failed to send silence log response", "error", wsErr)
+			}
+			return
+		}
+
+		entries, err := readSilenceLog(logPath, 100)
+		if err != nil {
+			result["success"] = false
+			result["error"] = err.Error()
+		} else {
+			result["entries"] = entries
+			result["path"] = logPath
+		}
+
+		if wsErr := conn.WriteJSON(result); wsErr != nil {
+			slog.Error("failed to send silence log response", "error", wsErr)
+		}
+	}()
+}
+
+// readSilenceLog reads the last N entries from the silence log file.
+func readSilenceLog(logPath string, maxEntries int) ([]notify.SilenceLogEntry, error) {
+	data, err := os.ReadFile(logPath)
+	if os.IsNotExist(err) {
+		return []notify.SilenceLogEntry{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read log file: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return []notify.SilenceLogEntry{}, nil
+	}
+
+	// Take last N lines (most recent entries)
+	start := 0
+	if len(lines) > maxEntries {
+		start = len(lines) - maxEntries
+	}
+	lines = lines[start:]
+
+	entries := make([]notify.SilenceLogEntry, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		var entry notify.SilenceLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue // Skip malformed entries
+		}
+		entries = append(entries, entry)
+	}
+
+	// Reverse to show newest first
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
+	}
+
+	return entries, nil
 }

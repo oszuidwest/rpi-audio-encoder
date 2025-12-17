@@ -142,6 +142,53 @@
 .icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
 .icon-md { width: var(--icon-md); height: var(--icon-md); }
 
+/* Icon Container - handles span > svg pattern from icons.js
+   Apply to parent element, sets size on both span and nested svg
+   Usage: class="icon-container" or use component-specific overrides */
+.icon-container,
+.icon-container svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+.icon-container svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Text utilities */
+.text-mono {
+    font-family: var(--font-mono);
+}
+
+.text-mono-sm {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+/* List Item - Base pattern for bordered list items
+   Used by: .output-item, .log-entry
+   Provides: border separator, last-child cleanup, optional hover */
+.list-item {
+    border-bottom: 1px solid var(--border-default);
+}
+
+.list-item:last-child {
+    border-bottom: none;
+}
+
+.list-item--hover:hover {
+    background: var(--surface-elevated);
+}
+
+/* Disabled state - applies to buttons and interactive elements */
+.btn:disabled,
+.btn-test:disabled,
+.nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
 /* =============================================================================
    State System - Unified colors for all state indicators
@@ -151,6 +198,36 @@
 .state-warning { --state-color: var(--warning); --state-bg: var(--warning-bg); }
 .state-danger { --state-color: var(--danger); --state-bg: var(--danger-bg); }
 .state-stopped { --state-color: var(--stopped); --state-bg: var(--stopped-bg); }
+
+/* Status Dot - Base class for all circular status indicators
+   Sizes: sm (0.375rem), md (0.5rem), lg (0.75rem) */
+.status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--state-color, var(--stopped));
+}
+
+.status-dot--sm { width: 0.375rem; height: 0.375rem; }
+.status-dot--lg { width: 0.75rem; height: 0.75rem; }
+
+/* Empty State - Base class for loading/error/empty content
+   Usage: Apply to container, optionally add .empty-state--error for danger color */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.empty-state--padded { padding: 3rem 1rem; }
+.empty-state--error { color: var(--danger); }
 
 /* =============================================================================
    Animations - Reusable keyframes with CSS variable customization
@@ -256,10 +333,7 @@ body {
     color: var(--danger);
 }
 
-.icon-btn--delete svg {
-    width: 1rem;
-    height: 1rem;
-}
+/* Icon sizing handled by .icon-container utility */
 
 /* =============================================================================
    Header
@@ -302,6 +376,7 @@ header h1 {
     color: var(--state-color, var(--text-secondary));
 }
 
+/* Uses .status-dot--lg base + currentcolor for pill text matching */
 #status-dot {
     width: 0.75rem;
     height: 0.75rem;
@@ -660,11 +735,10 @@ select {
     margin-top: 1rem;
 }
 
-.alert-box svg {
-    width: 1rem;
-    height: 1rem;
+/* Alert icon - uses .icon-container base, adds color + positioning */
+.alert-box > span,
+.alert-box > svg {
     color: var(--warning);
-    flex-shrink: 0;
     margin-top: 0.125rem;
 }
 
@@ -699,11 +773,7 @@ select {
     font-size: 0.875rem;
 }
 
-.upgrade-banner svg {
-    width: 1rem;
-    height: 1rem;
-    flex-shrink: 0;
-}
+/* Icon uses .icon-container base */
 
 .upgrade-banner a {
     margin-left: auto;
@@ -728,13 +798,9 @@ select {
     color: var(--text-muted);
 }
 
+/* Extends .list-item base */
 .output-item {
     padding: 0.75rem 0;
-    border-bottom: 1px solid var(--border-default);
-}
-
-.output-item:last-child {
-    border-bottom: none;
 }
 
 .output-item.deleting {
@@ -748,6 +814,7 @@ select {
     gap: 0.75rem;
 }
 
+/* Inherits from .status-dot base class */
 .output-dot {
     width: 0.5rem;
     height: 0.5rem;
@@ -825,10 +892,7 @@ select {
     background: rgb(255 255 255 / 30%);
 }
 
-.btn-add svg {
-    width: 1rem;
-    height: 1rem;
-}
+/* Icon uses .icon-container base */
 
 .btn {
     padding: 1rem;
@@ -865,10 +929,7 @@ select {
     margin-top: 0.75rem;
 }
 
-.btn-test:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+/* Disabled state handled by utility */
 
 /* Form Actions */
 .form-actions {
@@ -916,10 +977,7 @@ footer a:hover {
     color: var(--text-primary);
 }
 
-footer svg {
-    width: 1rem;
-    height: 1rem;
-}
+/* Icon uses .icon-container base */
 
 footer .sep {
     color: var(--border-default);
@@ -1003,37 +1061,14 @@ footer .sep {
     color: var(--text-inverse);
 }
 
+/* Disabled state uses utility, just override colors */
 .nav-btn--save:disabled {
     background: var(--surface-elevated);
     border-color: var(--border-default);
     color: var(--text-muted);
-    cursor: not-allowed;
 }
 
-.settings-back {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--surface-elevated);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.settings-back:hover {
-    background: var(--border-default);
-    color: var(--text-primary);
-}
-
-.settings-back svg {
-    width: 1rem;
-    height: 1rem;
-}
+/* .settings-back removed - use .nav-btn instead */
 
 /* Settings Tabs - Segmented Control */
 .settings-tabs {
@@ -1263,10 +1298,7 @@ footer .sep {
     color: var(--text-primary);
 }
 
-.about-links svg {
-    width: 1rem;
-    height: 1rem;
-}
+/* Icon uses .icon-container base */
 
 .license-text {
     font-size: 0.75rem;
@@ -1285,5 +1317,233 @@ footer .sep {
 .license-text strong {
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+/* =============================================================================
+   Button Group
+   ============================================================================= */
+
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-group .btn-test {
+    flex: 1;
+}
+
+/* =============================================================================
+   Log Viewer Modal - Matches existing UI patterns
+   ============================================================================= */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 40%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 100;
+    animation: fadeIn var(--transition-precise);
+}
+
+.modal-content {
+    background: var(--surface-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md), 0 0 0 1px var(--border-default);
+    width: 100%;
+    max-width: min(92vw, 26rem);
+    max-height: min(85vh, 32rem);
+    display: flex;
+    flex-direction: column;
+    animation: modalEnter 0.2s ease;
+    overflow: hidden;
+}
+
+@keyframes modalEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--header-secondary);
+    color: var(--text-inverse);
+}
+
+.modal-header h2 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.icon-btn--close {
+    width: 1.75rem;
+    height: 1.75rem;
+    background: rgb(255 255 255 / 15%);
+    color: var(--text-inverse);
+}
+
+.icon-btn--close:hover {
+    background: rgb(255 255 255 / 25%);
+}
+
+.modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--surface-elevated);
+    border-top: 1px solid var(--border-default);
+    gap: 0.75rem;
+}
+
+.log-path {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* =============================================================================
+   Log Entries - Matches output-item pattern
+   ============================================================================= */
+
+/* Log states extend .empty-state base class */
+.log-loading,
+.log-error,
+.log-empty {
+    padding: 3rem 1rem; /* Override base padding */
+}
+
+.log-loading::before {
+    content: '';
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.log-error svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.log-entries {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Extends .list-item and .list-item--hover base */
+.log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    transition: background var(--transition-fast);
+}
+
+/* Status dot - matches output-dot pattern */
+.log-entry::before {
+    content: '';
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 0.375rem;
+}
+
+.log-entry.log-silence::before {
+    background: var(--warning);
+}
+
+.log-entry.log-recovery::before {
+    background: var(--success);
+}
+
+.log-entry-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.log-event {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.125rem;
+}
+
+.log-entry.log-silence .log-event {
+    color: var(--warning-text);
+}
+
+.dark .log-entry.log-silence .log-event {
+    color: var(--warning);
+}
+
+.log-entry.log-recovery .log-event {
+    color: var(--success);
+}
+
+.log-entry-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.log-entry-details strong {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.log-time {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+/* Responsive - stack on small screens */
+@media (max-width: 400px) {
+    .log-entry {
+        flex-wrap: wrap;
+    }
+
+    .log-time {
+        width: 100%;
+        margin-top: 0.375rem;
+        padding-left: 1.25rem;
+    }
 }
 

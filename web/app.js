@@ -161,6 +161,15 @@ document.addEventListener('alpine:init', () => {
             email: { pending: false, text: 'Test' }
         },
 
+        // Silence log modal state
+        silenceLogModal: {
+            visible: false,
+            loading: false,
+            entries: [],
+            path: '',
+            error: ''
+        },
+
         // WebSocket
         ws: null,
 
@@ -220,6 +229,8 @@ document.addEventListener('alpine:init', () => {
                     this.handleStatus(msg);
                 } else if (msg.type === 'test_result') {
                     this.handleTestResult(msg);
+                } else if (msg.type === 'silence_log_result') {
+                    this.handleSilenceLogResult(msg);
                 }
             };
 
@@ -543,6 +554,70 @@ document.addEventListener('alpine:init', () => {
             this.testStates[type].pending = true;
             this.testStates[type].text = 'Testing...';
             this.send(`test_${type}`, null, null);
+        },
+
+        // Silence Log Modal
+        /**
+         * Handles silence log view result from backend.
+         * Updates modal state with log entries or error message.
+         *
+         * @param {Object} msg - Result with success, entries[], path, error
+         */
+        handleSilenceLogResult(msg) {
+            this.silenceLogModal.loading = false;
+            if (msg.success) {
+                this.silenceLogModal.entries = msg.entries || [];
+                this.silenceLogModal.path = msg.path || '';
+                this.silenceLogModal.error = '';
+            } else {
+                this.silenceLogModal.entries = [];
+                this.silenceLogModal.error = msg.error || 'Unknown error';
+            }
+        },
+
+        /**
+         * Opens the silence log modal and fetches log entries.
+         */
+        viewSilenceLog() {
+            this.silenceLogModal.visible = true;
+            this.silenceLogModal.loading = true;
+            this.silenceLogModal.entries = [];
+            this.silenceLogModal.error = '';
+            this.send('view_silence_log', null, null);
+        },
+
+        /**
+         * Closes the silence log modal.
+         */
+        closeSilenceLog() {
+            this.silenceLogModal.visible = false;
+        },
+
+        /**
+         * Refreshes the silence log entries.
+         */
+        refreshSilenceLog() {
+            this.silenceLogModal.loading = true;
+            this.send('view_silence_log', null, null);
+        },
+
+        /**
+         * Formats a silence log entry for display.
+         * @param {Object} entry - Log entry with timestamp, event, duration_sec, threshold_db
+         * @returns {Object} Formatted entry with human-readable values
+         */
+        formatLogEntry(entry) {
+            const date = new Date(entry.timestamp);
+            return {
+                time: date.toLocaleString(),
+                event: entry.event === 'silence_start' ? 'Silence Started' :
+                       entry.event === 'silence_end' ? 'Silence Ended' :
+                       entry.event === 'test' ? 'Test Entry' : entry.event,
+                eventClass: entry.event === 'silence_start' ? 'log-silence' :
+                            entry.event === 'silence_end' ? 'log-recovery' : 'log-test',
+                duration: entry.duration_sec > 0 ? `${entry.duration_sec.toFixed(1)}s` : '-',
+                threshold: `${entry.threshold_db.toFixed(0)} dB`
+            };
         }
     }));
 });
