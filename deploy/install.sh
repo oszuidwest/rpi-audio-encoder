@@ -205,7 +205,7 @@ fi
 # Set up heartbeat monitoring if enabled
 if [ "$ENABLE_HEARTBEAT" == "y" ]; then
   echo -e "${BLUE}►► Setting up heartbeat monitoring...${NC}"
-  HEARTBEAT_CRONJOB="* * * * * wget --spider '$HEARTBEAT_URL' > /dev/null 2>&1"
+  HEARTBEAT_CRONJOB="* * * * * curl -fsS --max-time 10 -o /dev/null '$HEARTBEAT_URL' > /dev/null 2>&1"
   if ! crontab -l 2>/dev/null | grep -F -- "$HEARTBEAT_URL" > /dev/null; then
     (crontab -l 2>/dev/null; echo "$HEARTBEAT_CRONJOB") | crontab -
     echo -e "${GREEN}✓ Heartbeat monitoring configured${NC}"
