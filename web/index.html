@@ -44,6 +44,17 @@
         if (mq.matches) document.documentElement.classList.add('dark');
         mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
     </script>
+
+    <!-- Alert banner - page-wide header for silence/update notifications -->
+    <div class="alert-banner"
+         x-show="banner.visible"
+         x-transition:enter.duration.200ms
+         x-transition:leave.duration.150ms
+         :class="'alert-banner--' + banner.type"
+         x-cloak>
+        <span class="alert-banner__message" x-text="banner.message"></span>
+    </div>
+
     <main class="container">
         <!-- === Dashboard View ===
              Main monitoring interface showing:
@@ -53,22 +64,22 @@
              - Source status alerts
              - Output list with individual status indicators -->
         <div id="dashboard-view" x-show="view === 'dashboard'" x-transition:enter.duration.200ms>
-            <header>
-                <h1>ZuidWest FM Encoder</h1>
+            <header class="header">
+                <h1 class="header__title">ZuidWest FM Encoder</h1>
                 <div class="header__controls">
-                    <button class="icon-btn icon-btn--settings" id="settings-btn" type="button" title="Settings" @click="showSettings()">
+                    <button class="icon-btn icon-btn--settings" type="button" title="Open settings" @click="showSettings()">
                         <span x-html="icons.settings"></span>
                     </button>
                     <!-- Status pill - shows encoder state with animated indicator
                          States: running (green pulse), stopped (gray), connecting (yellow pulse), starting -->
-                    <div id="status-pill" :class="statusPillClass">
-                        <span id="status-dot" :class="{ 'animate-pulse': encoder.state === 'running' || encoder.state === 'starting' }"></span>
-                        <span id="status-text" x-text="encoder.state.charAt(0).toUpperCase() + encoder.state.slice(1)"></span>
+                    <div class="status-pill" :class="statusPillClass">
+                        <span class="status-pill__dot" :class="{ 'animate-pulse': encoder.state === 'running' || encoder.state === 'starting' }"></span>
+                        <span class="status-pill__text" x-text="encoder.state.charAt(0).toUpperCase() + encoder.state.slice(1)"></span>
                     </div>
                 </div>
             </header>
 
-            <div class="banner" id="upgrade-banner" x-show="version.updateAvail && version.latest" x-cloak>
+            <div class="banner" x-show="version.updateAvail && version.latest" x-cloak>
             <span class="icon-container" x-html="icons.cloud"></span>
             <span>Update available: <strong x-text="version.latest"></strong></span>
             <a rel="noopener" href="https://github.com/oszuidwest/zwfm-encoder/releases" title="View release on GitHub" target="_blank">View release</a>
@@ -100,16 +111,16 @@
                      - Two channels (L/R): Gradient bar with peak hold marker
                      - Scale: Reference marks at -60, -48, -24, -12, -6, 0 dB
                      Updates ~4 times per second -->
-                <div id="vu-meter">
+                <div class="vu-meter">
                     <div class="vu__header">
-                        <button class="vu__mode-btn" id="vu-mode-toggle" type="button" @click="toggleVuMode()" x-text="vuMode === 'peak' ? 'Peak' : 'RMS'"></button>
+                        <button class="vu__mode-btn" type="button" @click="toggleVuMode()" x-text="vuMode === 'peak' ? 'Peak' : 'RMS'"></button>
                         <!-- Status indicators - visual feedback for audio state
                              TODO: Add aria-label for screen reader accessibility
                              Silence: Yellow dot when audio below threshold
                              Clip: Red flash when audio exceeds 0dB -->
                         <div class="vu__indicators">
-                            <span class="vu__indicator" id="silence-alert"><span class="vu__indicator-dot silence" :class="levels.silence_level"></span>Silence</span>
-                            <span class="vu__indicator" id="clip-alert"><span class="vu__indicator-dot clip" :class="{ active: clipActive }"></span>Clip</span>
+                            <span class="vu__indicator"><span class="vu__indicator-dot silence" :class="getSilenceClass()"></span>Silence</span>
+                            <span class="vu__indicator"><span class="vu__indicator-dot clip" :class="{ active: clipActive }"></span>Clip</span>
                         </div>
                     </div>
                     <template x-for="ch in vuChannels" :key="ch.label">
@@ -124,12 +135,12 @@
                         </div>
                     </template>
                     <div class="vu__scale">
-                        <span class="mark-60">-60</span>
-                        <span class="mark-48">-48</span>
-                        <span class="mark-24">-24</span>
-                        <span class="mark-12">-12</span>
-                        <span class="mark-6">-6</span>
-                        <span class="mark-0">0</span>
+                        <span class="vu__mark--60">-60</span>
+                        <span class="vu__mark--48">-48</span>
+                        <span class="vu__mark--24">-24</span>
+                        <span class="vu__mark--12">-12</span>
+                        <span class="vu__mark--6">-6</span>
+                        <span class="vu__mark--0">0</span>
                     </div>
                 </div>
 
@@ -139,7 +150,7 @@
                      - Source process not running
                      - Last error from source capture
                      Displays retry counter when encoder is attempting recovery -->
-                <div class="alert" id="source-status" x-show="hasSourceIssue" x-cloak>
+                <div class="alert" x-show="hasSourceIssue" x-cloak>
                     <span class="icon-container" x-html="icons.warning"></span>
                     <div>
                         <span x-text="encoder.sourceRetryCount > 0 ? `Retry ${encoder.sourceRetryCount}/${encoder.sourceMaxRetries}` : 'Error'"></span>
@@ -176,10 +187,10 @@
                 </div>
             </div>
             <div class="card__body">
-                <div id="outputs-list">
+                <div class="outputs-list">
                     <template x-for="output in outputs" :key="output.id">
                         <div class="list-item output__item" :class="{ 'output__item--deleting': deletingOutputs[output.id] === output.created_at }">
-                            <div class="output__row">
+                            <div class="output__row" :data-output-id="output.id">
                                 <span class="output__dot" :class="getOutputStateClass(output)"></span>
                                 <span class="output__host" x-text="`${output.host}:${output.port}`"></span>
                                 <button class="icon-btn icon-btn--delete" type="button" title="Delete"
@@ -200,16 +211,16 @@
             </div>
         </section>
 
-            <footer>
-                <div>
+            <footer class="footer">
+                <div class="footer__links">
                     <a rel="noopener" href="https://github.com/oszuidwest/zwfm-encoder" title="View source on GitHub" target="_blank">
                         <span class="icon-container" x-html="icons.github"></span>
                         GitHub
                     </a>
-                    <span class="sep">|</span>
-                    <span>Version <span id="version">{{VERSION}}</span></span>
+                    <span class="footer__sep">|</span>
+                    <span>Version <span class="footer__version">{{VERSION}}</span></span>
                 </div>
-                <div class="copyright">© {{YEAR}} Streekomroep ZuidWest • MIT License</div>
+                <div class="footer__copyright">© {{YEAR}} Streekomroep ZuidWest • MIT License</div>
             </footer>
         </div>
 
@@ -222,7 +233,7 @@
              - Cancel restores original values, Save persists all changes
              - Test buttons disabled when unsaved changes exist
              - Settings not overwritten by status updates while editing -->
-        <div id="settings-view" x-show="view === 'settings'" x-transition:enter.duration.200ms x-cloak>
+        <div id="settings-view" class="settings-view" x-show="view === 'settings'" x-transition:enter.duration.200ms x-cloak>
             <header class="modal__nav">
                 <button class="nav-btn" type="button" @click="cancelSettings()">Cancel</button>
                 <h1>Settings</h1>
@@ -255,7 +266,7 @@
                         <p class="settings__section-desc">Alert when audio drops below threshold for extended periods.</p>
                         <div class="form__group">
                             <label for="silence-threshold">Threshold</label>
-                            <div class="input--with-unit">
+                            <div class="input__group">
                                 <input id="silence-threshold" type="number" max="0" min="-60" step="1" x-model.number="settings.silenceThreshold" @input="markSettingsDirty()">
                                 <span class="input__unit">dB</span>
                             </div>
@@ -264,14 +275,14 @@
                         <div class="form__row">
                             <div class="form__group">
                                 <label for="silence-duration">Alert after</label>
-                                <div class="input--with-unit">
+                                <div class="input__group">
                                     <input id="silence-duration" type="number" max="300" min="1" step="1" x-model.number="settings.silenceDuration" @input="markSettingsDirty()">
                                     <span class="input__unit">sec</span>
                                 </div>
                             </div>
                             <div class="form__group">
                                 <label for="silence-recovery">Recover after</label>
-                                <div class="input--with-unit">
+                                <div class="input__group">
                                     <input id="silence-recovery" type="number" max="60" min="1" step="1" x-model.number="settings.silenceRecovery" @input="markSettingsDirty()">
                                     <span class="input__unit">sec</span>
                                 </div>
@@ -403,12 +414,25 @@
                             <span x-html="icons.license"></span>
                             <h3>License</h3>
                         </div>
-                        <div class="license__text">
+                        <div class="about__text">
                             <p><strong>MIT License</strong></p>
                             <p>Copyright (c) {{YEAR}} Streekomroep ZuidWest</p>
                             <p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
                             <p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
                             <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+                        </div>
+                    </div>
+                    <div class="settings__section">
+                        <div class="settings__section-header">
+                            <span x-html="icons.heart"></span>
+                            <h3>Acknowledgements</h3>
+                        </div>
+                        <p class="settings__section-desc">This project is built with the following open source software:</p>
+                        <div class="about__text">
+                            <p><a href="https://alpinejs.dev" target="_blank" rel="noopener" title="Visit Alpine.js website"><strong>Alpine.js</strong></a> — MIT License<br>Lightweight JavaScript framework for reactive UI</p>
+                            <p><a href="https://heroicons.com" target="_blank" rel="noopener" title="Visit Heroicons website"><strong>Heroicons</strong></a> — MIT License<br>Beautiful hand-crafted SVG icons by Tailwind Labs</p>
+                            <p><a href="https://ffmpeg.org" target="_blank" rel="noopener" title="Visit FFmpeg website"><strong>FFmpeg</strong></a> — LGPL/GPL License<br>Audio encoding and SRT streaming</p>
+                            <p><a href="https://github.com/gorilla/websocket" target="_blank" rel="noopener" title="View Gorilla WebSocket on GitHub"><strong>Gorilla WebSocket</strong></a> — BSD License<br>WebSocket implementation for Go</p>
                         </div>
                     </div>
                 </div>

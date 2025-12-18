@@ -128,6 +128,7 @@ document.addEventListener('alpine:init', () => {
         // Outputs
         outputs: [],
         outputStatuses: {},
+        previousOutputStatuses: {},
         deletingOutputs: {},
 
         // Audio
@@ -170,13 +171,21 @@ document.addEventListener('alpine:init', () => {
             error: ''
         },
 
+        // Alert banner state
+        banner: {
+            visible: false,
+            message: '',
+            type: 'info', // info, warning, danger
+            persistent: false
+        },
+
         // WebSocket
         ws: null,
 
         // Computed properties
         /**
          * Computes CSS class for status pill based on encoder state.
-         * @returns {string} CSS class: 'running', 'stopped', 'connecting', or 'starting'
+         * @returns {string} State class: 'state-success', 'state-danger', or 'state-warning'
          */
         get statusPillClass() {
             const s = this.encoder.state;
@@ -265,13 +274,65 @@ document.addEventListener('alpine:init', () => {
          * @param {Object} levels - Audio levels (left, right, peak_left, peak_right, silence_level)
          */
         handleLevels(levels) {
+            const prevSilenceClass = this.getSilenceClass();
             this.levels = levels;
+            const newSilenceClass = this.getSilenceClass();
+
+            // Handle silence state transitions
+            if (newSilenceClass !== prevSilenceClass) {
+                this.handleSilenceTransition(prevSilenceClass, newSilenceClass);
+            }
+
+            // Update banner message with current duration if silence banner is showing
+            if (this.banner.visible && this.banner.type !== 'info' && levels.silence_duration) {
+                const duration = this.formatDuration(levels.silence_duration);
+                if (newSilenceClass === 'critical') {
+                    this.banner.message = `Silence detected: ${duration}`;
+                } else if (newSilenceClass === 'warning') {
+                    this.banner.message = `Silence warning: ${duration}`;
+                }
+            }
+
             const totalClips = (levels.clip_left || 0) + (levels.clip_right || 0);
             if (totalClips > 0) {
                 this.clipActive = true;
                 clearTimeout(this.clipTimeout);
                 this.clipTimeout = setTimeout(() => { this.clipActive = false; }, CLIP_TIMEOUT_MS);
             }
+        },
+
+        /**
+         * Handles silence state transitions and shows appropriate banners.
+         * @param {string} prev - Previous silence class
+         * @param {string} next - New silence class
+         */
+        handleSilenceTransition(prev, next) {
+            const duration = this.formatDuration(this.levels.silence_duration || 0);
+            if (next === 'warning' && prev === 'active') {
+                this.showBanner(`Silence warning: ${duration}`, 'warning', false);
+            } else if (next === 'critical') {
+                this.showBanner(`Silence detected: ${duration}`, 'danger', true);
+            } else if (next === '' && prev !== '') {
+                // Silence recovered
+                this.hideBanner();
+            }
+        },
+
+        /**
+         * Returns escalating CSS class based on silence duration.
+         * Thresholds are based on configured silenceDuration:
+         * - active: silenceDuration (alert triggered)
+         * - warning: silenceDuration * 2
+         * - critical: silenceDuration * 4
+         * @returns {string} CSS class: '' | 'active' | 'warning' | 'critical'
+         */
+        getSilenceClass() {
+            if (!this.levels.silence_level) return '';
+            const duration = this.levels.silence_duration || 0;
+            const threshold = this.settings.silenceDuration || 15;
+            if (duration >= threshold * 4) return 'critical';
+            if (duration >= threshold * 2) return 'warning';
+            return 'active';
         },
 
         /**
@@ -296,7 +357,34 @@ document.addEventListener('alpine:init', () => {
 
             // Outputs
             this.outputs = msg.outputs || [];
-            this.outputStatuses = msg.output_status || {};
+            const newOutputStatuses = msg.output_status || {};
+
+            // Detect status transitions to "connected" and trigger animation
+            for (const id in newOutputStatuses) {
+                const oldStatus = this.previousOutputStatuses[id] || {};
+                const newStatus = newOutputStatuses[id] || {};
+
+                // Check if status just became stable (connected)
+                const wasNotConnected = !oldStatus.stable;
+                const isNowConnected = newStatus.stable;
+
+                if (wasNotConnected && isNowConnected) {
+                    // Trigger animation by temporarily adding class
+                    this.$nextTick(() => {
+                        const dotElement = document.querySelector(`[data-output-id="${id}"] .output__dot`);
+                        if (dotElement) {
+                            dotElement.classList.add('output__dot--just-connected');
+                            setTimeout(() => {
+                                dotElement.classList.remove('output__dot--just-connected');
+                            }, 400);
+                        }
+                    });
+                }
+            }
+
+            // Update status tracking
+            this.previousOutputStatuses = JSON.parse(JSON.stringify(newOutputStatuses));
+            this.outputStatuses = newOutputStatuses;
 
             // Clean up deletingOutputs
             for (const id in this.deletingOutputs) {
@@ -330,7 +418,12 @@ document.addEventListener('alpine:init', () => {
 
             // Version
             if (msg.version) {
+                const wasUpdateAvail = this.version.updateAvail;
                 this.version = msg.version;
+                // Show banner once when update becomes available
+                if (msg.version.updateAvail && !wasUpdateAvail) {
+                    this.showBanner(`Update beschikbaar: ${msg.version.latest}`, 'info', false);
+                }
             }
         },
 
@@ -358,6 +451,23 @@ document.addEventListener('alpine:init', () => {
             this.view = 'dashboard';
             this.settingsDirty = false;
             this.originalSettings = null;
+        },
+
+        /**
+         * Shows success state on save button, then navigates to dashboard.
+         */
+        saveAndClose() {
+            const viewId = this.view === 'settings' ? 'settings-view' : 'add-output-view';
+            const saveBtn = document.querySelector(`#${viewId} .nav-btn--save`);
+            if (saveBtn) {
+                saveBtn.classList.add('nav-btn--saved');
+                setTimeout(() => {
+                    saveBtn.classList.remove('nav-btn--saved');
+                    this.showDashboard();
+                }, 600);
+            } else {
+                this.showDashboard();
+            }
         },
 
         /**
@@ -414,7 +524,7 @@ document.addEventListener('alpine:init', () => {
                 update.email_password = this.settings.email.password;
             }
             this.send('update_settings', null, update);
-            this.showDashboard();
+            this.saveAndClose();
         },
 
         /**
@@ -450,7 +560,7 @@ document.addEventListener('alpine:init', () => {
                 codec: this.newOutput.codec,
                 max_retries: this.newOutput.max_retries
             });
-            this.view = 'dashboard';
+            this.saveAndClose();
         },
 
         /**
@@ -599,6 +709,27 @@ document.addEventListener('alpine:init', () => {
         refreshSilenceLog() {
             this.silenceLogModal.loading = true;
             this.send('view_silence_log', null, null);
+        },
+
+        // Alert banner notifications
+        /**
+         * Shows an alert banner notification.
+         * @param {string} message - Message to display
+         * @param {string} type - Banner type: 'info', 'warning', 'danger'
+         * @param {boolean} persistent - If true, banner stays until dismissed
+         */
+        showBanner(message, type = 'info', persistent = false) {
+            this.banner = { visible: true, message, type, persistent };
+            if (!persistent) {
+                setTimeout(() => this.hideBanner(), 10000);
+            }
+        },
+
+        /**
+         * Hides the current alert banner.
+         */
+        hideBanner() {
+            this.banner.visible = false;
         },
 
         /**
