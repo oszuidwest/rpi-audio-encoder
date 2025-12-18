@@ -62,6 +62,15 @@ const DEFAULT_LEVELS = {
     silence_level: null
 };
 
+// Default values for new recordings
+const DEFAULT_RECORDING = {
+    name: '',
+    path: '/var/lib/encoder/recordings',
+    codec: 'mp3',
+    mode: 'auto',
+    retention_days: 30
+};
+
 // Settings field mapping for WebSocket status sync
 const SETTINGS_MAP = [
     { msgKey: 'silence_threshold', path: 'silenceThreshold', default: -40 },
@@ -96,7 +105,7 @@ function setNestedValue(obj, path, value) {
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('encoderApp', () => ({
-        // View state: 'dashboard', 'settings', 'add-output'
+        // View state: 'dashboard', 'settings', 'add-output', 'add-recording'
         view: 'dashboard',
         settingsTab: 'audio',
 
@@ -116,6 +125,9 @@ document.addEventListener('alpine:init', () => {
         // New output form data
         newOutput: { ...DEFAULT_OUTPUT },
 
+        // New recording form data
+        newRecording: { ...DEFAULT_RECORDING },
+
         // Encoder state
         encoder: {
             state: 'connecting',
@@ -130,6 +142,11 @@ document.addEventListener('alpine:init', () => {
         outputStatuses: {},
         previousOutputStatuses: {},
         deletingOutputs: {},
+
+        // Recordings
+        recordings: [],
+        recordingStatuses: {},
+        deletingRecordings: {},
 
         // Audio
         devices: [],
@@ -394,6 +411,18 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
+            // Recordings
+            this.recordings = msg.recordings || [];
+            this.recordingStatuses = msg.recording_status || {};
+
+            // Clean up deletingRecordings
+            for (const id in this.deletingRecordings) {
+                const recording = this.recordings.find(r => r.id === id);
+                if (!recording || recording.created_at !== this.deletingRecordings[id]) {
+                    delete this.deletingRecordings[id];
+                }
+            }
+
             // Devices
             if (msg.devices) {
                 this.devices = msg.devices;
@@ -633,6 +662,122 @@ document.addEventListener('alpine:init', () => {
         shouldShowError(output) {
             const { status, isDeleting } = this.getOutputStatus(output);
             return !isDeleting && (status.given_up || status.retry_count > 0) && status.last_error;
+        },
+
+        // Recording management
+        /**
+         * Opens add recording form with default values.
+         */
+        showAddRecording() {
+            this.newRecording = { ...DEFAULT_RECORDING };
+            this.view = 'add-recording';
+        },
+
+        /**
+         * Validates and submits new recording configuration.
+         * Requires name and path; other fields have defaults.
+         */
+        submitNewRecording() {
+            if (!this.newRecording.name || !this.newRecording.path) {
+                return;
+            }
+            this.send('add_recording', null, {
+                name: this.newRecording.name.trim(),
+                path: this.newRecording.path.trim(),
+                codec: this.newRecording.codec,
+                mode: this.newRecording.mode,
+                retention_days: this.newRecording.retention_days
+            });
+            this.saveAndClose();
+        },
+
+        /**
+         * Toggles a manual recording on/off.
+         * @param {string} id - Recording ID to toggle
+         */
+        toggleRecording(id) {
+            const status = this.recordingStatuses[id] || {};
+            if (status.running) {
+                this.send('stop_recording', id, null);
+            } else {
+                this.send('start_recording', id, null);
+            }
+        },
+
+        /**
+         * Initiates recording deletion with optimistic UI update.
+         * Tracks deletion state to prevent double-clicks.
+         * @param {string} id - Recording ID to delete
+         */
+        deleteRecording(id) {
+            if (!confirm('Delete this recording?')) return;
+            const recording = this.recordings.find(r => r.id === id);
+            if (recording) this.deletingRecordings[id] = recording.created_at;
+            this.send('delete_recording', id, null);
+        },
+
+        /**
+         * Gets recording status and deletion state.
+         *
+         * @param {Object} recording - Recording object with id and created_at
+         * @returns {Object} Object with status and isDeleting properties
+         */
+        getRecordingStatus(recording) {
+            if (!recording || !recording.id) {
+                return { status: {}, isDeleting: false };
+            }
+            return {
+                status: this.recordingStatuses[recording.id] || {},
+                isDeleting: this.deletingRecordings[recording.id] === recording.created_at
+            };
+        },
+
+        /**
+         * Determines CSS state class for recording status indicator.
+         *
+         * @param {Object} recording - Recording configuration object
+         * @returns {string} CSS class for state styling
+         */
+        getRecordingStateClass(recording) {
+            if (!recording || !recording.id) return 'state-stopped';
+            const { status, isDeleting } = this.getRecordingStatus(recording);
+            if (isDeleting) return 'state-warning';
+            if (status.running) return 'state-success';
+            if (status.last_error) return 'state-danger';
+            if (!this.encoderRunning) return 'state-stopped';
+            // Manual recordings show neutral state when idle
+            if ((recording.mode || 'auto') === 'manual') return 'state-stopped';
+            return 'state-warning';
+        },
+
+        /**
+         * Generates human-readable status text for recording.
+         *
+         * @param {Object} recording - Recording configuration object
+         * @returns {string} Status text (e.g., 'Recording', 'Error', 'Idle')
+         */
+        getRecordingStatusText(recording) {
+            if (!recording || !recording.id) return 'Unknown';
+            const { status, isDeleting } = this.getRecordingStatus(recording);
+            if (isDeleting) return 'Stopping...';
+            if (status.running) return 'Recording';
+            if (status.last_error) return 'Error';
+            if (!this.encoderRunning) return 'Offline';
+            // Manual recordings show Idle when not running
+            if ((recording.mode || 'auto') === 'manual') return 'Idle';
+            return 'Starting...';
+        },
+
+        /**
+         * Determines if error message should be shown for recording.
+         *
+         * @param {Object} recording - Recording configuration object
+         * @returns {boolean} True if error should be displayed
+         */
+        shouldShowRecordingError(recording) {
+            if (!recording || !recording.id) return false;
+            const { status, isDeleting } = this.getRecordingStatus(recording);
+            return !isDeleting && status.last_error;
         },
 
         // VU Meter

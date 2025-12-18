@@ -1,12 +1,7 @@
 // Package types provides shared type definitions used across the encoder.
 package types
 
-import (
-	"context"
-	"io"
-	"os/exec"
-	"time"
-)
+import "time"
 
 // EncoderState represents the current state of the encoder.
 type EncoderState string
@@ -62,48 +57,45 @@ func (o *Output) GetMaxRetries() int {
 
 // CodecPreset defines FFmpeg encoding parameters for a codec.
 type CodecPreset struct {
-	Args   []string
-	Format string
+	Args      []string
+	Format    string
+	Extension string
 }
 
 // CodecPresets maps codec names to their FFmpeg configuration.
 var CodecPresets = map[string]CodecPreset{
-	"mp2": {[]string{"libtwolame", "-b:a", "384k", "-psymodel", "4"}, "mp2"},
-	"mp3": {[]string{"libmp3lame", "-b:a", "320k"}, "mp3"},
-	"ogg": {[]string{"libvorbis", "-qscale:a", "10"}, "ogg"},
-	"wav": {[]string{"pcm_s16le"}, "matroska"},
+	"mp2": {[]string{"libtwolame", "-b:a", "384k", "-psymodel", "4"}, "mp2", "mp2"},
+	"mp3": {[]string{"libmp3lame", "-b:a", "320k"}, "mp3", "mp3"},
+	"ogg": {[]string{"libvorbis", "-qscale:a", "10"}, "ogg", "ogg"},
+	"wav": {[]string{"pcm_s16le"}, "matroska", "mkv"},
 }
 
-// DefaultCodec is used when an unknown codec is specified.
-const DefaultCodec = "mp3"
-
-// GetCodecArgs returns FFmpeg codec arguments for this output's codec.
-func (o *Output) GetCodecArgs() []string {
-	if preset, ok := CodecPresets[o.Codec]; ok {
+// GetCodecArgs returns FFmpeg codec arguments for the given codec.
+func GetCodecArgs(codec string) []string {
+	if preset, ok := CodecPresets[codec]; ok {
 		return preset.Args
 	}
 	return CodecPresets[DefaultCodec].Args
 }
 
-// GetOutputFormat returns the FFmpeg output format for this output's codec.
-func (o *Output) GetOutputFormat() string {
-	if preset, ok := CodecPresets[o.Codec]; ok {
+// GetOutputFormat returns the FFmpeg output format for the given codec.
+func GetOutputFormat(codec string) string {
+	if preset, ok := CodecPresets[codec]; ok {
 		return preset.Format
 	}
 	return CodecPresets[DefaultCodec].Format
 }
 
-// OutputProcess tracks an individual output FFmpeg process.
-type OutputProcess struct {
-	Cmd        *exec.Cmd
-	Cancel     context.CancelFunc
-	Stdin      io.WriteCloser // Audio data input
-	Running    bool
-	LastError  string
-	StartTime  time.Time
-	RetryCount int
-	RetryDelay time.Duration
+// GetFileExtension returns the file extension for the given codec.
+func GetFileExtension(codec string) string {
+	if preset, ok := CodecPresets[codec]; ok {
+		return preset.Extension
+	}
+	return CodecPresets[DefaultCodec].Extension
 }
+
+// DefaultCodec is used when an unknown codec is specified.
+const DefaultCodec = "mp3"
 
 // OutputStatus contains runtime status for an output.
 type OutputStatus struct {
@@ -113,6 +105,61 @@ type OutputStatus struct {
 	RetryCount int    `json:"retry_count,omitzero"`
 	MaxRetries int    `json:"max_retries"`
 	GivenUp    bool   `json:"given_up,omitzero"`
+}
+
+// RecordingMode defines how a recording is controlled.
+type RecordingMode string
+
+const (
+	// RecordingModeAuto starts automatically and rotates hourly.
+	RecordingModeAuto RecordingMode = "auto"
+	// RecordingModeManual requires explicit start/stop commands, no rotation.
+	RecordingModeManual RecordingMode = "manual"
+)
+
+// Recording represents a local recording destination.
+type Recording struct {
+	ID            string        `json:"id"`
+	Name          string        `json:"name"`
+	Path          string        `json:"path"`
+	Codec         string        `json:"codec"`
+	Mode          RecordingMode `json:"mode"`
+	RetentionDays int           `json:"retention_days"`
+	MaxRetries    int           `json:"max_retries,omitempty"`
+	CreatedAt     int64         `json:"created_at"`
+}
+
+// IsAuto returns true if the recording mode is auto (hourly rotation).
+func (r *Recording) IsAuto() bool {
+	return r.Mode == "" || r.Mode == RecordingModeAuto
+}
+
+// DefaultRecordingRetention is the default retention period for recordings.
+const DefaultRecordingRetention = 30
+
+// GetRetentionDays returns the configured retention or the default value.
+func (r *Recording) GetRetentionDays() int {
+	if r.RetentionDays <= 0 {
+		return DefaultRecordingRetention
+	}
+	return r.RetentionDays
+}
+
+// GetMaxRetries returns the configured max retries or the default value.
+func (r *Recording) GetMaxRetries() int {
+	if r.MaxRetries <= 0 {
+		return DefaultMaxRetries
+	}
+	return r.MaxRetries
+}
+
+// RecordingStatus contains runtime status for a recording.
+type RecordingStatus struct {
+	Running     bool   `json:"running"`
+	CurrentFile string `json:"current_file,omitempty"`
+	StartTime   string `json:"start_time,omitempty"`
+	LastError   string `json:"last_error,omitempty"`
+	RetryCount  int    `json:"retry_count,omitempty"`
 }
 
 // EncoderStatus contains a summary of the encoder's current operational state.

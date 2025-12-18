@@ -18,6 +18,7 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/output"
+	"github.com/oszuidwest/zwfm-encoder/internal/recording"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
@@ -30,34 +31,38 @@ const LevelUpdateSamples = 12000
 // FFmpeg processes. It handles automatic retry with exponential backoff,
 // calculates real-time audio levels, and detects silence conditions.
 type Encoder struct {
-	config          *config.Config
-	outputManager   *output.Manager
-	sourceCmd       *exec.Cmd
-	sourceCancel    context.CancelFunc
-	sourceStdout    io.ReadCloser
-	state           types.EncoderState
-	stopChan        chan struct{}
-	mu              sync.RWMutex
-	lastError       string
-	startTime       time.Time
-	retryCount      int
-	backoff         *util.Backoff
-	audioLevels     types.AudioLevels
-	silenceDetect   *audio.SilenceDetector
-	silenceNotifier *notify.SilenceNotifier
-	peakHolder      *audio.PeakHolder
+	config           *config.Config
+	outputManager    *output.Manager
+	recordingManager *recording.Manager
+	cleanupManager   *recording.CleanupManager
+	sourceCmd        *exec.Cmd
+	sourceCancel     context.CancelFunc
+	sourceStdout     io.ReadCloser
+	state            types.EncoderState
+	stopChan         chan struct{}
+	mu               sync.RWMutex
+	lastError        string
+	startTime        time.Time
+	retryCount       int
+	backoff          *util.Backoff
+	audioLevels      types.AudioLevels
+	silenceDetect    *audio.SilenceDetector
+	silenceNotifier  *notify.SilenceNotifier
+	peakHolder       *audio.PeakHolder
 }
 
 // New creates a new Encoder with the given configuration.
 func New(cfg *config.Config) *Encoder {
 	return &Encoder{
-		config:          cfg,
-		outputManager:   output.NewManager(),
-		state:           types.StateStopped,
-		backoff:         util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
-		silenceDetect:   audio.NewSilenceDetector(),
-		silenceNotifier: notify.NewSilenceNotifier(cfg),
-		peakHolder:      audio.NewPeakHolder(),
+		config:           cfg,
+		outputManager:    output.NewManager(),
+		recordingManager: recording.NewManager(),
+		cleanupManager:   recording.NewCleanupManager(),
+		state:            types.StateStopped,
+		backoff:          util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
+		silenceDetect:    audio.NewSilenceDetector(),
+		silenceNotifier:  notify.NewSilenceNotifier(cfg),
+		peakHolder:       audio.NewPeakHolder(),
 	}
 }
 
@@ -108,6 +113,22 @@ func (e *Encoder) GetAllOutputStatuses() map[string]types.OutputStatus {
 	})
 }
 
+// GetAllRecordingStatuses returns status for all configured recordings.
+// This includes manual recordings that haven't been started yet.
+func (e *Encoder) GetAllRecordingStatuses() map[string]types.RecordingStatus {
+	// Get statuses from running recordings
+	statuses := e.recordingManager.GetAllStatuses()
+
+	// Ensure all configured recordings have a status entry
+	for _, rec := range e.config.GetRecordings() {
+		if _, exists := statuses[rec.ID]; !exists {
+			statuses[rec.ID] = types.RecordingStatus{Running: false}
+		}
+	}
+
+	return statuses
+}
+
 // Start begins audio capture and all output processes.
 func (e *Encoder) Start() error {
 	e.mu.Lock()
@@ -150,6 +171,10 @@ func (e *Encoder) Stop() error {
 	sourceProcess := e.sourceCmd
 	sourceCancel := e.sourceCancel
 	e.mu.Unlock()
+
+	// Stop all recordings
+	e.recordingManager.StopAll()
+	e.cleanupManager.StopAll()
 
 	// Stop all outputs first
 	e.outputManager.StopAll()
@@ -382,6 +407,48 @@ func (e *Encoder) startEnabledOutputs() {
 			slog.Error("failed to start output", "output_id", out.ID, "error", err)
 		}
 	}
+
+	// Start auto-mode recordings (manual recordings require explicit start)
+	for _, rec := range e.config.GetRecordings() {
+		if rec.IsAuto() {
+			if err := e.StartRecording(rec.ID); err != nil {
+				slog.Error("failed to start recording", "recording_id", rec.ID, "error", err)
+			}
+		}
+	}
+}
+
+// StartRecording starts a recording by ID.
+func (e *Encoder) StartRecording(recordingID string) error {
+	e.mu.RLock()
+	if e.state != types.StateRunning {
+		e.mu.RUnlock()
+		return fmt.Errorf("encoder not running")
+	}
+	e.mu.RUnlock()
+
+	rec := e.config.GetRecording(recordingID)
+	if rec == nil {
+		return fmt.Errorf("recording not found: %s", recordingID)
+	}
+
+	if err := e.recordingManager.Start(rec); err != nil {
+		return fmt.Errorf("failed to start recording: %w", err)
+	}
+
+	// Start cleanup for this recording
+	e.cleanupManager.Start(rec)
+
+	return nil
+}
+
+// StopRecording stops a recording by ID.
+func (e *Encoder) StopRecording(recordingID string) error {
+	if err := e.recordingManager.Stop(recordingID); err != nil {
+		return err
+	}
+	e.cleanupManager.Stop(recordingID)
+	return nil
 }
 
 // runDistributor delivers audio from the source to all output processes and calculates audio levels.
@@ -437,6 +504,9 @@ func (e *Encoder) runDistributor() {
 			// WriteAudio logs errors internally and marks output as stopped
 			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck
 		}
+
+		// Write to all active recordings
+		e.recordingManager.WriteAudioAll(buf[:n])
 	}
 }
 

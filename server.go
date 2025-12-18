@@ -32,6 +32,8 @@ func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
 		enc.GetState,
 		enc.StartOutput,
 		enc.StopOutput,
+		enc.StartRecording,
+		enc.StopRecording,
 		enc.Restart,
 		map[string]func() error{
 			"webhook": enc.TriggerTestWebhook,
@@ -93,6 +95,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"encoder":           status,
 			"outputs":           s.config.GetOutputs(),
 			"output_status":     s.encoder.GetAllOutputStatuses(),
+			"recordings":        s.config.GetRecordings(),
+			"recording_status":  s.encoder.GetAllRecordingStatuses(),
 			"devices":           encoder.ListAudioDevices(),
 			"silence_threshold": s.config.GetSilenceThreshold(),
 			"silence_duration":  s.config.GetSilenceDuration(),

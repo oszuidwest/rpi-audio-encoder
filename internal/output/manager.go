@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/oszuidwest/zwfm-encoder/internal/ffmpeg"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
@@ -296,7 +297,7 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			// Extract error message from stderr
 			var errMsg string
 			if stderr, ok := cmd.Stderr.(*bytes.Buffer); ok && stderr != nil {
-				errMsg = extractLastError(stderr.String())
+				errMsg = ffmpeg.ExtractLastError(stderr.String())
 			}
 			if errMsg == "" {
 				errMsg = err.Error()
@@ -376,23 +377,3 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 	}
 }
 
-// extractLastError extracts the last meaningful error from FFmpeg stderr.
-func extractLastError(stderr string) string {
-	if stderr == "" {
-		return ""
-	}
-	lines := []string{}
-	for _, line := range bytes.Split([]byte(stderr), []byte("\n")) {
-		lines = append(lines, string(line))
-	}
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := string(bytes.TrimSpace([]byte(lines[i])))
-		if line != "" {
-			if len(line) > 200 {
-				return line[:200] + "..."
-			}
-			return line
-		}
-	}
-	return ""
-}

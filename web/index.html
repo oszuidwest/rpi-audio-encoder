@@ -87,7 +87,10 @@
 
         <section class="card">
             <div class="card__header card__header--brand">
-                <h2>Audio Source</h2>
+                <h2 class="card__title">
+                    <span x-html="icons.audio"></span>
+                    Audio Source
+                </h2>
                 <span class="badge">Input</span>
             </div>
             <div class="card__body">
@@ -160,7 +163,7 @@
             </div>
         </section>
 
-        <!-- === Outputs List ===
+        <!-- === Streams List ===
              Displays configured stream outputs with real-time status.
 
              Each output shows:
@@ -176,8 +179,11 @@
              - Red: Failed (shows error)
              - Gray: Encoder not running -->
         <section class="card">
-            <div class="card__header card__header--slate">
-                <h2>Outputs</h2>
+            <div class="card__header card__header--streams">
+                <h2 class="card__title">
+                    <span x-html="icons.signal"></span>
+                    Streams
+                </h2>
                 <div class="card__actions">
                     <span class="badge" x-text="outputs.length"></span>
                     <button class="btn--add" id="add-btn" type="button" @click="showAddOutput()">
@@ -192,7 +198,7 @@
                         <div class="list-item output__item" :class="{ 'output__item--deleting': deletingOutputs[output.id] === output.created_at }">
                             <div class="output__row" :data-output-id="output.id">
                                 <span class="output__dot" :class="getOutputStateClass(output)"></span>
-                                <span class="output__host" x-text="`${output.host}:${output.port}`"></span>
+                                <span class="output__host" x-text="`${output.host || ''}:${output.port || ''}`"></span>
                                 <button class="icon-btn icon-btn--delete" type="button" title="Delete"
                                         @click="deleteOutput(output.id)"
                                         :disabled="deletingOutputs[output.id] === output.created_at">
@@ -200,11 +206,78 @@
                                 </button>
                             </div>
                             <div class="output__details">
-                                <span class="output__codec" x-text="output.codec.toUpperCase()"></span>
-                                <span class="output__streamid" x-text="`#${output.streamid}`"></span>
+                                <span class="output__codec" x-text="(output.codec || 'mp3').toUpperCase()"></span>
+                                <span class="output__streamid" x-text="`#${output.streamid || ''}`"></span>
                                 <span class="output__status" :class="getOutputStateClass(output)" x-text="getOutputStatusText(output)"></span>
                             </div>
                             <p class="output__error" x-show="shouldShowError(output)" x-text="outputStatuses[output.id]?.last_error"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+
+        <!-- === Recordings List ===
+             Displays configured recordings with real-time status.
+
+             Each recording shows:
+             - Status dot (color-coded by state)
+             - Name and storage path
+             - Status text (Recording, Offline, Error)
+             - Current file when recording is active
+             - Error message when in failed state
+             - Delete button (disabled while deletion in progress)
+
+             Status states:
+             - Green: Recording active
+             - Yellow: Starting or stopping
+             - Red: Error (shows error message)
+             - Gray: Encoder not running -->
+        <section class="card">
+            <div class="card__header card__header--recorders">
+                <h2 class="card__title">
+                    <span x-html="icons.archive"></span>
+                    Recordings
+                </h2>
+                <div class="card__actions">
+                    <span class="badge" x-text="recordings.length"></span>
+                    <button class="btn--add" type="button" @click="showAddRecording()">
+                        <span class="icon-container" x-html="icons.plus"></span>
+                        Add
+                    </button>
+                </div>
+            </div>
+            <div class="card__body">
+                <div class="outputs-list">
+                    <template x-for="recording in recordings" :key="recording.id">
+                        <div class="list-item output__item" :class="{ 'output__item--deleting': deletingRecordings[recording.id] === recording.created_at }">
+                            <div class="output__row">
+                                <span class="output__dot" :class="getRecordingStateClass(recording)"></span>
+                                <span class="output__host" x-text="recording.name || 'Unnamed'"></span>
+                                <!-- Record/Stop button for manual recordings -->
+                                <button type="button" class="rec-btn"
+                                        :class="{ 'rec-btn--recording': recordingStatuses[recording.id]?.running }"
+                                        x-show="(recording.mode || 'auto') === 'manual' && encoderRunning"
+                                        :title="recordingStatuses[recording.id]?.running ? 'Stop recording' : 'Start recording'"
+                                        @click="toggleRecording(recording.id)">
+                                    <span class="icon-container" x-html="recordingStatuses[recording.id]?.running ? icons.stop : icons.record"></span>
+                                </button>
+                                <button class="icon-btn icon-btn--delete" type="button" title="Delete"
+                                        @click="deleteRecording(recording.id)"
+                                        :disabled="deletingRecordings[recording.id] === recording.created_at">
+                                    <span class="icon-container" x-html="icons.close"></span>
+                                </button>
+                            </div>
+                            <div class="output__details">
+                                <span class="output__codec" x-text="(recording.codec || 'mp3').toUpperCase()"></span>
+                                <span class="output__mode" x-text="recording.mode === 'manual' ? 'Manual' : 'Auto'"></span>
+                                <span class="output__streamid" x-text="recording.path || ''"></span>
+                                <span class="output__status"
+                                      :class="getRecordingStateClass(recording)"
+                                      x-text="getRecordingStatusText(recording)"></span>
+                            </div>
+                            <p class="output__file" x-show="recordingStatuses[recording.id]?.current_file" x-text="recordingStatuses[recording.id]?.current_file"></p>
+                            <p class="output__error" x-show="shouldShowRecordingError(recording)" x-text="recordingStatuses[recording.id]?.last_error"></p>
                         </div>
                     </template>
                 </div>
@@ -501,6 +574,77 @@
                                 <input id="new-retries" type="number" max="9999" min="1" x-model.number="newOutput.max_retries">
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Add Recording View ===
+             Form for creating new recordings.
+
+             Required fields: Name, Path
+             Optional fields: Codec, Retention Days
+
+             Defaults: codec 'mp3', retention 30 days -->
+        <div id="add-recording-view" x-show="view === 'add-recording'" x-transition:enter.duration.200ms x-cloak>
+            <header class="modal__nav">
+                <button class="nav-btn" type="button" @click="showDashboard()">Cancel</button>
+                <h1>New Recording</h1>
+                <button class="nav-btn nav-btn--save" type="button" @click="submitNewRecording()" :disabled="!newRecording.name || !newRecording.path">Save</button>
+            </header>
+
+            <div class="settings__panels">
+                <div class="settings__panel">
+                    <div class="settings__section">
+                        <div class="settings__section-header">
+                            <span x-html="icons.record"></span>
+                            <h3>Recording Details</h3>
+                        </div>
+                        <p class="settings__section-desc">Configure compliance recording to local storage.</p>
+                        <div class="form__group">
+                            <label for="new-recording-name">Name</label>
+                            <input id="new-recording-name" type="text" placeholder="Compliance Recording" x-model="newRecording.name">
+                            <span class="input__hint">A friendly name to identify this recording</span>
+                        </div>
+                        <div class="form__group">
+                            <label for="new-recording-path">Storage Path</label>
+                            <input id="new-recording-path" type="text" placeholder="/var/lib/encoder/recordings" x-model="newRecording.path">
+                            <span class="input__hint">Directory where recordings will be stored</span>
+                        </div>
+                        <div class="form__group">
+                            <label for="new-recording-mode">Mode</label>
+                            <select id="new-recording-mode" x-model="newRecording.mode">
+                                <option value="auto">Auto (hourly rotation)</option>
+                                <option value="manual">Manual (API controlled)</option>
+                            </select>
+                            <span class="input__hint">Auto starts on encoder boot and rotates hourly; Manual requires API start/stop</span>
+                        </div>
+                    </div>
+                    <div class="settings__section">
+                        <div class="settings__section-header">
+                            <span x-html="icons.gear"></span>
+                            <h3>Settings</h3>
+                        </div>
+                        <p class="settings__section-desc">Audio format and retention settings.</p>
+                        <div class="form__row">
+                            <div class="form__group">
+                                <label for="new-recording-codec">Codec</label>
+                                <select id="new-recording-codec" x-model="newRecording.codec">
+                                    <option value="mp3">MP3 (320 kbit/s)</option>
+                                    <option value="mp2">MP2 (384 kbit/s)</option>
+                                    <option value="ogg">OGG Vorbis</option>
+                                    <option value="wav">WAV (uncompressed)</option>
+                                </select>
+                            </div>
+                            <div class="form__group">
+                                <label for="new-recording-retention">Retention</label>
+                                <div class="input__group">
+                                    <input id="new-recording-retention" type="number" min="1" max="365" x-model.number="newRecording.retention_days">
+                                    <span class="input__unit">days</span>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="input__hint">Files older than retention period are automatically deleted</span>
                     </div>
                 </div>
             </div>

@@ -61,6 +61,10 @@
     --header-primary: var(--brand);
     --header-secondary: #475569;
 
+    /* Card type colors - temperature differentiation (cool vs warm gray) */
+    --header-streams: #475569;
+    --header-recorders: #57534e;
+
     /* Typography */
     --font-mono: 'SF Mono', Monaco, 'Courier New', monospace;
 
@@ -379,6 +383,8 @@ body {
 
 .card__header--brand { background: var(--header-primary); }
 .card__header--slate { background: var(--header-secondary); }
+.card__header--streams { background: var(--header-streams); }
+.card__header--recorders { background: var(--header-recorders); }
 
 .card__header h2 {
     font-size: 1.125rem;
@@ -402,6 +408,34 @@ body {
 
 .card__body {
     padding: 1.25rem;
+}
+
+/* =============================================================================
+   Card Header Title with Icon
+   ============================================================================= */
+
+.card__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card__title svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    opacity: 0.85;
+}
+
+/* File path display for recordings */
+.output__file {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    margin: 0.375rem 0 0 1.25rem;
+    padding: 0.375rem 0.5rem;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-sm);
+    word-break: break-all;
 }
 
 /* =============================================================================
@@ -847,6 +881,15 @@ select {
     color: var(--text-secondary);
 }
 
+.output__mode {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.125rem 0.375rem;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+}
+
 .output__streamid {
     font-family: var(--font-mono);
     color: var(--text-muted);
@@ -860,6 +903,39 @@ select {
     font-weight: 500;
     background: var(--state-bg, var(--stopped-bg));
     color: var(--state-color, var(--text-muted));
+}
+
+/* Record/Stop Button - Matches icon-btn pattern */
+.rec-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    margin-left: auto;
+    border: none;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--border-strong);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.rec-btn svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.rec-btn:hover {
+    color: var(--danger);
+}
+
+/* Recording state - subtle green to match status dot */
+.rec-btn--recording {
+    color: var(--success);
+}
+
+.rec-btn--recording:hover {
+    color: var(--neutral-500);
 }
 
 .output__error {

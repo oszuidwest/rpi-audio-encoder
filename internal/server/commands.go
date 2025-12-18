@@ -23,12 +23,14 @@ type WSCommand struct {
 
 // CommandHandler processes WebSocket commands.
 type CommandHandler struct {
-	cfg          *config.Config
-	getState     func() types.EncoderState
-	startOutput  func(string) error
-	stopOutput   func(string) error
-	restartEnc   func() error
-	testTriggers map[string]func() error
+	cfg            *config.Config
+	getState       func() types.EncoderState
+	startOutput    func(string) error
+	stopOutput     func(string) error
+	startRecording func(string) error
+	stopRecording  func(string) error
+	restartEnc     func() error
+	testTriggers   map[string]func() error
 }
 
 // NewCommandHandler creates a new command handler.
@@ -37,16 +39,20 @@ func NewCommandHandler(
 	getState func() types.EncoderState,
 	startOutput func(string) error,
 	stopOutput func(string) error,
+	startRecording func(string) error,
+	stopRecording func(string) error,
 	restartEnc func() error,
 	testTriggers map[string]func() error,
 ) *CommandHandler {
 	return &CommandHandler{
-		cfg:          cfg,
-		getState:     getState,
-		startOutput:  startOutput,
-		stopOutput:   stopOutput,
-		restartEnc:   restartEnc,
-		testTriggers: testTriggers,
+		cfg:            cfg,
+		getState:       getState,
+		startOutput:    startOutput,
+		stopOutput:     stopOutput,
+		startRecording: startRecording,
+		stopRecording:  stopRecording,
+		restartEnc:     restartEnc,
+		testTriggers:   testTriggers,
 	}
 }
 
@@ -57,6 +63,14 @@ func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStat
 		h.handleAddOutput(cmd)
 	case "delete_output":
 		h.handleDeleteOutput(cmd)
+	case "add_recording":
+		h.handleAddRecording(cmd)
+	case "delete_recording":
+		h.handleDeleteRecording(cmd)
+	case "start_recording":
+		h.handleStartRecording(cmd)
+	case "stop_recording":
+		h.handleStopRecording(cmd)
 	case "update_settings":
 		h.handleUpdateSettings(cmd)
 	case "test_webhook", "test_log", "test_email":
@@ -140,6 +154,117 @@ func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 		slog.Error("delete_output: failed to remove from config", "error", err)
 	} else {
 		slog.Info("delete_output: removed from config", "output_id", cmd.ID)
+	}
+}
+
+func (h *CommandHandler) handleAddRecording(cmd WSCommand) {
+	var recording types.Recording
+	if err := json.Unmarshal(cmd.Data, &recording); err != nil {
+		slog.Warn("add_recording: invalid JSON data", "error", err)
+		return
+	}
+	// Validate required fields
+	if err := util.ValidateRequired("name", recording.Name); err != nil {
+		slog.Warn("add_recording: validation failed", "error", err.Message)
+		return
+	}
+	if err := util.ValidateRequired("path", recording.Path); err != nil {
+		slog.Warn("add_recording: validation failed", "error", err.Message)
+		return
+	}
+	// Validate optional fields
+	if err := util.ValidateMaxLength("name", recording.Name, 100); err != nil {
+		slog.Warn("add_recording: validation failed", "error", err.Message)
+		return
+	}
+	if err := util.ValidateMaxLength("path", recording.Path, 500); err != nil {
+		slog.Warn("add_recording: validation failed", "error", err.Message)
+		return
+	}
+	// Limit number of recordings
+	if len(h.cfg.GetRecordings()) >= 5 {
+		slog.Warn("add_recording: maximum of 5 recordings reached")
+		return
+	}
+	// Validate codec if provided
+	if recording.Codec != "" {
+		validCodecs := map[string]bool{"mp3": true, "mp2": true, "ogg": true, "wav": true}
+		if !validCodecs[recording.Codec] {
+			slog.Warn("add_recording: invalid codec, using default", "codec", recording.Codec)
+			recording.Codec = "mp3"
+		}
+	}
+	// Validate mode if provided
+	if recording.Mode != "" && recording.Mode != types.RecordingModeAuto && recording.Mode != types.RecordingModeManual {
+		slog.Warn("add_recording: invalid mode, using default", "mode", recording.Mode)
+		recording.Mode = types.RecordingModeAuto
+	}
+	// Validate retention days if provided
+	if recording.RetentionDays != 0 {
+		if err := util.ValidateRange("retention_days", recording.RetentionDays, 1, 365); err != nil {
+			slog.Warn("add_recording: validation failed", "error", err.Message)
+			return
+		}
+	}
+	if err := h.cfg.AddRecording(recording); err != nil {
+		slog.Error("add_recording: failed to add", "error", err)
+		return
+	}
+	slog.Info("add_recording: added recording", "name", recording.Name, "path", recording.Path, "mode", recording.Mode)
+	// Start if encoder running and mode is auto (or empty which defaults to auto)
+	if h.getState() == types.StateRunning {
+		recordings := h.cfg.GetRecordings()
+		if len(recordings) > 0 {
+			newRecording := recordings[len(recordings)-1]
+			// Only auto-start recordings in auto mode (or unset mode which defaults to auto)
+			if newRecording.IsAuto() {
+				if err := h.startRecording(newRecording.ID); err != nil {
+					slog.Error("add_recording: failed to start recording", "error", err)
+				}
+			}
+		}
+	}
+}
+
+func (h *CommandHandler) handleDeleteRecording(cmd WSCommand) {
+	if cmd.ID == "" {
+		slog.Warn("delete_recording: no ID provided")
+		return
+	}
+	slog.Info("delete_recording: deleting", "recording_id", cmd.ID)
+	if err := h.stopRecording(cmd.ID); err != nil {
+		slog.Error("delete_recording: failed to stop", "error", err)
+	}
+	if err := h.cfg.RemoveRecording(cmd.ID); err != nil {
+		slog.Error("delete_recording: failed to remove from config", "error", err)
+	} else {
+		slog.Info("delete_recording: removed from config", "recording_id", cmd.ID)
+	}
+}
+
+func (h *CommandHandler) handleStartRecording(cmd WSCommand) {
+	if cmd.ID == "" {
+		slog.Warn("start_recording: no ID provided")
+		return
+	}
+	if h.getState() != types.StateRunning {
+		slog.Warn("start_recording: encoder not running")
+		return
+	}
+	slog.Info("start_recording: starting", "recording_id", cmd.ID)
+	if err := h.startRecording(cmd.ID); err != nil {
+		slog.Error("start_recording: failed to start", "error", err)
+	}
+}
+
+func (h *CommandHandler) handleStopRecording(cmd WSCommand) {
+	if cmd.ID == "" {
+		slog.Warn("stop_recording: no ID provided")
+		return
+	}
+	slog.Info("stop_recording: stopping", "recording_id", cmd.ID)
+	if err := h.stopRecording(cmd.ID); err != nil {
+		slog.Error("stop_recording: failed to stop", "error", err)
 	}
 }
 

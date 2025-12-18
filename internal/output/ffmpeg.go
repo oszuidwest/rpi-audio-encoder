@@ -5,23 +5,16 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/oszuidwest/zwfm-encoder/internal/ffmpeg"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 )
 
 // BuildFFmpegArgs returns the FFmpeg arguments for an output.
 func BuildFFmpegArgs(output *types.Output) []string {
-	codecArgs := output.GetCodecArgs()
-	format := output.GetOutputFormat()
+	codecArgs := types.GetCodecArgs(output.Codec)
+	format := types.GetOutputFormat(output.Codec)
 	srtURL := BuildSRTURL(output)
-
-	args := []string{
-		"-f", "s16le", "-ar", "48000", "-ac", "2",
-		"-hide_banner", "-loglevel", "warning",
-		"-i", "pipe:0", "-codec:a",
-	}
-	args = append(args, codecArgs...)
-	args = append(args, "-f", format, srtURL)
-	return args
+	return ffmpeg.BuildArgs(codecArgs, format, srtURL)
 }
 
 // BuildSRTURL constructs the SRT URL for an output with properly encoded parameters.

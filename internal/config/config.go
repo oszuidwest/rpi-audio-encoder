@@ -20,25 +20,29 @@ const (
 	DefaultSilenceDuration  = 15.0 // seconds of silence before alerting
 	DefaultSilenceRecovery  = 5.0  // seconds of audio before considering recovered
 	DefaultEmailSMTPPort    = 587
+
+	// Recording defaults
+	DefaultRecordingPath = "/var/lib/encoder/recordings"
 )
 
 // Config holds all application configuration. It is safe for concurrent use.
 type Config struct {
-	WebPort          int            `json:"web_port"`
-	WebUser          string         `json:"web_user"`
-	WebPassword      string         `json:"web_password"`
-	AudioInput       string         `json:"audio_input"`
-	SilenceThreshold float64        `json:"silence_threshold,omitempty"`
-	SilenceDuration  float64        `json:"silence_duration,omitempty"`
-	SilenceRecovery  float64        `json:"silence_recovery,omitempty"`
-	SilenceWebhook   string         `json:"silence_webhook,omitempty"`
-	SilenceLogPath   string         `json:"silence_log_path,omitempty"`
-	EmailSMTPHost    string         `json:"email_smtp_host,omitempty"`
-	EmailSMTPPort    int            `json:"email_smtp_port,omitempty"`
-	EmailUsername    string         `json:"email_username,omitempty"`
-	EmailPassword    string         `json:"email_password,omitempty"`
-	EmailRecipients  string         `json:"email_recipients,omitempty"`
-	Outputs          []types.Output `json:"outputs"`
+	WebPort          int               `json:"web_port"`
+	WebUser          string            `json:"web_user"`
+	WebPassword      string            `json:"web_password"`
+	AudioInput       string            `json:"audio_input"`
+	SilenceThreshold float64           `json:"silence_threshold,omitempty"`
+	SilenceDuration  float64           `json:"silence_duration,omitempty"`
+	SilenceRecovery  float64           `json:"silence_recovery,omitempty"`
+	SilenceWebhook   string            `json:"silence_webhook,omitempty"`
+	SilenceLogPath   string            `json:"silence_log_path,omitempty"`
+	EmailSMTPHost    string            `json:"email_smtp_host,omitempty"`
+	EmailSMTPPort    int               `json:"email_smtp_port,omitempty"`
+	EmailUsername    string            `json:"email_username,omitempty"`
+	EmailPassword    string            `json:"email_password,omitempty"`
+	EmailRecipients  string            `json:"email_recipients,omitempty"`
+	Outputs          []types.Output    `json:"outputs"`
+	Recordings       []types.Recording `json:"recordings,omitempty"`
 
 	mu       sync.RWMutex
 	filePath string
@@ -173,13 +177,14 @@ func (c *Config) AddOutput(output types.Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	now := time.Now()
 	if output.ID == "" {
-		output.ID = fmt.Sprintf("output-%d", len(c.Outputs)+1)
+		output.ID = fmt.Sprintf("output-%d", now.UnixNano())
 	}
 	if output.Codec == "" {
 		output.Codec = "mp3"
 	}
-	output.CreatedAt = time.Now().UnixMilli()
+	output.CreatedAt = now.UnixMilli()
 
 	c.Outputs = append(c.Outputs, output)
 	return c.saveLocked()
@@ -369,4 +374,91 @@ func (c *Config) GetWebPassword() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.WebPassword
+}
+
+// GetRecordings returns a copy of all recordings.
+func (c *Config) GetRecordings() []types.Recording {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	recordings := make([]types.Recording, len(c.Recordings))
+	copy(recordings, c.Recordings)
+	return recordings
+}
+
+// GetRecording returns a copy of the recording with the given ID, or nil if not found.
+func (c *Config) GetRecording(id string) *types.Recording {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, r := range c.Recordings {
+		if r.ID == id {
+			recording := r
+			return &recording
+		}
+	}
+	return nil
+}
+
+// findRecordingIndex returns the index of the recording with the given ID, or -1 if not found.
+// Caller must hold c.mu (read or write lock).
+func (c *Config) findRecordingIndex(id string) int {
+	for i, r := range c.Recordings {
+		if r.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// AddRecording adds a new recording and saves the configuration.
+func (c *Config) AddRecording(recording types.Recording) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	if recording.ID == "" {
+		recording.ID = fmt.Sprintf("recording-%d", now.UnixNano())
+	}
+	if recording.Codec == "" {
+		recording.Codec = "mp3"
+	}
+	if recording.Path == "" {
+		recording.Path = DefaultRecordingPath
+	}
+	if recording.RetentionDays <= 0 {
+		recording.RetentionDays = types.DefaultRecordingRetention
+	}
+	recording.CreatedAt = now.UnixMilli()
+
+	c.Recordings = append(c.Recordings, recording)
+	return c.saveLocked()
+}
+
+// RemoveRecording removes a recording by ID and saves the configuration.
+func (c *Config) RemoveRecording(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	i := c.findRecordingIndex(id)
+	if i == -1 {
+		return fmt.Errorf("recording not found: %s", id)
+	}
+
+	c.Recordings = append(c.Recordings[:i], c.Recordings[i+1:]...)
+	return c.saveLocked()
+}
+
+// UpdateRecording updates an existing recording and saves the configuration.
+func (c *Config) UpdateRecording(recording types.Recording) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	i := c.findRecordingIndex(recording.ID)
+	if i == -1 {
+		return fmt.Errorf("recording not found: %s", recording.ID)
+	}
+
+	c.Recordings[i] = recording
+	return c.saveLocked()
 }
