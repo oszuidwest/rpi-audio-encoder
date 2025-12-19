@@ -42,17 +42,20 @@ type Recorder struct {
 	backoff    *util.Backoff
 	restarting atomic.Bool
 
-	// Process monitoring
-	monitorDone chan struct{}
+	// Dependencies for retry logic
+	getRecording   func() *types.Recording
+	encoderRunning func() bool
 }
 
 // NewRecorder creates a new Recorder for the given recording configuration.
-func NewRecorder(recording *types.Recording) *Recorder {
+func NewRecorder(recording *types.Recording, getRecording func() *types.Recording, encoderRunning func() bool) *Recorder {
 	return &Recorder{
-		recording:  recording,
-		maxRetries: recording.GetMaxRetries(),
-		backoff:    util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
-		stderr:     util.NewStderrBuffer(),
+		recording:      recording,
+		maxRetries:     recording.GetMaxRetries(),
+		backoff:        util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
+		stderr:         util.NewStderrBuffer(),
+		getRecording:   getRecording,
+		encoderRunning: encoderRunning,
 	}
 }
 
@@ -67,7 +70,6 @@ func (r *Recorder) Start() error {
 
 	// Initialize channels
 	r.stopChan = make(chan struct{})
-	r.monitorDone = make(chan struct{})
 
 	if err := r.startFFmpegLocked(); err != nil {
 		r.lastError = err.Error()
@@ -214,6 +216,11 @@ func (r *Recorder) monitorProcess() {
 		r.ffmpegCmd = nil
 		r.mu.Unlock()
 
+		// Check if encoder is still running
+		if !r.encoderRunning() {
+			return
+		}
+
 		// Attempt restart with backoff
 		if !r.attemptRestartWithBackoff() {
 			return
@@ -253,6 +260,18 @@ func (r *Recorder) attemptRestartWithBackoff() bool {
 	case <-time.After(delay):
 	}
 
+	// Check if recording was removed during wait
+	rec := r.getRecording()
+	if rec == nil {
+		slog.Info("recording was removed during retry wait, not restarting", "recording_id", r.recording.ID)
+		return false
+	}
+
+	// Check if encoder is still running
+	if !r.encoderRunning() {
+		return false
+	}
+
 	// Check if still running
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -260,6 +279,9 @@ func (r *Recorder) attemptRestartWithBackoff() bool {
 	if !r.running {
 		return false
 	}
+
+	// Update recording config in case it changed
+	r.recording = rec
 
 	// Stop any existing process
 	_ = r.stopFFmpegLocked()

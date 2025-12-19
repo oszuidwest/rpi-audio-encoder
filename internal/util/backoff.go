@@ -32,11 +32,6 @@ func (b *Backoff) Next() time.Duration {
 	return current
 }
 
-// Current returns the current delay without advancing.
-func (b *Backoff) Current() time.Duration {
-	return b.current
-}
-
 // Reset returns the backoff to the initial delay.
 func (b *Backoff) Reset(initial time.Duration) {
 	b.current = initial

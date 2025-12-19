@@ -13,12 +13,16 @@
  *   - levels: Audio RMS/peak levels, ~4 updates per second
  *   - status: Encoder state, outputs, devices, settings (every 3s)
  *   - test_result: Unified notification test result with test_type field
+ *   - command_result: Command success/error feedback
+ *   - silence_log_result: Silence log entries response
  *
  * WebSocket Commands (outgoing):
- *   - start/stop: Control encoder
  *   - update_settings: Persist configuration changes
- *   - add_output/remove_output: Manage stream outputs
+ *   - add_output/delete_output: Manage stream outputs
+ *   - add_recording/delete_recording: Manage compliance recordings
+ *   - start_recording/stop_recording: Control manual recordings
  *   - test_<type>: Trigger notification test (webhook, log, email)
+ *   - view_silence_log: Request silence log entries
  *
  * Dependencies:
  *   - Alpine.js 3.x (loaded before this script)
@@ -72,16 +76,17 @@ const DEFAULT_RECORDING = {
 };
 
 // Settings field mapping for WebSocket status sync
+// All settings now come from msg.settings object
 const SETTINGS_MAP = [
-    { msgKey: 'silence_threshold', path: 'silenceThreshold', default: -40 },
-    { msgKey: 'silence_duration', path: 'silenceDuration', default: 15 },
-    { msgKey: 'silence_recovery', path: 'silenceRecovery', default: 5 },
-    { msgKey: 'silence_webhook', path: 'silenceWebhook', default: '' },
-    { msgKey: 'silence_log_path', path: 'silenceLogPath', default: '' },
-    { msgKey: 'email_smtp_host', path: 'email.host', default: '' },
-    { msgKey: 'email_smtp_port', path: 'email.port', default: 587 },
-    { msgKey: 'email_username', path: 'email.username', default: '' },
-    { msgKey: 'email_recipients', path: 'email.recipients', default: '' }
+    { srcKey: 'silence_threshold', path: 'silenceThreshold', default: -40 },
+    { srcKey: 'silence_duration', path: 'silenceDuration', default: 15 },
+    { srcKey: 'silence_recovery', path: 'silenceRecovery', default: 5 },
+    { srcKey: 'silence_webhook', path: 'silenceWebhook', default: '' },
+    { srcKey: 'silence_log_path', path: 'silenceLogPath', default: '' },
+    { srcKey: 'email_smtp_host', path: 'email.host', default: '' },
+    { srcKey: 'email_smtp_port', path: 'email.port', default: 587 },
+    { srcKey: 'email_username', path: 'email.username', default: '' },
+    { srcKey: 'email_recipients', path: 'email.recipients', default: '' }
 ];
 
 /**
@@ -257,6 +262,8 @@ document.addEventListener('alpine:init', () => {
                     this.handleTestResult(msg);
                 } else if (msg.type === 'silence_log_result') {
                     this.handleSilenceLogResult(msg);
+                } else if (msg.type === 'command_result') {
+                    this.handleCommandResult(msg);
                 }
             };
 
@@ -430,18 +437,19 @@ document.addEventListener('alpine:init', () => {
 
             // Only update settings from status when not on settings view to prevent
             // overwriting user input while editing
-            if (this.view !== 'settings') {
-                if (msg.settings?.audio_input) {
+            if (this.view !== 'settings' && msg.settings) {
+                // All settings now come from msg.settings object
+                if (msg.settings.audio_input) {
                     this.settings.audioInput = msg.settings.audio_input;
                 }
-                // Sync remaining settings from status message
-                for (const field of SETTINGS_MAP) {
-                    if (msg[field.msgKey] !== undefined) {
-                        setNestedValue(this.settings, field.path, msg[field.msgKey] || field.default);
-                    }
-                }
-                if (msg.settings?.platform !== undefined) {
+                if (msg.settings.platform !== undefined) {
                     this.settings.platform = msg.settings.platform;
+                }
+                // Sync remaining settings from msg.settings
+                for (const field of SETTINGS_MAP) {
+                    if (msg.settings[field.srcKey] !== undefined) {
+                        setNestedValue(this.settings, field.path, msg.settings[field.srcKey] ?? field.default);
+                    }
                 }
             }
 
@@ -470,6 +478,18 @@ document.addEventListener('alpine:init', () => {
             this.testStates[type].text = msg.success ? 'Sent!' : 'Failed';
             if (!msg.success) alert(`${type} test failed: ${msg.error || 'Unknown error'}`);
             setTimeout(() => { this.testStates[type].text = 'Test'; }, EMAIL_FEEDBACK_MS);
+        },
+
+        /**
+         * Handles command result feedback from backend.
+         * Shows error alert for failed commands.
+         *
+         * @param {Object} msg - Result with command, success, and optional error
+         */
+        handleCommandResult(msg) {
+            if (!msg.success && msg.error) {
+                alert(`${msg.command} failed: ${msg.error}`);
+            }
         },
 
         // Navigation

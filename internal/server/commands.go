@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
@@ -56,66 +55,89 @@ func NewCommandHandler(
 	}
 }
 
+// sendCommandResult sends a command result to the client.
+func sendCommandResult(conn *SafeConn, command string, success bool, errMsg string) {
+	result := map[string]interface{}{
+		"type":    "command_result",
+		"command": command,
+		"success": success,
+	}
+	if errMsg != "" {
+		result["error"] = errMsg
+	}
+	if err := conn.WriteJSON(result); err != nil {
+		slog.Error("failed to send command result", "command", command, "error", err)
+	}
+}
+
 // Handle processes a WebSocket command and performs the requested action.
-func (h *CommandHandler) Handle(cmd WSCommand, conn *websocket.Conn, triggerStatusUpdate func()) {
+func (h *CommandHandler) Handle(cmd WSCommand, conn *SafeConn, triggerStatusUpdate func()) {
 	switch cmd.Type {
 	case "add_output":
-		h.handleAddOutput(cmd)
+		h.handleAddOutput(cmd, conn)
 	case "delete_output":
-		h.handleDeleteOutput(cmd)
+		h.handleDeleteOutput(cmd, conn)
 	case "add_recording":
-		h.handleAddRecording(cmd)
+		h.handleAddRecording(cmd, conn)
 	case "delete_recording":
-		h.handleDeleteRecording(cmd)
+		h.handleDeleteRecording(cmd, conn)
 	case "start_recording":
-		h.handleStartRecording(cmd)
+		h.handleStartRecording(cmd, conn)
 	case "stop_recording":
-		h.handleStopRecording(cmd)
+		h.handleStopRecording(cmd, conn)
 	case "update_settings":
-		h.handleUpdateSettings(cmd)
+		h.handleUpdateSettings(cmd, conn)
 	case "test_webhook", "test_log", "test_email":
 		h.handleTest(conn, cmd.Type)
 	case "view_silence_log":
 		h.handleViewSilenceLog(conn)
 	default:
 		slog.Warn("unknown WebSocket command type", "type", cmd.Type)
+		sendCommandResult(conn, cmd.Type, false, "unknown command")
 	}
 
 	triggerStatusUpdate()
 }
 
-func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
+func (h *CommandHandler) handleAddOutput(cmd WSCommand, conn *SafeConn) {
 	var output types.Output
 	if err := json.Unmarshal(cmd.Data, &output); err != nil {
 		slog.Warn("add_output: invalid JSON data", "error", err)
+		sendCommandResult(conn, "add_output", false, "invalid data")
 		return
 	}
 	// Validate required fields
 	if err := util.ValidateRequired("host", output.Host); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_output", false, err.Message)
 		return
 	}
 	if err := util.ValidatePort("port", output.Port); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_output", false, err.Message)
 		return
 	}
 	// Validate optional fields
 	if err := util.ValidateMaxLength("host", output.Host, 253); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_output", false, err.Message)
 		return
 	}
 	if err := util.ValidateMaxLength("streamid", output.StreamID, 256); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_output", false, err.Message)
 		return
 	}
 	// Limit number of outputs to prevent resource exhaustion
 	if len(h.cfg.GetOutputs()) >= 10 {
 		slog.Warn("add_output: maximum of 10 outputs reached")
+		sendCommandResult(conn, "add_output", false, "maximum of 10 outputs reached")
 		return
 	}
 	// Validate max_retries if provided
 	if err := util.ValidateRange("max_retries", output.MaxRetries, 0, 9999); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_output", false, err.Message)
 		return
 	}
 	// Set defaults
@@ -127,6 +149,7 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 	}
 	if err := h.cfg.AddOutput(output); err != nil {
 		slog.Error("add_output: failed to add", "error", err)
+		sendCommandResult(conn, "add_output", false, "failed to save")
 		return
 	}
 	slog.Info("add_output: added output", "host", output.Host, "port", output.Port)
@@ -139,11 +162,13 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 			}
 		}
 	}
+	sendCommandResult(conn, "add_output", true, "")
 }
 
-func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
+func (h *CommandHandler) handleDeleteOutput(cmd WSCommand, conn *SafeConn) {
 	if cmd.ID == "" {
 		slog.Warn("delete_output: no ID provided")
+		sendCommandResult(conn, "delete_output", false, "no ID provided")
 		return
 	}
 	slog.Info("delete_output: deleting", "output_id", cmd.ID)
@@ -152,38 +177,46 @@ func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 	}
 	if err := h.cfg.RemoveOutput(cmd.ID); err != nil {
 		slog.Error("delete_output: failed to remove from config", "error", err)
-	} else {
-		slog.Info("delete_output: removed from config", "output_id", cmd.ID)
+		sendCommandResult(conn, "delete_output", false, "failed to remove")
+		return
 	}
+	slog.Info("delete_output: removed from config", "output_id", cmd.ID)
+	sendCommandResult(conn, "delete_output", true, "")
 }
 
-func (h *CommandHandler) handleAddRecording(cmd WSCommand) {
+func (h *CommandHandler) handleAddRecording(cmd WSCommand, conn *SafeConn) {
 	var recording types.Recording
 	if err := json.Unmarshal(cmd.Data, &recording); err != nil {
 		slog.Warn("add_recording: invalid JSON data", "error", err)
+		sendCommandResult(conn, "add_recording", false, "invalid data")
 		return
 	}
 	// Validate required fields
 	if err := util.ValidateRequired("name", recording.Name); err != nil {
 		slog.Warn("add_recording: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_recording", false, err.Message)
 		return
 	}
 	if err := util.ValidateRequired("path", recording.Path); err != nil {
 		slog.Warn("add_recording: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_recording", false, err.Message)
 		return
 	}
 	// Validate optional fields
 	if err := util.ValidateMaxLength("name", recording.Name, 100); err != nil {
 		slog.Warn("add_recording: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_recording", false, err.Message)
 		return
 	}
 	if err := util.ValidateMaxLength("path", recording.Path, 500); err != nil {
 		slog.Warn("add_recording: validation failed", "error", err.Message)
+		sendCommandResult(conn, "add_recording", false, err.Message)
 		return
 	}
 	// Limit number of recordings
 	if len(h.cfg.GetRecordings()) >= 5 {
 		slog.Warn("add_recording: maximum of 5 recordings reached")
+		sendCommandResult(conn, "add_recording", false, "maximum of 5 recordings reached")
 		return
 	}
 	// Validate codec if provided
@@ -203,11 +236,13 @@ func (h *CommandHandler) handleAddRecording(cmd WSCommand) {
 	if recording.RetentionDays != 0 {
 		if err := util.ValidateRange("retention_days", recording.RetentionDays, 1, 365); err != nil {
 			slog.Warn("add_recording: validation failed", "error", err.Message)
+			sendCommandResult(conn, "add_recording", false, err.Message)
 			return
 		}
 	}
 	if err := h.cfg.AddRecording(recording); err != nil {
 		slog.Error("add_recording: failed to add", "error", err)
+		sendCommandResult(conn, "add_recording", false, "failed to save")
 		return
 	}
 	slog.Info("add_recording: added recording", "name", recording.Name, "path", recording.Path, "mode", recording.Mode)
@@ -224,11 +259,13 @@ func (h *CommandHandler) handleAddRecording(cmd WSCommand) {
 			}
 		}
 	}
+	sendCommandResult(conn, "add_recording", true, "")
 }
 
-func (h *CommandHandler) handleDeleteRecording(cmd WSCommand) {
+func (h *CommandHandler) handleDeleteRecording(cmd WSCommand, conn *SafeConn) {
 	if cmd.ID == "" {
 		slog.Warn("delete_recording: no ID provided")
+		sendCommandResult(conn, "delete_recording", false, "no ID provided")
 		return
 	}
 	slog.Info("delete_recording: deleting", "recording_id", cmd.ID)
@@ -237,35 +274,46 @@ func (h *CommandHandler) handleDeleteRecording(cmd WSCommand) {
 	}
 	if err := h.cfg.RemoveRecording(cmd.ID); err != nil {
 		slog.Error("delete_recording: failed to remove from config", "error", err)
-	} else {
-		slog.Info("delete_recording: removed from config", "recording_id", cmd.ID)
+		sendCommandResult(conn, "delete_recording", false, "failed to remove")
+		return
 	}
+	slog.Info("delete_recording: removed from config", "recording_id", cmd.ID)
+	sendCommandResult(conn, "delete_recording", true, "")
 }
 
-func (h *CommandHandler) handleStartRecording(cmd WSCommand) {
+func (h *CommandHandler) handleStartRecording(cmd WSCommand, conn *SafeConn) {
 	if cmd.ID == "" {
 		slog.Warn("start_recording: no ID provided")
+		sendCommandResult(conn, "start_recording", false, "no ID provided")
 		return
 	}
 	if h.getState() != types.StateRunning {
 		slog.Warn("start_recording: encoder not running")
+		sendCommandResult(conn, "start_recording", false, "encoder not running")
 		return
 	}
 	slog.Info("start_recording: starting", "recording_id", cmd.ID)
 	if err := h.startRecording(cmd.ID); err != nil {
 		slog.Error("start_recording: failed to start", "error", err)
+		sendCommandResult(conn, "start_recording", false, err.Error())
+		return
 	}
+	sendCommandResult(conn, "start_recording", true, "")
 }
 
-func (h *CommandHandler) handleStopRecording(cmd WSCommand) {
+func (h *CommandHandler) handleStopRecording(cmd WSCommand, conn *SafeConn) {
 	if cmd.ID == "" {
 		slog.Warn("stop_recording: no ID provided")
+		sendCommandResult(conn, "stop_recording", false, "no ID provided")
 		return
 	}
 	slog.Info("stop_recording: stopping", "recording_id", cmd.ID)
 	if err := h.stopRecording(cmd.ID); err != nil {
 		slog.Error("stop_recording: failed to stop", "error", err)
+		sendCommandResult(conn, "stop_recording", false, err.Error())
+		return
 	}
+	sendCommandResult(conn, "stop_recording", true, "")
 }
 
 // updateFloatSetting validates and updates a float64 setting with logging.
@@ -295,7 +343,7 @@ func updateStringSetting(value *string, name string, setter func(string) error) 
 	}
 }
 
-func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
+func (h *CommandHandler) handleUpdateSettings(cmd WSCommand, conn *SafeConn) {
 	var settings struct {
 		AudioInput       string   `json:"audio_input"`
 		SilenceThreshold *float64 `json:"silence_threshold"`
@@ -311,6 +359,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	}
 	if err := json.Unmarshal(cmd.Data, &settings); err != nil {
 		slog.Warn("update_settings: invalid JSON data", "error", err)
+		sendCommandResult(conn, "update_settings", false, "invalid data")
 		return
 	}
 	if settings.AudioInput != "" {
@@ -367,11 +416,12 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 			slog.Error("update_settings: failed to save email config", "error", err)
 		}
 	}
+	sendCommandResult(conn, "update_settings", true, "")
 }
 
 // handleTest executes a notification test and sends the result to the client.
 // testCmd should be in format "test_<type>" (e.g., "test_email", "test_webhook").
-func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
+func (h *CommandHandler) handleTest(conn *SafeConn, testCmd string) {
 	testType := strings.TrimPrefix(testCmd, "test_")
 	trigger, ok := h.testTriggers[testType]
 	if !ok {
@@ -401,7 +451,7 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 }
 
 // handleViewSilenceLog reads and returns the silence log file contents.
-func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
+func (h *CommandHandler) handleViewSilenceLog(conn *SafeConn) {
 	go func() {
 		result := map[string]interface{}{
 			"type":    "silence_log_result",

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
 	"github.com/oszuidwest/zwfm-encoder/internal/server"
@@ -91,25 +90,25 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		status := s.encoder.GetStatus()
 		status.OutputCount = len(s.config.GetOutputs())
 		return conn.WriteJSON(map[string]interface{}{
-			"type":              "status",
-			"encoder":           status,
-			"outputs":           s.config.GetOutputs(),
-			"output_status":     s.encoder.GetAllOutputStatuses(),
-			"recordings":        s.config.GetRecordings(),
-			"recording_status":  s.encoder.GetAllRecordingStatuses(),
-			"devices":           encoder.ListAudioDevices(),
-			"silence_threshold": s.config.GetSilenceThreshold(),
-			"silence_duration":  s.config.GetSilenceDuration(),
-			"silence_recovery":  s.config.GetSilenceRecovery(),
-			"silence_webhook":   s.config.GetSilenceWebhook(),
-			"silence_log_path":  s.config.GetSilenceLogPath(),
-			"email_smtp_host":   s.config.GetEmailSMTPHost(),
-			"email_smtp_port":   s.config.GetEmailSMTPPort(),
-			"email_username":    s.config.GetEmailUsername(),
-			"email_recipients":  s.config.GetEmailRecipients(),
+			"type":             "status",
+			"encoder":          status,
+			"outputs":          s.config.GetOutputs(),
+			"output_status":    s.encoder.GetAllOutputStatuses(),
+			"recordings":       s.config.GetRecordings(),
+			"recording_status": s.encoder.GetAllRecordingStatuses(),
+			"devices":          encoder.ListAudioDevices(),
 			"settings": map[string]interface{}{
-				"audio_input": s.config.GetAudioInput(),
-				"platform":    runtime.GOOS,
+				"audio_input":       s.config.GetAudioInput(),
+				"platform":          runtime.GOOS,
+				"silence_threshold": s.config.GetSilenceThreshold(),
+				"silence_duration":  s.config.GetSilenceDuration(),
+				"silence_recovery":  s.config.GetSilenceRecovery(),
+				"silence_webhook":   s.config.GetSilenceWebhook(),
+				"silence_log_path":  s.config.GetSilenceLogPath(),
+				"email_smtp_host":   s.config.GetEmailSMTPHost(),
+				"email_smtp_port":   s.config.GetEmailSMTPPort(),
+				"email_username":    s.config.GetEmailUsername(),
+				"email_recipients":  s.config.GetEmailRecipients(),
 			},
 			"version": s.version.GetInfo(),
 		})
@@ -238,6 +237,3 @@ func (s *Server) Start() *http.Server {
 
 	return srv
 }
-
-// Conn is an alias for websocket.Conn to avoid import in other packages.
-type Conn = websocket.Conn

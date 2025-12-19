@@ -1,12 +1,12 @@
 package output
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log/slog"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -15,56 +15,281 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
-// Manager manages multiple output FFmpeg processes.
-type Manager struct {
-	processes map[string]*Process
-	mu        sync.RWMutex
-}
+// Output manages a single SRT output destination with automatic retry.
+type Output struct {
+	output      *types.Output
+	ffmpegCmd   *exec.Cmd
+	ffmpegStdin io.WriteCloser
+	stderr      *util.BoundedBuffer
+	startTime   time.Time
 
-// Process tracks an individual output FFmpeg process.
-type Process struct {
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	stdin      io.WriteCloser
-	running    bool
+	// Synchronization
+	mu       sync.RWMutex
+	running  bool
+	stopChan chan struct{}
+	wg       sync.WaitGroup
+
+	// Error tracking with backoff
 	lastError  string
-	startTime  time.Time
 	retryCount int
+	maxRetries int
 	backoff    *util.Backoff
+	restarting atomic.Bool
+
+	// Dependencies for retry logic
+	getOutput      func() *types.Output
+	encoderRunning func() bool
 }
 
-// NewManager creates a new output manager.
-func NewManager() *Manager {
-	return &Manager{
-		processes: make(map[string]*Process),
+// NewOutput creates a new Output for the given output configuration.
+func NewOutput(output *types.Output, getOutput func() *types.Output, encoderRunning func() bool) *Output {
+	return &Output{
+		output:         output,
+		maxRetries:     output.GetMaxRetries(),
+		backoff:        util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay),
+		stderr:         util.NewStderrBuffer(),
+		getOutput:      getOutput,
+		encoderRunning: encoderRunning,
 	}
 }
 
-// Start starts an output FFmpeg process.
-// If a process entry already exists, retry state (count and backoff) is preserved.
-func (m *Manager) Start(output *types.Output) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// Start begins streaming to the SRT output.
+func (o *Output) Start() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 
-	existing, exists := m.processes[output.ID]
-	if exists && existing.running {
+	if o.running {
 		return nil // Already running
 	}
 
-	// Preserve retry state from existing entry, or create fresh
-	var retryCount int
-	var backoff *util.Backoff
-	if exists && existing.backoff != nil {
-		retryCount = existing.retryCount
-		backoff = existing.backoff
-	} else {
-		retryCount = 0
-		backoff = util.NewBackoff(types.InitialRetryDelay, types.MaxRetryDelay)
+	// Initialize channels
+	o.stopChan = make(chan struct{})
+
+	if err := o.startFFmpegLocked(); err != nil {
+		o.lastError = err.Error()
+		return err
 	}
 
-	args := BuildFFmpegArgs(output)
+	o.running = true
+	o.lastError = ""
+	o.retryCount = 0
+	o.backoff.Reset(types.InitialRetryDelay)
 
-	slog.Info("starting output", "output_id", output.ID, "host", output.Host, "port", output.Port)
+	// Start process monitor
+	o.wg.Add(1)
+	go o.monitorProcess()
+
+	return nil
+}
+
+// Stop gracefully stops the output.
+func (o *Output) Stop() error {
+	o.mu.Lock()
+	if !o.running {
+		o.mu.Unlock()
+		return nil
+	}
+
+	o.running = false
+
+	// Signal stop to all goroutines
+	close(o.stopChan)
+
+	// Stop FFmpeg FIRST, before waiting for monitor goroutine.
+	// This allows the monitor goroutine to exit (it's blocked on cmd.Wait()).
+	_ = o.stopFFmpegLocked()
+	o.mu.Unlock()
+
+	// Wait for monitor goroutine to finish
+	o.wg.Wait()
+
+	return nil
+}
+
+// WriteAudio writes PCM audio data to the output.
+func (o *Output) WriteAudio(data []byte) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if !o.running || o.ffmpegStdin == nil {
+		return nil
+	}
+
+	if _, err := o.ffmpegStdin.Write(data); err != nil {
+		o.lastError = err.Error()
+		slog.Warn("output write failed, marking as stopped", "output_id", o.output.ID, "error", err)
+		// Don't trigger restart here - monitor goroutine will handle it
+		return err
+	}
+	return nil
+}
+
+// IsRunning returns whether the output is active.
+func (o *Output) IsRunning() bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.running
+}
+
+// GetStatus returns the current output status.
+func (o *Output) GetStatus(maxRetries int) types.OutputStatus {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	return types.OutputStatus{
+		Running:    o.running,
+		Stable:     o.running && time.Since(o.startTime) >= types.StableThreshold,
+		LastError:  o.lastError,
+		RetryCount: o.retryCount,
+		MaxRetries: maxRetries,
+		GivenUp:    o.retryCount > maxRetries,
+	}
+}
+
+// monitorProcess monitors the FFmpeg process and handles restarts with backoff.
+func (o *Output) monitorProcess() {
+	defer o.wg.Done()
+
+	for {
+		// Get cmd reference under lock and keep it for Wait()
+		o.mu.Lock()
+		cmd := o.ffmpegCmd
+		running := o.running
+		if !running || cmd == nil {
+			o.mu.Unlock()
+			return
+		}
+		o.mu.Unlock()
+
+		// Wait for process to exit (cmd reference is safe, process owns it)
+		startTime := time.Now()
+		err := cmd.Wait()
+		runDuration := time.Since(startTime)
+
+		// Check if we should stop
+		select {
+		case <-o.stopChan:
+			return
+		default:
+		}
+
+		o.mu.Lock()
+		if !o.running {
+			o.mu.Unlock()
+			return
+		}
+
+		// Process exited unexpectedly
+		if err != nil {
+			errMsg := ffmpeg.ExtractLastError(o.stderr.String())
+			if errMsg == "" {
+				errMsg = err.Error()
+			}
+			o.lastError = errMsg
+			slog.Error("output error", "output_id", o.output.ID, "error", errMsg)
+
+			// Update retry state with exponential backoff
+			if runDuration >= types.SuccessThreshold {
+				o.retryCount = 0
+				o.backoff.Reset(types.InitialRetryDelay)
+			}
+		} else {
+			o.retryCount = 0
+			o.backoff.Reset(types.InitialRetryDelay)
+		}
+
+		// Clear stdin reference
+		o.ffmpegStdin = nil
+		o.ffmpegCmd = nil
+		o.mu.Unlock()
+
+		// Check if encoder is still running
+		if !o.encoderRunning() {
+			return
+		}
+
+		// Attempt restart with backoff
+		if !o.attemptRestartWithBackoff() {
+			return
+		}
+	}
+}
+
+// attemptRestartWithBackoff attempts to restart the output with exponential backoff.
+// Returns false if we should stop trying (stopped or max retries exceeded).
+func (o *Output) attemptRestartWithBackoff() bool {
+	// Prevent concurrent restart attempts
+	if !o.restarting.CompareAndSwap(false, true) {
+		return true // Another restart in progress
+	}
+	defer o.restarting.Store(false)
+
+	o.mu.Lock()
+	o.retryCount++
+	delay := o.backoff.Next()
+	retryCount := o.retryCount
+	maxRetries := o.maxRetries
+	o.mu.Unlock()
+
+	// Check if we've exceeded max retries
+	if retryCount > maxRetries {
+		slog.Warn("output gave up after retries", "output_id", o.output.ID, "retries", maxRetries)
+		return false
+	}
+
+	slog.Info("output stopped, waiting before retry",
+		"output_id", o.output.ID, "delay", delay, "retry", retryCount, "max_retries", maxRetries)
+
+	// Wait with cancellation support
+	select {
+	case <-o.stopChan:
+		return false
+	case <-time.After(delay):
+	}
+
+	// Check if output was removed during wait
+	out := o.getOutput()
+	if out == nil {
+		slog.Info("output was removed during retry wait, not restarting", "output_id", o.output.ID)
+		return false
+	}
+
+	// Check if encoder is still running
+	if !o.encoderRunning() {
+		return false
+	}
+
+	// Check if still running
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if !o.running {
+		return false
+	}
+
+	// Update output config in case it changed
+	o.output = out
+
+	// Stop any existing process
+	_ = o.stopFFmpegLocked()
+	o.stderr.Reset()
+
+	// Try to start again
+	if err := o.startFFmpegLocked(); err != nil {
+		o.lastError = err.Error()
+		slog.Error("failed to restart output", "output_id", o.output.ID, "error", err, "retry", o.retryCount)
+		return true // Keep trying
+	}
+
+	o.lastError = ""
+	slog.Info("output restarted successfully", "output_id", o.output.ID, "retry", o.retryCount)
+	return true
+}
+
+// startFFmpegLocked starts the FFmpeg process for streaming.
+// Caller must hold o.mu.
+func (o *Output) startFFmpegLocked() error {
+	args := BuildFFmpegArgs(o.output)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
@@ -75,118 +300,131 @@ func (m *Manager) Start(output *types.Output) error {
 		return err
 	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	proc := &Process{
-		cmd:        cmd,
-		cancel:     cancel,
-		stdin:      stdinPipe,
-		running:    true,
-		startTime:  time.Now(),
-		retryCount: retryCount,
-		backoff:    backoff,
-	}
-
-	m.processes[output.ID] = proc
+	// Capture stderr for error reporting (bounded buffer)
+	o.stderr.Reset()
+	cmd.Stderr = o.stderr
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		if closeErr := stdinPipe.Close(); closeErr != nil {
-			slog.Warn("failed to close stdin pipe", "error", closeErr)
-		}
-		delete(m.processes, output.ID)
+		_ = stdinPipe.Close()
 		return err
 	}
 
+	o.ffmpegCmd = cmd
+	o.ffmpegStdin = stdinPipe
+	o.startTime = time.Now()
+
+	// Store cancel for stopFFmpegLocked
+	o.ffmpegCmd.Cancel = func() error {
+		cancel()
+		return nil
+	}
+
+	slog.Info("starting output", "output_id", o.output.ID, "host", o.output.Host, "port", o.output.Port)
 	return nil
 }
 
-// Stop stops an output with graceful shutdown.
-func (m *Manager) Stop(outputID string) error {
+// stopFFmpegLocked stops the current FFmpeg process.
+// Caller must hold o.mu.
+func (o *Output) stopFFmpegLocked() error {
+	if o.ffmpegStdin != nil {
+		if err := o.ffmpegStdin.Close(); err != nil {
+			slog.Warn("failed to close output stdin", "output_id", o.output.ID, "error", err)
+		}
+		o.ffmpegStdin = nil
+	}
+
+	if o.ffmpegCmd != nil && o.ffmpegCmd.Process != nil {
+		// Request graceful shutdown via SIGINT
+		if err := o.ffmpegCmd.Process.Signal(syscall.SIGINT); err != nil {
+			// Force kill if signal fails
+			if o.ffmpegCmd.Cancel != nil {
+				_ = o.ffmpegCmd.Cancel()
+			}
+		}
+		// Note: monitorProcess will handle Wait() - no blocking sleep here
+	}
+
+	o.ffmpegCmd = nil
+	return nil
+}
+
+// Manager coordinates multiple output destinations.
+type Manager struct {
+	outputs map[string]*Output
+	mu      sync.RWMutex
+}
+
+// NewManager creates a new output manager.
+func NewManager() *Manager {
+	return &Manager{
+		outputs: make(map[string]*Output),
+	}
+}
+
+// Start starts an output destination.
+func (m *Manager) Start(output *types.Output, getOutput func() *types.Output, encoderRunning func() bool) error {
 	m.mu.Lock()
-	proc, exists := m.processes[outputID]
+	defer m.mu.Unlock()
+
+	// If already exists and running, do nothing
+	if out, exists := m.outputs[output.ID]; exists && out.IsRunning() {
+		return nil
+	}
+
+	// Create new output
+	out := NewOutput(output, getOutput, encoderRunning)
+	if err := out.Start(); err != nil {
+		return err
+	}
+
+	m.outputs[output.ID] = out
+	return nil
+}
+
+// Stop stops an output by ID.
+func (m *Manager) Stop(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	out, exists := m.outputs[id]
 	if !exists {
-		m.mu.Unlock()
 		return nil
 	}
 
-	if !proc.running {
-		delete(m.processes, outputID)
-		m.mu.Unlock()
-		return nil
+	if err := out.Stop(); err != nil {
+		slog.Warn("error stopping output", "output_id", id, "error", err)
 	}
 
-	proc.running = false
-	stdin := proc.stdin
-	process := proc.cmd.Process
-	cancel := proc.cancel
-	proc.stdin = nil
-	m.mu.Unlock()
-
-	slog.Info("stopping output", "output_id", outputID)
-
-	if stdin != nil {
-		if err := stdin.Close(); err != nil {
-			slog.Warn("failed to close stdin", "error", err)
-		}
-	}
-
-	// Request graceful shutdown
-	if process != nil {
-		if err := process.Signal(syscall.SIGINT); err != nil && cancel != nil {
-			cancel()
-		}
-	}
-
-	// Wait briefly for graceful exit
-	time.Sleep(100 * time.Millisecond)
-
-	m.mu.Lock()
-	delete(m.processes, outputID)
-	m.mu.Unlock()
-
+	delete(m.outputs, id)
+	slog.Info("output stopped", "output_id", id)
 	return nil
 }
 
 // StopAll stops all outputs.
 func (m *Manager) StopAll() {
-	m.mu.RLock()
-	ids := make([]string, 0, len(m.processes))
-	for id := range m.processes {
-		ids = append(ids, id)
-	}
-	m.mu.RUnlock()
-
-	for _, id := range ids {
-		if err := m.Stop(id); err != nil {
-			slog.Error("failed to stop output", "output_id", id, "error", err)
-		}
-	}
-}
-
-// WriteAudio writes audio data to a specific output.
-func (m *Manager) WriteAudio(outputID string, data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	proc, exists := m.processes[outputID]
-	if !exists || !proc.running || proc.stdin == nil {
+	for id, out := range m.outputs {
+		if err := out.Stop(); err != nil {
+			slog.Warn("error stopping output", "output_id", id, "error", err)
+		}
+	}
+	m.outputs = make(map[string]*Output)
+}
+
+// WriteAudio writes PCM data to a specific output.
+func (m *Manager) WriteAudio(id string, data []byte) error {
+	m.mu.RLock()
+	out, exists := m.outputs[id]
+	m.mu.RUnlock()
+
+	if !exists || !out.IsRunning() {
 		return nil
 	}
 
-	if _, err := proc.stdin.Write(data); err != nil {
-		slog.Warn("output write failed, marking as stopped", "error", err)
-		proc.running = false
-		if proc.stdin != nil {
-			if closeErr := proc.stdin.Close(); closeErr != nil {
-				slog.Warn("failed to close stdin", "error", closeErr)
-			}
-			proc.stdin = nil
-		}
-		return err
-	}
-	return nil
+	return out.WriteAudio(data)
 }
 
 // GetAllStatuses returns status for all tracked outputs.
@@ -194,186 +432,10 @@ func (m *Manager) GetAllStatuses(getMaxRetries func(string) int) map[string]type
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	statuses := make(map[string]types.OutputStatus)
-	for id, proc := range m.processes {
+	statuses := make(map[string]types.OutputStatus, len(m.outputs))
+	for id, out := range m.outputs {
 		maxRetries := getMaxRetries(id)
-		statuses[id] = types.OutputStatus{
-			Running:    proc.running,
-			Stable:     proc.running && time.Since(proc.startTime) >= types.StableThreshold,
-			LastError:  proc.lastError,
-			RetryCount: proc.retryCount,
-			MaxRetries: maxRetries,
-			GivenUp:    proc.retryCount > maxRetries,
-		}
+		statuses[id] = out.GetStatus(maxRetries)
 	}
 	return statuses
 }
-
-// GetProcess returns process info for monitoring.
-// The returned backoff pointer is safe to use directly since only MonitorAndRetry accesses it.
-func (m *Manager) GetProcess(outputID string) (cmd *exec.Cmd, retryCount int, backoff *util.Backoff, exists bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	proc, exists := m.processes[outputID]
-	if !exists {
-		return nil, 0, nil, false
-	}
-	return proc.cmd, proc.retryCount, proc.backoff, true
-}
-
-// SetError sets the last error for an output.
-func (m *Manager) SetError(outputID, errMsg string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if proc, exists := m.processes[outputID]; exists {
-		proc.lastError = errMsg
-	}
-}
-
-// IncrementRetry increments the retry count for an output.
-func (m *Manager) IncrementRetry(outputID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if proc, exists := m.processes[outputID]; exists {
-		proc.retryCount++
-	}
-}
-
-// ResetRetry resets the retry count and backoff for an output.
-func (m *Manager) ResetRetry(outputID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if proc, exists := m.processes[outputID]; exists {
-		proc.retryCount = 0
-		if proc.backoff != nil {
-			proc.backoff.Reset(types.InitialRetryDelay)
-		}
-	}
-}
-
-// MarkStopped marks an output as not running.
-func (m *Manager) MarkStopped(outputID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if proc, exists := m.processes[outputID]; exists {
-		proc.running = false
-	}
-}
-
-// Remove removes an output from tracking.
-func (m *Manager) Remove(outputID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.processes, outputID)
-}
-
-// MonitorAndRetry monitors an output process and handles retry logic with exponential backoff.
-// It runs in a loop until the output is stopped, removed, or exceeds max retries.
-func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Output, stopChan <-chan struct{}, encoderRunning func() bool) {
-	for {
-		// Check if we should stop
-		select {
-		case <-stopChan:
-			m.Remove(outputID)
-			return
-		default:
-		}
-
-		// Get the process to monitor (backoff is stored in Process, no recreation needed)
-		cmd, retryCount, backoff, exists := m.GetProcess(outputID)
-		if !exists || cmd == nil || backoff == nil {
-			return
-		}
-
-		// Wait for the process to exit
-		startTime := time.Now()
-		err := cmd.Wait()
-		runDuration := time.Since(startTime)
-
-		// Mark as stopped
-		m.MarkStopped(outputID)
-
-		if err != nil {
-			// Extract error message from stderr
-			var errMsg string
-			if stderr, ok := cmd.Stderr.(*bytes.Buffer); ok && stderr != nil {
-				errMsg = ffmpeg.ExtractLastError(stderr.String())
-			}
-			if errMsg == "" {
-				errMsg = err.Error()
-			}
-			m.SetError(outputID, errMsg)
-			slog.Error("output error", "output_id", outputID, "error", errMsg)
-
-			// Update retry state with exponential backoff
-			if runDuration >= types.SuccessThreshold {
-				m.ResetRetry(outputID)
-				retryCount = 0
-			} else {
-				m.IncrementRetry(outputID)
-				retryCount++
-				backoff.Next() // Advance to next delay
-			}
-		} else {
-			m.ResetRetry(outputID)
-			retryCount = 0
-		}
-
-		// Check if encoder is still running
-		if !encoderRunning() {
-			m.Remove(outputID)
-			return
-		}
-
-		// Get current output config
-		out := getOutput()
-		if out == nil {
-			m.Remove(outputID)
-			return
-		}
-
-		// Check if we've exceeded max retries
-		maxRetries := out.GetMaxRetries()
-		if retryCount > maxRetries {
-			slog.Warn("output gave up after retries", "output_id", outputID, "retries", maxRetries)
-			return // Keep in processes for status reporting
-		}
-
-		// Get current delay from backoff (already advanced if error occurred)
-		retryDelay := backoff.Current()
-
-		// Wait before retrying
-		slog.Info("output stopped, waiting before retry",
-			"output_id", outputID, "delay", retryDelay, "retry", retryCount, "max_retries", maxRetries)
-
-		select {
-		case <-stopChan:
-			m.Remove(outputID)
-			return
-		case <-time.After(retryDelay):
-			// Proceed to retry
-		}
-
-		// Verify output wasn't removed during wait
-		out = getOutput()
-		if out == nil {
-			slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
-			m.Remove(outputID)
-			return
-		}
-
-		// Verify encoder is still running
-		if !encoderRunning() {
-			m.Remove(outputID)
-			return
-		}
-
-		// Start the output (retry state is preserved automatically)
-		if err := m.Start(out); err != nil {
-			slog.Error("failed to restart output", "output_id", outputID, "error", err)
-			m.Remove(outputID)
-			return
-		}
-	}
-}
-

@@ -16,6 +16,7 @@ import (
 
 	"github.com/oszuidwest/zwfm-encoder/internal/audio"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
+	"github.com/oszuidwest/zwfm-encoder/internal/ffmpeg"
 	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/output"
 	"github.com/oszuidwest/zwfm-encoder/internal/recording"
@@ -228,7 +229,6 @@ func (e *Encoder) StartOutput(outputID string) error {
 		e.mu.RUnlock()
 		return fmt.Errorf("encoder not running")
 	}
-	stopChan := e.stopChan
 	e.mu.RUnlock()
 
 	out := e.config.GetOutput(outputID)
@@ -236,22 +236,18 @@ func (e *Encoder) StartOutput(outputID string) error {
 		return fmt.Errorf("output not found: %s", outputID)
 	}
 
-	// Start preserves existing retry state automatically
-	if err := e.outputManager.Start(out); err != nil {
-		return fmt.Errorf("failed to start output: %w", err)
-	}
-
-	// Start monitoring and retry logic in OutputManager
-	go e.outputManager.MonitorAndRetry(
-		outputID,
+	// Start with dependencies for retry logic (monitor runs internally)
+	if err := e.outputManager.Start(
+		out,
 		func() *types.Output { return e.config.GetOutput(outputID) },
-		stopChan,
 		func() bool {
 			e.mu.RLock()
 			defer e.mu.RUnlock()
 			return e.state == types.StateRunning
 		},
-	)
+	); err != nil {
+		return fmt.Errorf("failed to start output: %w", err)
+	}
 
 	return nil
 }
@@ -395,7 +391,7 @@ func (e *Encoder) runSource() (string, error) {
 	e.sourceStdout = nil
 	e.mu.Unlock()
 
-	return extractLastError(stderrBuf.String()), err
+	return ffmpeg.ExtractLastError(stderrBuf.String()), err
 }
 
 // startEnabledOutputs starts the audio distributor and all output processes.
@@ -432,7 +428,16 @@ func (e *Encoder) StartRecording(recordingID string) error {
 		return fmt.Errorf("recording not found: %s", recordingID)
 	}
 
-	if err := e.recordingManager.Start(rec); err != nil {
+	// Start with dependencies for retry logic (monitor runs internally)
+	if err := e.recordingManager.Start(
+		rec,
+		func() *types.Recording { return e.config.GetRecording(recordingID) },
+		func() bool {
+			e.mu.RLock()
+			defer e.mu.RUnlock()
+			return e.state == types.StateRunning
+		},
+	); err != nil {
 		return fmt.Errorf("failed to start recording: %w", err)
 	}
 
