@@ -638,10 +638,12 @@ document.addEventListener('alpine:init', () => {
         // VU Meter
         /**
          * Toggles VU meter display mode between peak and RMS.
+         * Resets meter levels to prevent stale peak values from persisting.
          */
         toggleVuMode() {
             this.vuMode = this.vuMode === 'peak' ? 'rms' : 'peak';
             localStorage.setItem('vuMode', this.vuMode);
+            this.resetVuMeter();
         },
 
         /**
