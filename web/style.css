@@ -1544,3 +1544,98 @@ select {
     }
 }
 
+/* =============================================================================
+   Connection Overlay - Shown when WebSocket is disconnected
+   Frosted glass effect with subtle pulsing indicator
+   ============================================================================= */
+
+.connection-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(0 0 0 / 25%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: overlayFadeIn 0.3s ease;
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0);
+        -webkit-backdrop-filter: blur(0);
+    }
+    to {
+        opacity: 1;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+}
+
+.connection-overlay__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem 3rem;
+    background: var(--surface-card);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 25%), 0 0 0 1px rgb(255 255 255 / 5%);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Pulsing ring behind icon */
+.connection-overlay__pulse {
+    position: absolute;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.15;
+    animation: connectionPulse 2s ease-in-out infinite;
+}
+
+@keyframes connectionPulse {
+    0%, 100% {
+        transform: scale(0.8);
+        opacity: 0.15;
+    }
+    50% {
+        transform: scale(1.4);
+        opacity: 0;
+    }
+}
+
+.connection-overlay__icon {
+    position: relative;
+    z-index: 1;
+    color: var(--brand);
+    animation: iconBreath 2s ease-in-out infinite;
+}
+
+.connection-overlay__icon,
+.connection-overlay__icon svg {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+
+@keyframes iconBreath {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.connection-overlay__text {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.025em;
+}
+

@@ -45,6 +45,15 @@
         mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
     </script>
 
+    <!-- Connection overlay - blocks UI when WebSocket disconnected -->
+    <div class="connection-overlay" x-show="encoder.state === 'connecting'" x-cloak>
+        <div class="connection-overlay__content">
+            <div class="connection-overlay__pulse"></div>
+            <span class="connection-overlay__icon" x-html="icons.wifi"></span>
+            <span class="connection-overlay__text">Reconnecting</span>
+        </div>
+    </div>
+
     <!-- Alert banner - page-wide header for silence/update notifications -->
     <div class="alert-banner"
          x-show="banner.visible"
