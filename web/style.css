@@ -1544,3 +1544,64 @@ select {
     }
 }
 
+/* =============================================================================
+   Connection Overlay - Shown when WebSocket is disconnected
+   Frosted glass effect with subtle pulsing indicator
+   ============================================================================= */
+
+.connection-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(0 0 0 / 25%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: overlayFadeIn 0.3s ease;
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0);
+        -webkit-backdrop-filter: blur(0);
+    }
+    to {
+        opacity: 1;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+}
+
+.connection-overlay__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem 3rem;
+    background: var(--surface-card);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 25%), 0 0 0 1px rgb(255 255 255 / 5%);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle spinner */
+.connection-overlay__spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--brand);
+    animation: spin 0.8s linear infinite;
+}
+
+.connection-overlay__text {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.025em;
+}
+
