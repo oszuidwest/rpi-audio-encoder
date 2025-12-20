@@ -48,9 +48,8 @@
     <!-- Connection overlay - blocks UI when WebSocket disconnected -->
     <div class="connection-overlay" x-show="encoder.state === 'connecting'" x-cloak>
         <div class="connection-overlay__content">
-            <div class="connection-overlay__pulse"></div>
-            <span class="connection-overlay__icon" x-html="icons.wifi"></span>
-            <span class="connection-overlay__text">Reconnecting</span>
+            <div class="connection-overlay__spinner"></div>
+            <span class="connection-overlay__text">Connecting...</span>
         </div>
     </div>
 

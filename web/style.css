@@ -1588,48 +1588,14 @@ select {
     overflow: hidden;
 }
 
-/* Pulsing ring behind icon */
-.connection-overlay__pulse {
-    position: absolute;
-    width: 4rem;
-    height: 4rem;
+/* Subtle spinner */
+.connection-overlay__spinner {
+    width: 1.5rem;
+    height: 1.5rem;
     border-radius: 50%;
-    background: var(--brand);
-    opacity: 0.15;
-    animation: connectionPulse 2s ease-in-out infinite;
-}
-
-@keyframes connectionPulse {
-    0%, 100% {
-        transform: scale(0.8);
-        opacity: 0.15;
-    }
-    50% {
-        transform: scale(1.4);
-        opacity: 0;
-    }
-}
-
-.connection-overlay__icon {
-    position: relative;
-    z-index: 1;
-    color: var(--brand);
-    animation: iconBreath 2s ease-in-out infinite;
-}
-
-.connection-overlay__icon,
-.connection-overlay__icon svg {
-    width: 2.5rem;
-    height: 2.5rem;
-}
-
-@keyframes iconBreath {
-    0%, 100% {
-        opacity: 0.6;
-    }
-    50% {
-        opacity: 1;
-    }
+    border: 2px solid var(--border-default);
+    border-top-color: var(--brand);
+    animation: spin 0.8s linear infinite;
 }
 
 .connection-overlay__text {
