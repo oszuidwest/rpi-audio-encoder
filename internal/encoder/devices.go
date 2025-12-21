@@ -96,7 +96,6 @@ func listLinuxDevices() []AudioDevice {
 	}
 
 	if len(devices) == 0 {
-		// Fallback: return default device
 		devices = append(devices, AudioDevice{
 			ID:   "default",
 			Name: "Default Audio Device",

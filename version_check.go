@@ -111,7 +111,6 @@ func (vc *VersionChecker) check() bool {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// New data available
 	case http.StatusNotModified:
 		// No changes since last check - success
 		return true
@@ -135,12 +134,10 @@ func (vc *VersionChecker) check() bool {
 		return false
 	}
 
-	// Skip drafts and prereleases
 	if release.Draft || release.Prerelease {
 		return true
 	}
 
-	// Validate required fields
 	if release.TagName == "" {
 		return false
 	}

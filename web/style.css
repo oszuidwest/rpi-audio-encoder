@@ -249,6 +249,7 @@ body {
 }
 
 .container {
+    width: 100%;
     max-width: 28rem;
     margin: 0 auto;
     padding: 1.25rem;
@@ -577,7 +578,6 @@ select {
 /* Clip indicator - rapid 0.15s flash for transient peak clipping */
 .vu__indicator-dot.clip.active {
     background: var(--danger);
-    /* Smaller 4px glow radius for clip - sharper, urgent alert */
     box-shadow: 0 0 4px var(--danger);
     --pulse-opacity: 0.4;
     animation: pulse 0.15s infinite;
@@ -809,7 +809,6 @@ select {
     gap: 0.625rem;
 }
 
-/* Output status indicator dot */
 .output__dot {
     width: 0.5rem;
     height: 0.5rem;
@@ -1128,7 +1127,6 @@ select {
     }
 }
 
-/* Settings Panels */
 .settings__panels {
     position: relative;
 }
@@ -1181,7 +1179,6 @@ select {
     margin-bottom: 1rem;
 }
 
-/* About Section */
 .about__section {
     text-align: center;
 }
@@ -1604,4 +1601,85 @@ select {
     color: var(--text-secondary);
     letter-spacing: 0.025em;
 }
+
+/* =============================================================================
+   Login Page
+   Reuses: .card, .card__header, .card__body, .form__group, .footer
+   ============================================================================= */
+
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-page .card__header {
+    text-align: center;
+}
+
+.login-page .card__header h1 {
+    font-size: 1.25rem;
+}
+
+.login-page .card__body {
+    padding: 2rem 1.5rem;
+}
+
+.login__logo {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.login__logo .app-logo {
+    width: 4rem;
+    height: 4rem;
+    color: var(--brand);
+}
+
+.login__error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--danger-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: 1.25rem;
+    color: var(--danger);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.login__error svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+.login__form .form__group {
+    margin-bottom: 1.25rem;
+}
+
+.login__btn {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: var(--brand);
+    color: var(--text-inverse);
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.login__btn:hover {
+    background: var(--brand-hover);
+}
+
+.login__btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(230 0 126 / 30%);
+}
+
 

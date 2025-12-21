@@ -44,7 +44,6 @@ const EMAIL_FEEDBACK_MS = 2000;   // Email test result display duration
  */
 window.dbToPercent = (db) => Math.max(0, Math.min(100, (db - DB_MINIMUM) / DB_RANGE * 100));
 
-// Default values for new outputs
 const DEFAULT_OUTPUT = {
     host: '',
     port: 8080,
@@ -96,27 +95,22 @@ function setNestedValue(obj, path, value) {
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('encoderApp', () => ({
-        // View state: 'dashboard', 'settings', 'add-output'
         view: 'dashboard',
         settingsTab: 'audio',
 
-        // VU meter channel definitions
         vuChannels: [
             { label: 'L', level: 'left', peak: 'peak_left' },
             { label: 'R', level: 'right', peak: 'peak_right' }
         ],
 
-        // Settings tab definitions
         settingsTabs: [
             { id: 'audio', label: 'Audio', icon: 'audio' },
             { id: 'alerts', label: 'Alerts', icon: 'bell' },
             { id: 'about', label: 'About', icon: 'info' }
         ],
 
-        // New output form data
         newOutput: { ...DEFAULT_OUTPUT },
 
-        // Encoder state
         encoder: {
             state: 'connecting',
             uptime: '',
@@ -125,20 +119,17 @@ document.addEventListener('alpine:init', () => {
             lastError: ''
         },
 
-        // Outputs
         outputs: [],
         outputStatuses: {},
         previousOutputStatuses: {},
         deletingOutputs: {},
 
-        // Audio
         devices: [],
         levels: { ...DEFAULT_LEVELS },
         vuMode: localStorage.getItem('vuMode') || 'peak',
         clipActive: false,
         clipTimeout: null,
 
-        // Settings
         settings: {
             audioInput: '',
             silenceThreshold: -40,
@@ -152,7 +143,6 @@ document.addEventListener('alpine:init', () => {
         originalSettings: null,
         settingsDirty: false,
 
-        // Version
         version: { current: '', latest: '', updateAvail: false, commit: '', build_time: '' },
 
         // Notification test state (unified object for all test types)
@@ -162,7 +152,6 @@ document.addEventListener('alpine:init', () => {
             email: { pending: false, text: 'Test' }
         },
 
-        // Silence log modal state
         silenceLogModal: {
             visible: false,
             loading: false,
@@ -171,7 +160,6 @@ document.addEventListener('alpine:init', () => {
             error: ''
         },
 
-        // Alert banner state
         banner: {
             visible: false,
             message: '',
@@ -179,7 +167,6 @@ document.addEventListener('alpine:init', () => {
             persistent: false
         },
 
-        // WebSocket
         ws: null,
 
         // Computed properties
@@ -203,10 +190,6 @@ document.addEventListener('alpine:init', () => {
                    (this.encoder.lastError && this.encoder.state !== 'running');
         },
 
-        /**
-         * Checks if encoder is actively running.
-         * @returns {boolean} True if status is 'running'
-         */
         get encoderRunning() {
             return this.encoder.state === 'running';
         },
@@ -220,7 +203,6 @@ document.addEventListener('alpine:init', () => {
             this.connectWebSocket();
         },
 
-        // WebSocket
         /**
          * Establishes WebSocket connection to backend.
          * Handles incoming messages by type and auto-reconnects on close.
@@ -278,7 +260,6 @@ document.addEventListener('alpine:init', () => {
             this.levels = levels;
             const newSilenceClass = this.getSilenceClass();
 
-            // Handle silence state transitions
             if (newSilenceClass !== prevSilenceClass) {
                 this.handleSilenceTransition(prevSilenceClass, newSilenceClass);
             }
@@ -344,7 +325,6 @@ document.addEventListener('alpine:init', () => {
          * @param {Object} msg - Status message with state, outputs, devices, settings
          */
         handleStatus(msg) {
-            // Encoder state
             this.encoder.state = msg.encoder.state;
             this.encoder.uptime = msg.encoder.uptime || '';
             this.encoder.sourceRetryCount = msg.encoder.source_retry_count || 0;
@@ -355,7 +335,6 @@ document.addEventListener('alpine:init', () => {
                 this.resetVuMeter();
             }
 
-            // Outputs
             this.outputs = msg.outputs || [];
             const newOutputStatuses = msg.output_status || {};
 
@@ -382,11 +361,9 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            // Update status tracking
             this.previousOutputStatuses = JSON.parse(JSON.stringify(newOutputStatuses));
             this.outputStatuses = newOutputStatuses;
 
-            // Clean up deletingOutputs
             for (const id in this.deletingOutputs) {
                 const output = this.outputs.find(o => o.id === id);
                 if (!output || output.created_at !== this.deletingOutputs[id]) {
@@ -416,7 +393,6 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            // Version
             if (msg.version) {
                 const wasUpdateAvail = this.version.updateAvail;
                 this.version = msg.version;
@@ -475,7 +451,6 @@ document.addEventListener('alpine:init', () => {
          * Snapshot enables cancel/restore functionality.
          */
         showSettings() {
-            // Save a copy of current settings to allow cancel
             this.originalSettings = JSON.parse(JSON.stringify(this.settings));
             this.settingsDirty = false;
             this.view = 'settings';
@@ -494,7 +469,6 @@ document.addEventListener('alpine:init', () => {
          * Returns to dashboard without saving changes.
          */
         cancelSettings() {
-            // Restore original settings
             if (this.originalSettings) {
                 this.settings = JSON.parse(JSON.stringify(this.originalSettings));
             }
@@ -507,7 +481,6 @@ document.addEventListener('alpine:init', () => {
          * if it was modified (non-empty). Resets dirty state on send.
          */
         saveSettings() {
-            // Build update payload with all settings
             const update = {
                 silence_threshold: this.settings.silenceThreshold,
                 silence_duration: this.settings.silenceDuration,
@@ -527,9 +500,6 @@ document.addEventListener('alpine:init', () => {
             this.saveAndClose();
         },
 
-        /**
-         * Opens add output form with default values.
-         */
         showAddOutput() {
             this.newOutput = { ...DEFAULT_OUTPUT };
             this.view = 'add-output';
@@ -635,7 +605,6 @@ document.addEventListener('alpine:init', () => {
             return !isDeleting && (status.given_up || status.retry_count > 0) && status.last_error;
         },
 
-        // VU Meter
         /**
          * Toggles VU meter display mode between peak and RMS.
          * Resets meter levels to prevent stale peak values from persisting.
@@ -654,7 +623,6 @@ document.addEventListener('alpine:init', () => {
             this.levels = { ...DEFAULT_LEVELS };
         },
 
-        // Notification Tests
         /**
          * Triggers a notification test via WebSocket.
          * Temporarily disables button and shows testing state.
@@ -668,7 +636,6 @@ document.addEventListener('alpine:init', () => {
             this.send(`test_${type}`, null, null);
         },
 
-        // Silence Log Modal
         /**
          * Handles silence log view result from backend.
          * Updates modal state with log entries or error message.
@@ -698,22 +665,15 @@ document.addEventListener('alpine:init', () => {
             this.send('view_silence_log', null, null);
         },
 
-        /**
-         * Closes the silence log modal.
-         */
         closeSilenceLog() {
             this.silenceLogModal.visible = false;
         },
 
-        /**
-         * Refreshes the silence log entries.
-         */
         refreshSilenceLog() {
             this.silenceLogModal.loading = true;
             this.send('view_silence_log', null, null);
         },
 
-        // Alert banner notifications
         /**
          * Shows an alert banner notification.
          * @param {string} message - Message to display
@@ -727,9 +687,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        /**
-         * Hides the current alert banner.
-         */
         hideBanner() {
             this.banner.visible = false;
         },

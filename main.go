@@ -23,7 +23,6 @@ import (
 )
 
 func main() {
-	// Parse command line flags
 	configPath := flag.String("config", "", "Path to config file (default: config.json next to binary)")
 	showVersion := flag.Bool("version", false, "Print version information and exit")
 	flag.Parse()
@@ -33,7 +32,6 @@ func main() {
 		return
 	}
 
-	// Determine config path
 	if *configPath == "" {
 		execPath, err := os.Executable()
 		if err != nil {
@@ -45,17 +43,14 @@ func main() {
 
 	slog.Info("using config file", "path", *configPath)
 
-	// Load configuration
 	cfg := config.New(*configPath)
 	if err := cfg.Load(); err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// Create encoder
 	enc := encoder.New(cfg)
 
-	// Create HTTP server
 	srv := NewServer(cfg, enc)
 
 	// Always start encoder automatically
@@ -67,7 +62,6 @@ func main() {
 	// Start web server (non-blocking, returns *http.Server)
 	httpServer := srv.Start()
 
-	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
@@ -82,7 +76,6 @@ func main() {
 		slog.Error("HTTP server shutdown error", "error", err)
 	}
 
-	// Stop encoder
 	if err := enc.Stop(); err != nil {
 		slog.Error("error stopping encoder", "error", err)
 	}

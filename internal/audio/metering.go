@@ -44,7 +44,6 @@ func ProcessSamples(buf []byte, n int, data *LevelData) {
 			data.PeakR = absR
 		}
 
-		// Clipping detection
 		if leftSample >= ClipThreshold || leftSample <= -ClipThreshold {
 			data.ClipCountL++
 		}
@@ -84,7 +83,6 @@ func CalculateLevels(data *LevelData) Levels {
 	peakDbL := 20 * math.Log10(data.PeakL/32768.0)
 	peakDbR := 20 * math.Log10(data.PeakR/32768.0)
 
-	// Clamp to minimum
 	return Levels{
 		RMSL:  max(dbL, MinDB),
 		RMSR:  max(dbR, MinDB),

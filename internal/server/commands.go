@@ -76,7 +76,6 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		slog.Warn("add_output: invalid JSON data", "error", err)
 		return
 	}
-	// Validate required fields
 	if err := util.ValidateRequired("host", output.Host); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
@@ -85,7 +84,6 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
-	// Validate optional fields
 	if err := util.ValidateMaxLength("host", output.Host, 253); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
@@ -99,12 +97,10 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		slog.Warn("add_output: maximum of 10 outputs reached")
 		return
 	}
-	// Validate max_retries if provided
 	if err := util.ValidateRange("max_retries", output.MaxRetries, 0, 9999); err != nil {
 		slog.Warn("add_output: validation failed", "error", err.Message)
 		return
 	}
-	// Set defaults
 	if output.StreamID == "" {
 		output.StreamID = "studio"
 	}
@@ -116,7 +112,6 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 		return
 	}
 	slog.Info("add_output: added output", "host", output.Host, "port", output.Port)
-	// Start if encoder running
 	if h.getState() == types.StateRunning {
 		outputs := h.cfg.GetOutputs()
 		if len(outputs) > 0 {
@@ -206,7 +201,6 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	updateFloatSetting(settings.SilenceRecovery, 1, 60, "silence recovery", h.cfg.SetSilenceRecovery)
 	updateStringSetting(settings.SilenceWebhook, "silence webhook", h.cfg.SetSilenceWebhook)
 	updateStringSetting(settings.SilenceLogPath, "silence log path", h.cfg.SetSilenceLogPath)
-	// Handle email configuration updates
 	if settings.EmailSMTPHost != nil || settings.EmailSMTPPort != nil ||
 		settings.EmailUsername != nil || settings.EmailPassword != nil ||
 		settings.EmailRecipients != nil {
@@ -216,7 +210,6 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		username := h.cfg.GetEmailUsername()
 		password := h.cfg.GetEmailPassword()
 		recipients := h.cfg.GetEmailRecipients()
-		// Apply updates
 		if settings.EmailSMTPHost != nil {
 			host = *settings.EmailSMTPHost
 		}

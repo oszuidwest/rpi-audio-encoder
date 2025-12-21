@@ -3,6 +3,7 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
 	"sync"
@@ -83,11 +84,21 @@ func (sm *SessionManager) Validate(token string) bool {
 	return true
 }
 
-// AuthMiddleware returns middleware that requires HTTP Basic Authentication or a valid session cookie.
+// Delete removes a session token.
+func (sm *SessionManager) Delete(token string) {
+	if token == "" {
+		return
+	}
+	sm.mu.Lock()
+	delete(sm.sessions, token)
+	sm.mu.Unlock()
+}
+
+// AuthMiddleware returns middleware that requires a valid session cookie.
+// Unauthenticated requests are redirected to /login.
 func (sm *SessionManager) AuthMiddleware(username, password string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			// Check for valid session cookie first
 			if cookie, err := r.Cookie(sessionCookieName); err == nil {
 				if sm.Validate(cookie.Value) {
 					next(w, r)
@@ -95,29 +106,51 @@ func (sm *SessionManager) AuthMiddleware(username, password string) func(http.Ha
 				}
 			}
 
-			// Fall back to Basic Auth
-			user, pass, ok := r.BasicAuth()
-			if !ok || user != username || pass != password {
-				w.Header().Set("WWW-Authenticate", `Basic realm="Encoder"`)
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			// Basic Auth succeeded - create session cookie
-			token := sm.Create()
-			if token != "" {
-				http.SetCookie(w, &http.Cookie{
-					Name:     sessionCookieName,
-					Value:    token,
-					Path:     "/",
-					MaxAge:   int(sessionDuration.Seconds()),
-					HttpOnly: true,
-					Secure:   r.TLS != nil,
-					SameSite: http.SameSiteStrictMode,
-				})
-			}
-
-			next(w, r)
+			http.Redirect(w, r, "/login", http.StatusFound)
 		}
 	}
+}
+
+// Login validates credentials and creates a session if valid.
+// Returns true if login succeeded.
+// Uses constant-time comparison to prevent timing attacks.
+func (sm *SessionManager) Login(w http.ResponseWriter, r *http.Request, username, password, configUser, configPass string) bool {
+	userMatch := subtle.ConstantTimeCompare([]byte(username), []byte(configUser)) == 1
+	passMatch := subtle.ConstantTimeCompare([]byte(password), []byte(configPass)) == 1
+	if !userMatch || !passMatch {
+		return false
+	}
+
+	token := sm.Create()
+	if token == "" {
+		return false
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(sessionDuration.Seconds()),
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteStrictMode,
+	})
+	return true
+}
+
+// Logout clears the session cookie and deletes the session.
+func (sm *SessionManager) Logout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		sm.Delete(cookie.Value)
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteStrictMode,
+	})
 }

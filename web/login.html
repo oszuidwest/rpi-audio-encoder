@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Login to ZuidWest FM Encoder">
+    <title>Login - ZuidWest FM Encoder</title>
+    <link rel="canonical" href="/login">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+    <script>
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        if (mq.matches) document.documentElement.classList.add('dark');
+        mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
+    </script>
+
+    <main class="container">
+        <section class="card">
+            <div class="card__header card__header--brand">
+                <h1>ZuidWest FM Encoder</h1>
+            </div>
+            <div class="card__body">
+                <div class="login__logo">
+                    <span id="app-logo"></span>
+                </div>
+
+                {{if .Error}}
+                <div class="login__error">
+                    <span id="warning-icon" class="icon-container"></span>
+                    <span>Invalid username or password</span>
+                </div>
+                {{end}}
+
+                <form method="POST" action="/login" class="login__form">
+                    <div class="form__group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+                    </div>
+                    <div class="form__group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" autocomplete="current-password" required>
+                    </div>
+                    <button type="submit" class="login__btn">Sign in</button>
+                </form>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <div class="footer__links">
+                <a rel="noopener" href="https://github.com/oszuidwest/zwfm-encoder" title="View source on GitHub" target="_blank">
+                    <span id="github-icon" class="icon-container"></span>
+                    GitHub
+                </a>
+                <span class="footer__sep">|</span>
+                <span>Version <span class="footer__version">{{VERSION}}</span></span>
+            </div>
+            <div class="footer__copyright">© {{YEAR}} Streekomroep ZuidWest • MIT License</div>
+        </footer>
+    </main>
+
+    <script src="/icons.js"></script>
+    <script>
+        document.getElementById('app-logo').innerHTML = window.icons.appLogo;
+        document.getElementById('github-icon').innerHTML = window.icons.github;
+        const warningIcon = document.getElementById('warning-icon');
+        if (warningIcon) warningIcon.innerHTML = window.icons.warning;
+    </script>
+</body>
+</html>

@@ -94,7 +94,6 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 			recoveryDuration := now.Sub(d.recoveryStart).Seconds()
 
 			if recoveryDuration >= cfg.Recovery {
-				// Recovery complete - exit silence state
 				event.JustRecovered = true
 				event.TotalDuration = d.silenceDuration
 
