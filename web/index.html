@@ -66,24 +66,24 @@
     <main class="container">
         <!-- === Dashboard View ===
              Main monitoring interface showing:
-             - Header with status pill and settings button
+             - Header with settings and logout buttons
              - Audio input device selector
              - VU meter with real-time levels
              - Source status alerts
              - Output list with individual status indicators -->
         <div id="dashboard-view" x-show="view === 'dashboard'" x-transition:enter.duration.200ms>
             <header class="header">
-                <h1 class="header__title">ZuidWest FM Encoder</h1>
-                <div class="header__controls">
-                    <button class="icon-btn icon-btn--settings" type="button" title="Open settings" @click="showSettings()">
+                <div class="header__brand">
+                    <span class="header__logo" x-html="icons.appLogo"></span>
+                    <h1 class="header__title">ZuidWest FM Encoder</h1>
+                </div>
+                <div class="header__actions">
+                    <button class="icon-btn" type="button" title="Settings" @click="showSettings()">
                         <span x-html="icons.settings"></span>
                     </button>
-                    <!-- Status pill - shows encoder state with animated indicator
-                         States: running (green pulse), stopped (gray), connecting (yellow pulse), starting -->
-                    <div class="status-pill" :class="statusPillClass">
-                        <span class="status-pill__dot" :class="{ 'animate-pulse': encoder.state === 'running' || encoder.state === 'starting' }"></span>
-                        <span class="status-pill__text" x-text="encoder.state.charAt(0).toUpperCase() + encoder.state.slice(1)"></span>
-                    </div>
+                    <a class="icon-btn" href="/logout" title="Sign out">
+                        <span x-html="icons.logout"></span>
+                    </a>
                 </div>
             </header>
 
@@ -188,7 +188,7 @@
                 <h2>Outputs</h2>
                 <div class="card__actions">
                     <span class="badge" x-text="outputs.length"></span>
-                    <button class="btn--add" id="add-btn" type="button" @click="showAddOutput()">
+                    <button class="card__add-btn" type="button" @click="showAddOutput()">
                         <span class="icon-container" x-html="icons.plus"></span>
                         Add
                     </button>
@@ -370,7 +370,7 @@
 
                 <!-- About Panel - Version info and attribution
                      Shows: Version, commit hash, build date, update availability
-                     Includes: MIT license text, microphone logo SVG -->
+                     Includes: MIT license text, audio plug logo SVG -->
                 <div class="settings__panel" id="panel-about" x-show="settingsTab === 'about'">
                     <div class="settings__section about__section">
                         <div class="about__logo">
