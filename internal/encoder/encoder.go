@@ -368,7 +368,7 @@ func (e *Encoder) runSource() (string, error) {
 	e.sourceStdout = nil
 	e.mu.Unlock()
 
-	return extractLastError(stderrBuf.String()), err
+	return util.ExtractLastError(stderrBuf.String()), err
 }
 
 // startEnabledOutputs starts the audio distributor and all output processes.
