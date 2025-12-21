@@ -161,7 +161,6 @@ func (e *Encoder) Stop() error {
 		}
 	}
 
-	// Wait for source to stop with timeout
 	stopped := e.pollUntil(func() bool {
 		e.mu.RLock()
 		defer e.mu.RUnlock()
@@ -216,7 +215,6 @@ func (e *Encoder) StartOutput(outputID string) error {
 		return fmt.Errorf("failed to start output: %w", err)
 	}
 
-	// Start monitoring and retry logic in OutputManager
 	go e.outputManager.MonitorAndRetry(
 		outputID,
 		func() *types.Output { return e.config.GetOutput(outputID) },
@@ -395,7 +393,6 @@ func (e *Encoder) runDistributor() {
 		Recovery:  e.config.GetSilenceRecovery(),
 	}
 
-	// Create distributor with callback to update audio levels
 	distributor := NewDistributor(
 		e.silenceDetect,
 		e.silenceNotifier,
@@ -429,10 +426,8 @@ func (e *Encoder) runDistributor() {
 			continue
 		}
 
-		// Process samples for level metering and silence detection
 		distributor.ProcessSamples(buf, n)
 
-		// Distribute to all running outputs
 		for _, out := range e.config.GetOutputs() {
 			// WriteAudio logs errors internally and marks output as stopped
 			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck

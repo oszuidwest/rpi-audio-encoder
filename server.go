@@ -58,11 +58,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer util.SafeCloseFunc(conn, "WebSocket connection")()
 
-	// Channel to signal status update needed
 	statusUpdate := make(chan bool, 1)
 	done := make(chan bool)
 
-	// Goroutine to read and process commands from client
 	go func() {
 		for {
 			var cmd server.WSCommand
@@ -84,7 +82,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer levelsTicker.Stop()
 	defer statusTicker.Stop()
 
-	// Helper to send status
 	sendStatus := func() error {
 		status := s.encoder.GetStatus()
 		status.OutputCount = len(s.config.GetOutputs())
@@ -111,7 +108,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Send initial status
 	if err := sendStatus(); err != nil {
 		return
 	}
@@ -174,7 +170,6 @@ func (s *Server) handlePublicStatic(w http.ResponseWriter, r *http.Request) {
 
 // handleLogin serves the login page (GET) and processes login form submissions (POST).
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	// If already logged in, redirect to dashboard
 	if cookie, err := r.Cookie("encoder_session"); err == nil {
 		if s.sessions.Validate(cookie.Value) {
 			http.Redirect(w, r, "/", http.StatusFound)
@@ -191,7 +186,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Login failed - show error
 		w.Header().Set("Content-Type", "text/html")
 		html := strings.Replace(loginHTML, "{{if .Error}}", "", 1)
 		html = strings.Replace(html, "{{end}}", "", 1)
@@ -202,7 +196,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// GET request - show login form without error
 	w.Header().Set("Content-Type", "text/html")
 	html := removeTemplateBlock(loginHTML, "{{if .Error}}", "{{end}}")
 	html = s.replaceLoginPlaceholders(html)
@@ -286,7 +279,6 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle other static files via table lookup
 	if file, ok := staticFiles[path]; ok {
 		w.Header().Set("Content-Type", file.contentType)
 		if _, err := w.Write([]byte(file.content)); err != nil {
@@ -295,7 +287,6 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// File not found
 	http.NotFound(w, r)
 }
 

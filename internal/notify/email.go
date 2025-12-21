@@ -85,7 +85,6 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 		recipients[i] = strings.TrimSpace(recipients[i])
 	}
 
-	// Create message
 	m := mail.NewMsg()
 	if err := m.From(cfg.Username); err != nil {
 		return util.WrapError("set from address", err)

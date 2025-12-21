@@ -99,7 +99,6 @@ func (sm *SessionManager) Delete(token string) {
 func (sm *SessionManager) AuthMiddleware(username, password string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			// Check for valid session cookie
 			if cookie, err := r.Cookie(sessionCookieName); err == nil {
 				if sm.Validate(cookie.Value) {
 					next(w, r)
@@ -107,7 +106,6 @@ func (sm *SessionManager) AuthMiddleware(username, password string) func(http.Ha
 				}
 			}
 
-			// No valid session - redirect to login page
 			http.Redirect(w, r, "/login", http.StatusFound)
 		}
 	}

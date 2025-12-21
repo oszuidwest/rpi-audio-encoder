@@ -39,14 +39,12 @@ func NewDistributor(silenceDetect *audio.SilenceDetector, silenceNotifier *notif
 // It accumulates sample data and periodically calculates levels, updates peak hold,
 // runs silence detection, and triggers notifications.
 func (d *Distributor) ProcessSamples(buf []byte, n int) {
-	// Process samples for level metering
 	audio.ProcessSamples(buf, n, d.levelData)
 
 	// Update levels periodically
 	if d.levelData.SampleCount >= LevelUpdateSamples {
 		levels := audio.CalculateLevels(d.levelData)
 
-		// Update peak hold
 		now := time.Now()
 		heldPeakL, heldPeakR := d.peakHolder.Update(levels.PeakL, levels.PeakR, now)
 
@@ -56,7 +54,6 @@ func (d *Distributor) ProcessSamples(buf []byte, n int) {
 		// Delegate notification handling to the notifier (separation of concerns)
 		d.silenceNotifier.HandleEvent(silenceEvent)
 
-		// Report levels via callback
 		if d.callback != nil {
 			d.callback(levels.RMSL, levels.RMSR, heldPeakL, heldPeakR,
 				silenceEvent.InSilence, silenceEvent.Duration, silenceEvent.Level,

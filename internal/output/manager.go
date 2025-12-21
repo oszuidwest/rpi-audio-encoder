@@ -131,7 +131,6 @@ func (m *Manager) Stop(outputID string) error {
 		}
 	}
 
-	// Request graceful shutdown
 	if process != nil {
 		if err := process.Signal(syscall.SIGINT); err != nil && cancel != nil {
 			cancel()
@@ -270,7 +269,6 @@ func (m *Manager) Remove(outputID string) {
 // It runs in a loop until the output is stopped, removed, or exceeds max retries.
 func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Output, stopChan <-chan struct{}, encoderRunning func() bool) {
 	for {
-		// Check if we should stop
 		select {
 		case <-stopChan:
 			m.Remove(outputID)
@@ -284,16 +282,13 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			return
 		}
 
-		// Wait for the process to exit
 		startTime := time.Now()
 		err := cmd.Wait()
 		runDuration := time.Since(startTime)
 
-		// Mark as stopped
 		m.MarkStopped(outputID)
 
 		if err != nil {
-			// Extract error message from stderr
 			var errMsg string
 			if stderr, ok := cmd.Stderr.(*bytes.Buffer); ok && stderr != nil {
 				errMsg = extractLastError(stderr.String())
@@ -318,30 +313,25 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			retryCount = 0
 		}
 
-		// Check if encoder is still running
 		if !encoderRunning() {
 			m.Remove(outputID)
 			return
 		}
 
-		// Get current output config
 		out := getOutput()
 		if out == nil {
 			m.Remove(outputID)
 			return
 		}
 
-		// Check if we've exceeded max retries
 		maxRetries := out.GetMaxRetries()
 		if retryCount > maxRetries {
 			slog.Warn("output gave up after retries", "output_id", outputID, "retries", maxRetries)
 			return // Keep in processes for status reporting
 		}
 
-		// Get current delay from backoff (already advanced if error occurred)
 		retryDelay := backoff.Current()
 
-		// Wait before retrying
 		slog.Info("output stopped, waiting before retry",
 			"output_id", outputID, "delay", retryDelay, "retry", retryCount, "max_retries", maxRetries)
 
@@ -350,10 +340,8 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			m.Remove(outputID)
 			return
 		case <-time.After(retryDelay):
-			// Proceed to retry
 		}
 
-		// Verify output wasn't removed during wait
 		out = getOutput()
 		if out == nil {
 			slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
@@ -361,7 +349,6 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			return
 		}
 
-		// Verify encoder is still running
 		if !encoderRunning() {
 			m.Remove(outputID)
 			return
