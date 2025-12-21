@@ -157,6 +157,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	// Public static assets (needed for login page styling)
 	mux.HandleFunc("/style.css", s.handlePublicStatic)
 	mux.HandleFunc("/icons.js", s.handlePublicStatic)
+	mux.HandleFunc("/favicon.svg", s.handlePublicStatic)
 
 	// Protected routes
 	mux.HandleFunc("/ws", auth(s.handleWebSocket))
@@ -262,6 +263,11 @@ var staticFiles = map[string]staticFile{
 		contentType: "application/javascript",
 		content:     alpineJS,
 		name:        "alpine.min.js",
+	},
+	"/favicon.svg": {
+		contentType: "image/svg+xml",
+		content:     faviconSVG,
+		name:        "favicon.svg",
 	},
 }
 
