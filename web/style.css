@@ -578,7 +578,6 @@ select {
 /* Clip indicator - rapid 0.15s flash for transient peak clipping */
 .vu__indicator-dot.clip.active {
     background: var(--danger);
-    /* Smaller 4px glow radius for clip - sharper, urgent alert */
     box-shadow: 0 0 4px var(--danger);
     --pulse-opacity: 0.4;
     animation: pulse 0.15s infinite;
@@ -810,7 +809,6 @@ select {
     gap: 0.625rem;
 }
 
-/* Output status indicator dot */
 .output__dot {
     width: 0.5rem;
     height: 0.5rem;
@@ -1129,7 +1127,6 @@ select {
     }
 }
 
-/* Settings Panels */
 .settings__panels {
     position: relative;
 }
@@ -1182,7 +1179,6 @@ select {
     margin-bottom: 1rem;
 }
 
-/* About Section */
 .about__section {
     text-align: center;
 }
