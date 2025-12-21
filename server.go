@@ -142,15 +142,99 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // SetupRoutes returns an [http.Handler] configured with all application routes.
 func (s *Server) SetupRoutes() http.Handler {
 	mux := http.NewServeMux()
-	basicAuth := s.sessions.AuthMiddleware(s.config.GetWebUser(), s.config.GetWebPassword())
+	auth := s.sessions.AuthMiddleware(s.config.GetWebUser(), s.config.GetWebPassword())
 
-	// WebSocket for all real-time communication (protected by basic auth)
-	mux.HandleFunc("/ws", basicAuth(s.handleWebSocket))
+	// Public routes (no auth required)
+	mux.HandleFunc("/login", s.handleLogin)
+	mux.HandleFunc("/logout", s.handleLogout)
 
-	// Static files (also protected)
-	mux.HandleFunc("/", basicAuth(s.handleStatic))
+	// Public static assets (needed for login page styling)
+	mux.HandleFunc("/style.css", s.handlePublicStatic)
+	mux.HandleFunc("/icons.js", s.handlePublicStatic)
+
+	// Protected routes
+	mux.HandleFunc("/ws", auth(s.handleWebSocket))
+	mux.HandleFunc("/", auth(s.handleStatic))
 
 	return mux
+}
+
+// handlePublicStatic serves static files without authentication.
+func (s *Server) handlePublicStatic(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if file, ok := staticFiles[path]; ok {
+		w.Header().Set("Content-Type", file.contentType)
+		if _, err := w.Write([]byte(file.content)); err != nil {
+			slog.Error("failed to write static file", "file", file.name, "error", err)
+		}
+		return
+	}
+	http.NotFound(w, r)
+}
+
+// handleLogin serves the login page (GET) and processes login form submissions (POST).
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	// If already logged in, redirect to dashboard
+	if cookie, err := r.Cookie("encoder_session"); err == nil {
+		if s.sessions.Validate(cookie.Value) {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+	}
+
+	if r.Method == http.MethodPost {
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		if s.sessions.Login(w, r, username, password, s.config.GetWebUser(), s.config.GetWebPassword()) {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		// Login failed - show error
+		w.Header().Set("Content-Type", "text/html")
+		html := strings.Replace(loginHTML, "{{if .Error}}", "", 1)
+		html = strings.Replace(html, "{{end}}", "", 1)
+		html = s.replaceLoginPlaceholders(html)
+		if _, err := w.Write([]byte(html)); err != nil {
+			slog.Error("failed to write login page", "error", err)
+		}
+		return
+	}
+
+	// GET request - show login form without error
+	w.Header().Set("Content-Type", "text/html")
+	html := removeTemplateBlock(loginHTML, "{{if .Error}}", "{{end}}")
+	html = s.replaceLoginPlaceholders(html)
+	if _, err := w.Write([]byte(html)); err != nil {
+		slog.Error("failed to write login page", "error", err)
+	}
+}
+
+// replaceLoginPlaceholders replaces {{VERSION}} and {{YEAR}} in login HTML.
+func (s *Server) replaceLoginPlaceholders(html string) string {
+	html = strings.Replace(html, "{{VERSION}}", Version, 1)
+	html = strings.ReplaceAll(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()))
+	return html
+}
+
+// removeTemplateBlock removes content between start and end markers (inclusive).
+func removeTemplateBlock(s, start, end string) string {
+	startIdx := strings.Index(s, start)
+	if startIdx == -1 {
+		return s
+	}
+	endIdx := strings.Index(s[startIdx:], end)
+	if endIdx == -1 {
+		return s
+	}
+	return s[:startIdx] + s[startIdx+endIdx+len(end):]
+}
+
+// handleLogout clears the session and redirects to login.
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	s.sessions.Logout(w, r)
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 // staticFile represents an embedded static file with its content type and content.

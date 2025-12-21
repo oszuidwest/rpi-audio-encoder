@@ -7,6 +7,11 @@ import _ "embed"
 //go:embed web/index.html
 var indexHTML string
 
+// loginHTML contains the embedded HTML content for the login page.
+//
+//go:embed web/login.html
+var loginHTML string
+
 // styleCSS contains the embedded CSS styles for the web interface.
 //
 //go:embed web/style.css
