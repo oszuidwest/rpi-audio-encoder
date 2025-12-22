@@ -22,3 +22,6 @@ var iconsJS string
 
 //go:embed web/alpine.min.js
 var alpineJS string
+
+//go:embed web/favicon.svg
+var faviconSVG string
