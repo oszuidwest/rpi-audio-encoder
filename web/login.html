@@ -34,6 +34,7 @@
                 {{end}}
 
                 <form method="POST" action="/login" class="login__form">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <div class="form__group">
                         <label for="username">Username</label>
                         <input type="text" id="username" name="username" autocomplete="username" required autofocus>
@@ -54,9 +55,9 @@
                     GitHub
                 </a>
                 <span class="footer__sep">|</span>
-                <span>Version <span class="footer__version">{{VERSION}}</span></span>
+                <span>Version <span class="footer__version">{{.Version}}</span></span>
             </div>
-            <div class="footer__copyright">© {{YEAR}} Streekomroep ZuidWest • MIT License</div>
+            <div class="footer__copyright">© {{.Year}} Streekomroep ZuidWest • MIT License</div>
         </footer>
     </main>
 

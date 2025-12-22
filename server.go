@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"runtime"
@@ -14,6 +15,15 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/server"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
+
+var loginTmpl = template.Must(template.New("login").Parse(loginHTML))
+
+type loginData struct {
+	Error     bool
+	CSRFToken string
+	Version   string
+	Year      int
+}
 
 // Server is an HTTP server that provides the web interface for the audio encoder.
 type Server struct {
@@ -153,7 +163,17 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/ws", auth(s.handleWebSocket))
 	mux.HandleFunc("/", auth(s.handleStatic))
 
-	return mux
+	return securityHeaders(mux)
+}
+
+// securityHeaders adds security headers to all responses.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // handlePublicStatic serves static files without authentication.
@@ -178,7 +198,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	data := loginData{
+		Version:   Version,
+		Year:      time.Now().Year(),
+		CSRFToken: s.sessions.CreateCSRFToken(),
+	}
+
 	if r.Method == http.MethodPost {
+		csrfToken := r.FormValue("csrf_token")
+		if !s.sessions.ValidateCSRFToken(csrfToken) {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 
@@ -187,42 +219,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/html")
-		html := strings.Replace(loginHTML, "{{if .Error}}", "", 1)
-		html = strings.Replace(html, "{{end}}", "", 1)
-		html = s.replaceLoginPlaceholders(html)
-		if _, err := w.Write([]byte(html)); err != nil {
-			slog.Error("failed to write login page", "error", err)
-		}
-		return
+		data.Error = true
+		data.CSRFToken = s.sessions.CreateCSRFToken() // New token for retry
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	html := removeTemplateBlock(loginHTML, "{{if .Error}}", "{{end}}")
-	html = s.replaceLoginPlaceholders(html)
-	if _, err := w.Write([]byte(html)); err != nil {
-		slog.Error("failed to write login page", "error", err)
+	if err := loginTmpl.Execute(w, data); err != nil {
+		slog.Error("failed to render login page", "error", err)
 	}
-}
-
-// replaceLoginPlaceholders replaces {{VERSION}} and {{YEAR}} in login HTML.
-func (s *Server) replaceLoginPlaceholders(html string) string {
-	html = strings.Replace(html, "{{VERSION}}", Version, 1)
-	html = strings.ReplaceAll(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()))
-	return html
-}
-
-// removeTemplateBlock removes content between start and end markers (inclusive).
-func removeTemplateBlock(s, start, end string) string {
-	startIdx := strings.Index(s, start)
-	if startIdx == -1 {
-		return s
-	}
-	endIdx := strings.Index(s[startIdx:], end)
-	if endIdx == -1 {
-		return s
-	}
-	return s[:startIdx] + s[startIdx+endIdx+len(end):]
 }
 
 // handleLogout clears the session and redirects to login.
