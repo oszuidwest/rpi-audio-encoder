@@ -43,7 +43,7 @@ type Output struct {
 	Host       string `json:"host"`
 	Port       int    `json:"port"`
 	Password   string `json:"password"`
-	StreamID   string `json:"stream_id"`
+	StreamID   string `json:"streamid"`
 	Codec      string `json:"codec"`
 	MaxRetries int    `json:"max_retries,omitempty"`
 	CreatedAt  int64  `json:"created_at"`
