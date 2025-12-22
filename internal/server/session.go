@@ -2,9 +2,10 @@
 package server
 
 import (
-	"crypto/rand"
+	cryptorand "crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -13,31 +14,38 @@ import (
 const (
 	sessionCookieName = "encoder_session"
 	sessionDuration   = 24 * time.Hour
+	csrfTokenDuration = 10 * time.Minute
 )
 
 // session represents an authenticated user session.
 type session struct {
-	token     string
+	expiresAt time.Time
+}
+
+// csrfToken represents a CSRF token with expiration.
+type csrfToken struct {
 	expiresAt time.Time
 }
 
 // SessionManager handles user authentication sessions.
 type SessionManager struct {
-	sessions map[string]*session
-	mu       sync.RWMutex
+	sessions   map[string]*session
+	csrfTokens map[string]*csrfToken
+	mu         sync.RWMutex
 }
 
 // NewSessionManager creates a new session manager.
 func NewSessionManager() *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*session),
+		sessions:   make(map[string]*session),
+		csrfTokens: make(map[string]*csrfToken),
 	}
 }
 
 // generateToken creates a cryptographically secure random token.
 func generateToken() string {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := cryptorand.Read(b); err != nil {
 		return ""
 	}
 	return hex.EncodeToString(b)
@@ -54,7 +62,6 @@ func (sm *SessionManager) Create() string {
 	defer sm.mu.Unlock()
 
 	sm.sessions[token] = &session{
-		token:     token,
 		expiresAt: time.Now().Add(sessionDuration),
 	}
 	return token
@@ -153,4 +160,50 @@ func (sm *SessionManager) Logout(w http.ResponseWriter, r *http.Request) {
 		Secure:   r.TLS != nil,
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+// CreateCSRFToken generates a new CSRF token.
+func (sm *SessionManager) CreateCSRFToken() string {
+	token := generateToken()
+	if token == "" {
+		return ""
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	now := time.Now()
+
+	// Only clean up occasionally (roughly 10% of calls)
+	if rand.Intn(10) == 0 {
+		for k, v := range sm.csrfTokens {
+			if now.After(v.expiresAt) {
+				delete(sm.csrfTokens, k)
+			}
+		}
+	}
+
+	sm.csrfTokens[token] = &csrfToken{
+		expiresAt: now.Add(csrfTokenDuration),
+	}
+	return token
+}
+
+// ValidateCSRFToken checks if a CSRF token is valid and removes it.
+func (sm *SessionManager) ValidateCSRFToken(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	csrf, exists := sm.csrfTokens[token]
+	if !exists {
+		return false
+	}
+
+	delete(sm.csrfTokens, token)
+
+	return time.Now().Before(csrf.expiresAt)
 }
