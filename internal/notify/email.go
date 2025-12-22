@@ -102,14 +102,24 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 	m.Subject(subject)
 	m.SetBodyString(mail.TypeTextPlain, body)
 
-	// Create client with STARTTLS
-	c, err := mail.NewClient(cfg.Host,
+	// Build client options with port-appropriate TLS settings
+	opts := []mail.Option{
 		mail.WithPort(cfg.Port),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		mail.WithUsername(cfg.Username),
 		mail.WithPassword(cfg.Password),
-		mail.WithTLSPortPolicy(mail.TLSMandatory),
-	)
+	}
+
+	switch cfg.Port {
+	case 465: // SMTPS - implicit TLS
+		opts = append(opts, mail.WithSSL())
+	case 587: // Submission - STARTTLS required
+		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSMandatory))
+	default: // Port 25 or custom - opportunistic TLS
+		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSOpportunistic))
+	}
+
+	c, err := mail.NewClient(cfg.Host, opts...)
 	if err != nil {
 		return util.WrapError("create SMTP client", err)
 	}
