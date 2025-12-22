@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Login to ZuidWest FM Encoder">
-    <title>Login - ZuidWest FM Encoder</title>
+    <meta name="description" content="Sign in to ZuidWest FM Encoder">
+    <title>Sign in - ZuidWest FM Encoder</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="canonical" href="/login">
     <link rel="stylesheet" href="/style.css">
@@ -18,6 +18,9 @@
 </head>
 <body class="page page--login">
     <main class="container">
+        <noscript>
+            <p class="noscript-message">This application requires JavaScript to function.</p>
+        </noscript>
         <section class="card card--login">
             <div class="card__body">
                 <div class="login__header">
@@ -40,12 +43,12 @@
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <div class="form__group">
                         <label for="username">Username</label>
-                        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+                        <input type="text" id="username" name="username" placeholder="Username" autocomplete="username" required autofocus>
                     </div>
                     <div class="form__group form__group--password">
                         <label for="password">Password</label>
-                        <input type="password" id="password" name="password" autocomplete="current-password" required>
-                        <button type="button" class="icon-btn form__toggle" id="password-toggle" aria-label="Show password">
+                        <input type="password" id="password" name="password" placeholder="Password" autocomplete="current-password" required>
+                        <button type="button" class="icon-btn form__toggle" id="password-toggle" aria-label="Show Password">
                             <span id="eye-icon"></span>
                         </button>
                     </div>
@@ -87,7 +90,7 @@
             const isPassword = passwordInput.type === 'password';
             passwordInput.type = isPassword ? 'text' : 'password';
             eyeIcon.innerHTML = isPassword ? window.icons.eyeSlash : window.icons.eye;
-            toggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+            toggleBtn.setAttribute('aria-label', isPassword ? 'Hide Password' : 'Show Password');
         });
     </script>
 </body>
