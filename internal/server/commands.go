@@ -175,6 +175,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		SilenceLogPath   *string  `json:"silence_log_path"`
 		EmailSMTPHost    *string  `json:"email_smtp_host"`
 		EmailSMTPPort    *int     `json:"email_smtp_port"`
+		EmailFromName    *string  `json:"email_from_name"`
 		EmailUsername    *string  `json:"email_username"`
 		EmailPassword    *string  `json:"email_password"`
 		EmailRecipients  *string  `json:"email_recipients"`
@@ -199,14 +200,15 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 	updateFloatSetting(settings.SilenceThreshold, -60, 0, "silence threshold", h.cfg.SetSilenceThreshold)
 	updateFloatSetting(settings.SilenceDuration, 1, 300, "silence duration", h.cfg.SetSilenceDuration)
 	updateFloatSetting(settings.SilenceRecovery, 1, 60, "silence recovery", h.cfg.SetSilenceRecovery)
-	updateStringSetting(settings.SilenceWebhook, "silence webhook", h.cfg.SetSilenceWebhook)
-	updateStringSetting(settings.SilenceLogPath, "silence log path", h.cfg.SetSilenceLogPath)
+	updateStringSetting(settings.SilenceWebhook, "webhook URL", h.cfg.SetWebhookURL)
+	updateStringSetting(settings.SilenceLogPath, "log path", h.cfg.SetLogPath)
 	if settings.EmailSMTPHost != nil || settings.EmailSMTPPort != nil ||
-		settings.EmailUsername != nil || settings.EmailPassword != nil ||
-		settings.EmailRecipients != nil {
+		settings.EmailFromName != nil || settings.EmailUsername != nil ||
+		settings.EmailPassword != nil || settings.EmailRecipients != nil {
 		// Get current values for fields not being updated
 		host := h.cfg.GetEmailSMTPHost()
 		port := h.cfg.GetEmailSMTPPort()
+		fromName := h.cfg.GetEmailFromName()
 		username := h.cfg.GetEmailUsername()
 		password := h.cfg.GetEmailPassword()
 		recipients := h.cfg.GetEmailRecipients()
@@ -220,6 +222,9 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 				port = config.DefaultEmailSMTPPort
 			}
 		}
+		if settings.EmailFromName != nil {
+			fromName = *settings.EmailFromName
+		}
 		if settings.EmailUsername != nil {
 			username = *settings.EmailUsername
 		}
@@ -231,7 +236,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 		}
 
 		slog.Info("update_settings: updating email configuration")
-		if err := h.cfg.SetEmailConfig(host, port, username, password, recipients); err != nil {
+		if err := h.cfg.SetEmailConfig(host, port, fromName, username, password, recipients); err != nil {
 			slog.Error("update_settings: failed to save email config", "error", err)
 		}
 	}
@@ -276,7 +281,7 @@ func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
 			"success": true,
 		}
 
-		logPath := h.cfg.GetSilenceLogPath()
+		logPath := h.cfg.GetLogPath()
 		if logPath == "" {
 			result["success"] = false
 			result["error"] = "Log file path not configured"

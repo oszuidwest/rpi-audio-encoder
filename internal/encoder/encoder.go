@@ -239,6 +239,7 @@ func (e *Encoder) buildEmailConfig() notify.EmailConfig {
 	return notify.EmailConfig{
 		Host:       e.config.GetEmailSMTPHost(),
 		Port:       e.config.GetEmailSMTPPort(),
+		FromName:   e.config.GetEmailFromName(),
 		Username:   e.config.GetEmailUsername(),
 		Password:   e.config.GetEmailPassword(),
 		Recipients: e.config.GetEmailRecipients(),
@@ -252,12 +253,12 @@ func (e *Encoder) TriggerTestEmail() error {
 
 // TriggerTestWebhook sends a test webhook to verify configuration.
 func (e *Encoder) TriggerTestWebhook() error {
-	return notify.SendTestWebhook(e.config.GetSilenceWebhook())
+	return notify.SendTestWebhook(e.config.GetWebhookURL())
 }
 
 // TriggerTestLog writes a test entry to verify log file configuration.
 func (e *Encoder) TriggerTestLog() error {
-	return notify.WriteTestLog(e.config.GetSilenceLogPath())
+	return notify.WriteTestLog(e.config.GetLogPath())
 }
 
 // runSourceLoop runs the audio capture process with auto-restart.

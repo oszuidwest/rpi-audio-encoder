@@ -13,6 +13,7 @@ import (
 type EmailConfig struct {
 	Host       string
 	Port       int
+	FromName   string
 	Username   string
 	Password   string
 	Recipients string
@@ -86,8 +87,14 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 	}
 
 	m := mail.NewMsg()
-	if err := m.From(cfg.Username); err != nil {
-		return util.WrapError("set from address", err)
+	if cfg.FromName != "" {
+		if err := m.FromFormat(cfg.FromName, cfg.Username); err != nil {
+			return util.WrapError("set from address", err)
+		}
+	} else {
+		if err := m.From(cfg.Username); err != nil {
+			return util.WrapError("set from address", err)
+		}
 	}
 	if err := m.To(recipients...); err != nil {
 		return util.WrapError("set recipient address", err)
