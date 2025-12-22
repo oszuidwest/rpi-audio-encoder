@@ -13,8 +13,7 @@ type SilenceConfig struct {
 	Recovery  float64 // seconds of audio before considering recovered
 }
 
-// SilenceEvent represents what happened during a silence detection update.
-// This is a pure detection result with no notification concerns.
+// SilenceEvent represents the result of a silence detection update.
 type SilenceEvent struct {
 	// Current state
 	InSilence bool               // Currently in confirmed silence state
@@ -28,11 +27,8 @@ type SilenceEvent struct {
 }
 
 // SilenceDetector tracks silence state with hysteresis.
-// It only reports "in silence" after Duration seconds of continuous silence,
-// and only reports "recovered" after Recovery seconds of continuous audio.
-//
-// This is a pure detection component with no notification concerns.
-// Use SilenceNotifier to handle webhook/email/log orchestration.
+// It reports silence after Duration seconds of continuous quiet audio,
+// and recovery after Recovery seconds of continuous audio.
 type SilenceDetector struct {
 	silenceStart    time.Time // when current silence period started
 	recoveryStart   time.Time // when audio returned after silence
@@ -46,8 +42,6 @@ func NewSilenceDetector() *SilenceDetector {
 }
 
 // Update checks audio levels and returns a SilenceEvent describing what happened.
-// Uses hysteresis: only enters silence after Duration seconds of quiet,
-// only exits silence after Recovery seconds of audio.
 func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.Time) SilenceEvent {
 	audioIsSilent := dbL < cfg.Threshold && dbR < cfg.Threshold
 
@@ -77,10 +71,7 @@ func (d *SilenceDetector) Update(dbL, dbR float64, cfg SilenceConfig, now time.T
 			event.JustEntered = true
 		}
 	} else {
-		// Audio is above threshold
-		// Only reset silenceStart if not in confirmed silence state.
-		// During recovery, preserve silenceStart so brief audio dips
-		// don't corrupt the total silence duration calculation.
+		// Audio is above threshold - preserve silence start during recovery.
 		if !d.inSilence {
 			d.silenceStart = time.Time{}
 		}

@@ -27,7 +27,7 @@ type SilenceNotifier struct {
 	logSent     bool
 }
 
-// NewSilenceNotifier creates a new silence notifier.
+// NewSilenceNotifier returns a SilenceNotifier configured with the given config.
 func NewSilenceNotifier(cfg *config.Config) *SilenceNotifier {
 	return &SilenceNotifier{cfg: cfg}
 }
@@ -46,11 +46,11 @@ func (n *SilenceNotifier) HandleEvent(event audio.SilenceEvent) {
 
 // handleSilenceStart triggers notifications when silence is first detected.
 func (n *SilenceNotifier) handleSilenceStart(duration float64) {
-	threshold := n.cfg.GetSilenceThreshold()
+	// Single snapshot for all config checks
+	cfg := n.cfg.Snapshot()
 
-	// Webhook notification
 	n.mu.Lock()
-	shouldSendWebhook := !n.webhookSent && n.isWebhookConfigured()
+	shouldSendWebhook := !n.webhookSent && cfg.HasWebhook()
 	if shouldSendWebhook {
 		n.webhookSent = true
 	}
@@ -59,9 +59,8 @@ func (n *SilenceNotifier) handleSilenceStart(duration float64) {
 		go n.sendSilenceWebhook(duration)
 	}
 
-	// Email notification
 	n.mu.Lock()
-	shouldSendEmail := !n.emailSent && n.isEmailConfigured()
+	shouldSendEmail := !n.emailSent && cfg.HasEmail()
 	if shouldSendEmail {
 		n.emailSent = true
 	}
@@ -72,19 +71,19 @@ func (n *SilenceNotifier) handleSilenceStart(duration float64) {
 
 	// Log notification (independent of webhook/email)
 	n.mu.Lock()
-	shouldSendLog := !n.logSent && n.isLogConfigured()
+	shouldSendLog := !n.logSent && cfg.HasLogPath()
 	if shouldSendLog {
 		n.logSent = true
 	}
 	n.mu.Unlock()
 	if shouldSendLog {
-		go n.logSilenceStart(threshold)
+		go n.logSilenceStart(cfg.SilenceThreshold)
 	}
 }
 
 // handleSilenceEnd triggers recovery notifications when silence ends.
 func (n *SilenceNotifier) handleSilenceEnd(totalDuration float64) {
-	threshold := n.cfg.GetSilenceThreshold()
+	cfg := n.cfg.Snapshot()
 
 	// Only send recovery notifications if we sent the corresponding start notification
 	n.mu.Lock()
@@ -106,7 +105,7 @@ func (n *SilenceNotifier) handleSilenceEnd(totalDuration float64) {
 	}
 
 	if shouldSendLogRecovery {
-		go n.logSilenceEnd(totalDuration, threshold)
+		go n.logSilenceEnd(totalDuration, cfg.SilenceThreshold)
 	}
 }
 
@@ -119,84 +118,71 @@ func (n *SilenceNotifier) Reset() {
 	n.mu.Unlock()
 }
 
-// Configuration checks
-
-func (n *SilenceNotifier) isWebhookConfigured() bool {
-	return n.cfg.GetWebhookURL() != ""
-}
-
-func (n *SilenceNotifier) isEmailConfigured() bool {
-	return n.cfg.GetEmailSMTPHost() != "" && n.cfg.GetEmailRecipients() != ""
-}
-
-func (n *SilenceNotifier) isLogConfigured() bool {
-	return n.cfg.GetLogPath() != ""
-}
-
-// Notification senders
+// Notification senders.
 
 func (n *SilenceNotifier) sendSilenceWebhook(duration float64) {
-	webhookURL := n.cfg.GetWebhookURL()
-	threshold := n.cfg.GetSilenceThreshold()
+	cfg := n.cfg.Snapshot()
 	util.NotifyResultf(
-		func() error { return SendSilenceWebhook(webhookURL, duration, threshold) },
+		func() error { return SendSilenceWebhook(cfg.WebhookURL, duration, cfg.SilenceThreshold) },
 		"Silence webhook",
 		true,
 	)
 }
 
 func (n *SilenceNotifier) sendRecoveryWebhook(duration float64) {
-	webhookURL := n.cfg.GetWebhookURL()
+	cfg := n.cfg.Snapshot()
 	util.NotifyResultf(
-		func() error { return SendRecoveryWebhook(webhookURL, duration) },
+		func() error { return SendRecoveryWebhook(cfg.WebhookURL, duration) },
 		"Recovery webhook",
 		true,
 	)
 }
 
 func (n *SilenceNotifier) sendSilenceEmail(duration float64) {
-	cfg := n.buildEmailConfig()
-	threshold := n.cfg.GetSilenceThreshold()
+	cfg := n.cfg.Snapshot()
+	emailCfg := EmailConfig{
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
+	}
 	util.NotifyResultf(
-		func() error { return SendSilenceAlert(cfg, duration, threshold) },
+		func() error { return SendSilenceAlert(emailCfg, duration, cfg.SilenceThreshold) },
 		"Silence email",
 		true,
 	)
 }
 
 func (n *SilenceNotifier) sendRecoveryEmail(duration float64) {
-	cfg := n.buildEmailConfig()
+	cfg := n.cfg.Snapshot()
+	emailCfg := EmailConfig{
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
+	}
 	util.NotifyResultf(
-		func() error { return SendRecoveryAlert(cfg, duration) },
+		func() error { return SendRecoveryAlert(emailCfg, duration) },
 		"Recovery email",
 		true,
 	)
 }
 
-// buildEmailConfig constructs an EmailConfig from the current configuration.
-func (n *SilenceNotifier) buildEmailConfig() EmailConfig {
-	return EmailConfig{
-		Host:       n.cfg.GetEmailSMTPHost(),
-		Port:       n.cfg.GetEmailSMTPPort(),
-		Username:   n.cfg.GetEmailUsername(),
-		Password:   n.cfg.GetEmailPassword(),
-		Recipients: n.cfg.GetEmailRecipients(),
-	}
-}
-
 func (n *SilenceNotifier) logSilenceStart(threshold float64) {
-	logPath := n.cfg.GetLogPath()
+	cfg := n.cfg.Snapshot()
 	util.NotifyResultf(
-		func() error { return LogSilenceStart(logPath, threshold) },
+		func() error { return LogSilenceStart(cfg.LogPath, threshold) },
 		"Silence log",
 		true,
 	)
 }
 
 func (n *SilenceNotifier) logSilenceEnd(duration, threshold float64) {
-	logPath := n.cfg.GetLogPath()
+	cfg := n.cfg.Snapshot()
 	util.NotifyResultf(
-		func() error { return LogSilenceEnd(logPath, duration, threshold) },
+		func() error { return LogSilenceEnd(cfg.LogPath, duration, threshold) },
 		"Recovery log",
 		true,
 	)

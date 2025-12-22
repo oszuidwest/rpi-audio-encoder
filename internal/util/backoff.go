@@ -11,7 +11,6 @@ type Backoff struct {
 }
 
 // NewBackoff creates a backoff calculator with sensible defaults.
-// The factor defaults to 2.0 (doubling) for exponential backoff.
 func NewBackoff(initial, max time.Duration) *Backoff {
 	return &Backoff{
 		current: initial,
@@ -21,14 +20,10 @@ func NewBackoff(initial, max time.Duration) *Backoff {
 	}
 }
 
-// Next returns the current delay and advances to the next delay value.
-// It doubles the delay (by default factor of 2.0) up to the maximum.
+// Next returns the current delay and advances to the next value.
 func (b *Backoff) Next() time.Duration {
 	current := b.current
-	b.current = time.Duration(float64(b.current) * b.factor)
-	if b.current > b.max {
-		b.current = b.max
-	}
+	b.current = min(time.Duration(float64(b.current)*b.factor), b.max)
 	return current
 }
 

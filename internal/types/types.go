@@ -22,7 +22,7 @@ const (
 	StateStopping EncoderState = "stopping"
 )
 
-// Retry settings.
+// Retry configuration constants.
 const (
 	InitialRetryDelay = 3 * time.Second
 	MaxRetryDelay     = 60 * time.Second
@@ -31,7 +31,7 @@ const (
 	StableThreshold   = 10 * time.Second // Consider connection stable after this duration
 )
 
-// Shutdown settings.
+// Shutdown configuration constants.
 const (
 	ShutdownTimeout = 3 * time.Second       // Time to wait for graceful shutdown before SIGKILL
 	PollInterval    = 50 * time.Millisecond // Interval for polling process state
@@ -135,7 +135,7 @@ const (
 
 // AudioLevels contains current audio level measurements.
 type AudioLevels struct {
-	Left            float64      `json:"left"`                      // RMS level in dB (-60 to 0)
+	Left            float64      `json:"left"`                      // RMS level in dB
 	Right           float64      `json:"right"`                     // RMS level in dB
 	PeakLeft        float64      `json:"peak_left"`                 // Peak level in dB
 	PeakRight       float64      `json:"peak_right"`                // Peak level in dB
@@ -144,4 +144,87 @@ type AudioLevels struct {
 	SilenceLevel    SilenceLevel `json:"silence_level,omitzero"`    // "active" when in confirmed silence state
 	ClipLeft        int          `json:"clip_left,omitzero"`        // Clipped samples on left channel
 	ClipRight       int          `json:"clip_right,omitzero"`       // Clipped samples on right channel
+}
+
+// AudioMetrics contains audio level metrics for callback processing.
+type AudioMetrics struct {
+	RMSL, RMSR      float64      // RMS levels in dB
+	PeakL, PeakR    float64      // Peak levels in dB
+	Silence         bool         // True if audio below threshold
+	SilenceDuration float64      // Silence duration in seconds
+	SilenceLevel    SilenceLevel // "active" when in confirmed silence state
+	ClipL, ClipR    int          // Clipped sample counts
+}
+
+// WSStatusResponse is sent to clients with full encoder and output status.
+type WSStatusResponse struct {
+	Type             string                  `json:"type"`
+	Encoder          EncoderStatus           `json:"encoder"`
+	Outputs          []Output                `json:"outputs"`
+	OutputStatus     map[string]OutputStatus `json:"output_status"`
+	Devices          []AudioDevice           `json:"devices"`
+	SilenceThreshold float64                 `json:"silence_threshold"`
+	SilenceDuration  float64                 `json:"silence_duration"`
+	SilenceRecovery  float64                 `json:"silence_recovery"`
+	SilenceWebhook   string                  `json:"silence_webhook"`
+	SilenceLogPath   string                  `json:"silence_log_path"`
+	EmailSMTPHost    string                  `json:"email_smtp_host"`
+	EmailSMTPPort    int                     `json:"email_smtp_port"`
+	EmailFromName    string                  `json:"email_from_name"`
+	EmailUsername    string                  `json:"email_username"`
+	EmailRecipients  string                  `json:"email_recipients"`
+	Settings         WSSettings              `json:"settings"`
+	Version          VersionInfo             `json:"version"`
+}
+
+// WSSettings contains the settings sub-object in status responses.
+type WSSettings struct {
+	AudioInput string `json:"audio_input"`
+	Platform   string `json:"platform"`
+}
+
+// WSLevelsResponse is sent to clients with audio level updates.
+type WSLevelsResponse struct {
+	Type   string      `json:"type"`
+	Levels AudioLevels `json:"levels"`
+}
+
+// WSTestResult is sent to clients after a test operation completes.
+type WSTestResult struct {
+	Type     string `json:"type"`
+	TestType string `json:"test_type"`
+	Success  bool   `json:"success"`
+	Error    string `json:"error,omitempty"`
+}
+
+// WSSilenceLogResult is sent to clients with silence log entries.
+type WSSilenceLogResult struct {
+	Type    string            `json:"type"`
+	Success bool              `json:"success"`
+	Error   string            `json:"error,omitempty"`
+	Entries []SilenceLogEntry `json:"entries,omitempty"`
+	Path    string            `json:"path,omitempty"`
+}
+
+// SilenceLogEntry represents a single entry in the silence log.
+type SilenceLogEntry struct {
+	Timestamp   string  `json:"timestamp"`
+	Event       string  `json:"event"`
+	DurationSec float64 `json:"duration_sec,omitempty"` // Duration of the silence period in seconds.
+	ThresholdDB float64 `json:"threshold_db"`
+}
+
+// AudioDevice represents an available audio input device.
+type AudioDevice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// VersionInfo contains version comparison data.
+type VersionInfo struct {
+	Current     string `json:"current"`
+	Latest      string `json:"latest,omitempty"`
+	UpdateAvail bool   `json:"update_available"`
+	Commit      string `json:"commit,omitempty"`
+	BuildTime   string `json:"build_time,omitempty"`
 }

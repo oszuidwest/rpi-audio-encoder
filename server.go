@@ -13,6 +13,7 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
 	"github.com/oszuidwest/zwfm-encoder/internal/server"
+	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
@@ -59,7 +60,7 @@ func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
 	}
 }
 
-// handleWebSocket streams real-time encoder status and audio levels to the client.
+// handleWebSocket manages bidirectional WebSocket communication for status updates and commands.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := server.UpgradeConnection(w, r)
 	if err != nil {
@@ -93,29 +94,31 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer statusTicker.Stop()
 
 	sendStatus := func() error {
+		cfg := s.config.Snapshot()
 		status := s.encoder.GetStatus()
-		status.OutputCount = len(s.config.GetOutputs())
-		return conn.WriteJSON(map[string]interface{}{
-			"type":              "status",
-			"encoder":           status,
-			"outputs":           s.config.GetOutputs(),
-			"output_status":     s.encoder.GetAllOutputStatuses(),
-			"devices":           encoder.ListAudioDevices(),
-			"silence_threshold": s.config.GetSilenceThreshold(),
-			"silence_duration":  s.config.GetSilenceDuration(),
-			"silence_recovery":  s.config.GetSilenceRecovery(),
-			"silence_webhook":   s.config.GetWebhookURL(),
-			"silence_log_path":  s.config.GetLogPath(),
-			"email_smtp_host":   s.config.GetEmailSMTPHost(),
-			"email_smtp_port":   s.config.GetEmailSMTPPort(),
-			"email_from_name":   s.config.GetEmailFromName(),
-			"email_username":    s.config.GetEmailUsername(),
-			"email_recipients":  s.config.GetEmailRecipients(),
-			"settings": map[string]interface{}{
-				"audio_input": s.config.GetAudioInput(),
-				"platform":    runtime.GOOS,
+		status.OutputCount = len(cfg.Outputs)
+
+		return conn.WriteJSON(types.WSStatusResponse{
+			Type:             "status",
+			Encoder:          status,
+			Outputs:          cfg.Outputs,
+			OutputStatus:     s.encoder.GetAllOutputStatuses(),
+			Devices:          encoder.ListAudioDevices(),
+			SilenceThreshold: cfg.SilenceThreshold,
+			SilenceDuration:  cfg.SilenceDuration,
+			SilenceRecovery:  cfg.SilenceRecovery,
+			SilenceWebhook:   cfg.WebhookURL,
+			SilenceLogPath:   cfg.LogPath,
+			EmailSMTPHost:    cfg.EmailSMTPHost,
+			EmailSMTPPort:    cfg.EmailSMTPPort,
+			EmailFromName:    cfg.EmailFromName,
+			EmailUsername:    cfg.EmailUsername,
+			EmailRecipients:  cfg.EmailRecipients,
+			Settings: types.WSSettings{
+				AudioInput: cfg.AudioInput,
+				Platform:   runtime.GOOS,
 			},
-			"version": s.version.GetInfo(),
+			Version: s.version.GetInfo(),
 		})
 	}
 
@@ -132,9 +135,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-levelsTicker.C:
-			if err := conn.WriteJSON(map[string]interface{}{
-				"type":   "levels",
-				"levels": s.encoder.GetAudioLevels(),
+			if err := conn.WriteJSON(types.WSLevelsResponse{
+				Type:   "levels",
+				Levels: s.encoder.GetAudioLevels(),
 			}); err != nil {
 				return
 			}
@@ -149,7 +152,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // SetupRoutes returns an [http.Handler] configured with all application routes.
 func (s *Server) SetupRoutes() http.Handler {
 	mux := http.NewServeMux()
-	auth := s.sessions.AuthMiddleware(s.config.GetWebUser(), s.config.GetWebPassword())
+	cfg := s.config.Snapshot()
+	auth := s.sessions.AuthMiddleware(cfg.WebUser, cfg.WebPassword)
 
 	// Public routes (no auth required)
 	mux.HandleFunc("/login", s.handleLogin)
@@ -214,8 +218,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 		username := r.FormValue("username")
 		password := r.FormValue("password")
+		cfg := s.config.Snapshot()
 
-		if s.sessions.Login(w, r, username, password, s.config.GetWebUser(), s.config.GetWebPassword()) {
+		if s.sessions.Login(w, r, username, password, cfg.WebUser, cfg.WebPassword) {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -279,7 +284,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		path = "/index.html"
 	}
 
-	// Handle index.html specially (requires template replacement)
+	// Serve index.html with dynamic placeholders.
 	if path == "/index.html" {
 		w.Header().Set("Content-Type", "text/html")
 		html := strings.Replace(indexHTML, "{{VERSION}}", Version, 1)
@@ -304,7 +309,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 // Start begins listening and serving HTTP requests on the configured port.
 // Returns an *http.Server that can be used for graceful shutdown.
 func (s *Server) Start() *http.Server {
-	addr := fmt.Sprintf(":%d", s.config.GetWebPort())
+	addr := fmt.Sprintf(":%d", s.config.Snapshot().WebPort)
 	slog.Info("starting web server", "addr", addr)
 
 	srv := &http.Server{

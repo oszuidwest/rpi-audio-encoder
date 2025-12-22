@@ -10,40 +10,49 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
-// SendSilenceWebhook sends a POST request to the webhook URL when silence is critical.
+// WebhookPayload represents the JSON structure sent to webhook endpoints.
+type WebhookPayload struct {
+	Event           string  `json:"event"`
+	SilenceDuration float64 `json:"silence_duration,omitempty"`
+	Threshold       float64 `json:"threshold,omitempty"`
+	Message         string  `json:"message,omitempty"`
+	Timestamp       string  `json:"timestamp"`
+}
+
+// SendSilenceWebhook notifies the configured webhook of critical silence detection.
 func SendSilenceWebhook(webhookURL string, duration, threshold float64) error {
-	return sendWebhook(webhookURL, map[string]any{
-		"event":            "silence_detected",
-		"silence_duration": duration,
-		"threshold":        threshold,
-		"timestamp":        util.RFC3339Now(),
+	return sendWebhook(webhookURL, WebhookPayload{
+		Event:           "silence_detected",
+		SilenceDuration: duration,
+		Threshold:       threshold,
+		Timestamp:       util.RFC3339Now(),
 	})
 }
 
-// SendRecoveryWebhook sends a POST request to the webhook URL when audio recovers.
+// SendRecoveryWebhook notifies the configured webhook of audio recovery.
 func SendRecoveryWebhook(webhookURL string, silenceDuration float64) error {
-	return sendWebhook(webhookURL, map[string]any{
-		"event":            "silence_recovered",
-		"silence_duration": silenceDuration,
-		"timestamp":        util.RFC3339Now(),
+	return sendWebhook(webhookURL, WebhookPayload{
+		Event:           "silence_recovered",
+		SilenceDuration: silenceDuration,
+		Timestamp:       util.RFC3339Now(),
 	})
 }
 
-// SendTestWebhook sends a test POST request to verify webhook configuration.
+// SendTestWebhook verifies webhook configuration by sending a test notification.
 func SendTestWebhook(webhookURL string) error {
 	if webhookURL == "" {
 		return fmt.Errorf("webhook URL not configured")
 	}
 
-	return sendWebhook(webhookURL, map[string]any{
-		"event":     "test",
-		"message":   "This is a test notification from ZuidWest FM Encoder",
-		"timestamp": util.RFC3339Now(),
+	return sendWebhook(webhookURL, WebhookPayload{
+		Event:     "test",
+		Message:   "This is a test notification from ZuidWest FM Encoder",
+		Timestamp: util.RFC3339Now(),
 	})
 }
 
-// sendWebhook sends a POST request with JSON payload to the webhook URL.
-func sendWebhook(webhookURL string, payload map[string]any) error {
+// sendWebhook delivers a notification to the configured webhook endpoint.
+func sendWebhook(webhookURL string, payload WebhookPayload) error {
 	if !util.IsConfigured(webhookURL) {
 		return nil // Silently skip if not configured
 	}

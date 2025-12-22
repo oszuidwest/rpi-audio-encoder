@@ -9,7 +9,7 @@ import (
 	"github.com/wneessen/go-mail"
 )
 
-// EmailConfig holds SMTP configuration.
+// EmailConfig contains SMTP server settings for email notifications.
 type EmailConfig struct {
 	Host       string
 	Port       int
@@ -78,9 +78,8 @@ func SendTestEmail(cfg EmailConfig) error {
 	return sendEmail(cfg, subject, body)
 }
 
-// sendEmail sends an email using go-mail with port-appropriate TLS.
+// sendEmail delivers an email message to configured recipients.
 func sendEmail(cfg EmailConfig, subject, body string) error {
-	// Parse recipients (comma-separated), filtering empty entries
 	var recipients []string
 	for _, r := range strings.Split(cfg.Recipients, ",") {
 		if r = strings.TrimSpace(r); r != "" {

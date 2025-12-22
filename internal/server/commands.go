@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
-	"github.com/oszuidwest/zwfm-encoder/internal/notify"
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
@@ -138,7 +138,7 @@ func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 	}
 }
 
-// updateFloatSetting validates and updates a float64 setting with logging.
+// updateFloatSetting validates and updates a float64 setting.
 func updateFloatSetting(value *float64, min, max float64, name string, setter func(float64) error) {
 	if value == nil {
 		return
@@ -154,7 +154,7 @@ func updateFloatSetting(value *float64, min, max float64, name string, setter fu
 	}
 }
 
-// updateStringSetting updates a string setting with logging.
+// updateStringSetting updates a string setting.
 func updateStringSetting(value *string, name string, setter func(string) error) {
 	if value == nil {
 		return
@@ -216,11 +216,7 @@ func (h *CommandHandler) handleUpdateSettings(cmd WSCommand) {
 			host = *settings.EmailSMTPHost
 		}
 		if settings.EmailSMTPPort != nil {
-			port = *settings.EmailSMTPPort
-			if port < 1 || port > 65535 {
-				slog.Warn("update_settings: invalid SMTP port, using default", "port", port)
-				port = config.DefaultEmailSMTPPort
-			}
+			port = max(1, min(*settings.EmailSMTPPort, 65535))
 		}
 		if settings.EmailFromName != nil {
 			fromName = *settings.EmailFromName
@@ -253,16 +249,16 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 	}
 
 	go func() {
-		result := map[string]interface{}{
-			"type":      "test_result",
-			"test_type": testType,
-			"success":   true,
+		result := types.WSTestResult{
+			Type:     "test_result",
+			TestType: testType,
+			Success:  true,
 		}
 
 		if err := trigger(); err != nil {
 			slog.Error("test failed", "command", testCmd, "error", err)
-			result["success"] = false
-			result["error"] = err.Error()
+			result.Success = false
+			result.Error = err.Error()
 		} else {
 			slog.Info("test succeeded", "command", testCmd)
 		}
@@ -276,15 +272,15 @@ func (h *CommandHandler) handleTest(conn *websocket.Conn, testCmd string) {
 // handleViewSilenceLog reads and returns the silence log file contents.
 func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
 	go func() {
-		result := map[string]interface{}{
-			"type":    "silence_log_result",
-			"success": true,
+		result := types.WSSilenceLogResult{
+			Type:    "silence_log_result",
+			Success: true,
 		}
 
 		logPath := h.cfg.GetLogPath()
 		if logPath == "" {
-			result["success"] = false
-			result["error"] = "Log file path not configured"
+			result.Success = false
+			result.Error = "Log file path not configured"
 			if wsErr := conn.WriteJSON(result); wsErr != nil {
 				slog.Error("failed to send silence log response", "error", wsErr)
 			}
@@ -293,11 +289,11 @@ func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
 
 		entries, err := readSilenceLog(logPath, 100)
 		if err != nil {
-			result["success"] = false
-			result["error"] = err.Error()
+			result.Success = false
+			result.Error = err.Error()
 		} else {
-			result["entries"] = entries
-			result["path"] = logPath
+			result.Entries = entries
+			result.Path = logPath
 		}
 
 		if wsErr := conn.WriteJSON(result); wsErr != nil {
@@ -307,10 +303,10 @@ func (h *CommandHandler) handleViewSilenceLog(conn *websocket.Conn) {
 }
 
 // readSilenceLog reads the last N entries from the silence log file.
-func readSilenceLog(logPath string, maxEntries int) ([]notify.SilenceLogEntry, error) {
+func readSilenceLog(logPath string, maxEntries int) ([]types.SilenceLogEntry, error) {
 	data, err := os.ReadFile(logPath)
 	if os.IsNotExist(err) {
-		return []notify.SilenceLogEntry{}, nil
+		return []types.SilenceLogEntry{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read log file: %w", err)
@@ -318,22 +314,18 @@ func readSilenceLog(logPath string, maxEntries int) ([]notify.SilenceLogEntry, e
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
-		return []notify.SilenceLogEntry{}, nil
+		return []types.SilenceLogEntry{}, nil
 	}
 
-	// Take last N lines (most recent entries)
-	start := 0
-	if len(lines) > maxEntries {
-		start = len(lines) - maxEntries
-	}
+	start := max(0, len(lines)-maxEntries)
 	lines = lines[start:]
 
-	entries := make([]notify.SilenceLogEntry, 0, len(lines))
+	entries := make([]types.SilenceLogEntry, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		var entry notify.SilenceLogEntry
+		var entry types.SilenceLogEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			continue // Skip malformed entries
 		}
@@ -341,9 +333,7 @@ func readSilenceLog(logPath string, maxEntries int) ([]notify.SilenceLogEntry, e
 	}
 
 	// Reverse to show newest first
-	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
-		entries[i], entries[j] = entries[j], entries[i]
-	}
+	slices.Reverse(entries)
 
 	return entries, nil
 }

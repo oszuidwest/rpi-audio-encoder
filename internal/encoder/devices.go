@@ -6,16 +6,12 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/oszuidwest/zwfm-encoder/internal/types"
 )
 
-// AudioDevice represents an available audio input device.
-type AudioDevice struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
 // ListAudioDevices returns available audio input devices for the current platform.
-func ListAudioDevices() []AudioDevice {
+func ListAudioDevices() []types.AudioDevice {
 	switch runtime.GOOS {
 	case "darwin":
 		return listMacOSDevices()
@@ -25,7 +21,7 @@ func ListAudioDevices() []AudioDevice {
 }
 
 // listMacOSDevices returns available audio input devices on macOS.
-func listMacOSDevices() []AudioDevice {
+func listMacOSDevices() []types.AudioDevice {
 	cmd := exec.Command("ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", "")
 	// Note: ffmpeg -list_devices always returns non-zero exit code, so we ignore the error
 	// The device list is still in the output even though the command "fails"
@@ -35,7 +31,7 @@ func listMacOSDevices() []AudioDevice {
 		return nil
 	}
 
-	var devices []AudioDevice
+	var devices []types.AudioDevice
 	lines := strings.Split(string(output), "\n")
 	inAudioSection := false
 
@@ -54,7 +50,7 @@ func listMacOSDevices() []AudioDevice {
 		if inAudioSection {
 			matches := devicePattern.FindStringSubmatch(line)
 			if len(matches) == 3 {
-				devices = append(devices, AudioDevice{
+				devices = append(devices, types.AudioDevice{
 					ID:   ":" + matches[1],
 					Name: strings.TrimSpace(matches[2]),
 				})
@@ -66,18 +62,18 @@ func listMacOSDevices() []AudioDevice {
 }
 
 // listLinuxDevices returns available audio input devices on Linux.
-func listLinuxDevices() []AudioDevice {
+func listLinuxDevices() []types.AudioDevice {
 	cmd := exec.Command("arecord", "-l")
 	output, err := cmd.Output()
 	if err != nil {
 		// Fallback: return default HiFiBerry device
-		return []AudioDevice{{
+		return []types.AudioDevice{{
 			ID:   "default:CARD=sndrpihifiberry",
 			Name: "HiFiBerry (default)",
 		}}
 	}
 
-	var devices []AudioDevice
+	var devices []types.AudioDevice
 	lines := strings.Split(string(output), "\n")
 
 	// Pattern: card 0: sndrpihifiberry [snd_rpi_hifiberry_dac], device 0: ...
@@ -88,7 +84,7 @@ func listLinuxDevices() []AudioDevice {
 		if len(matches) == 4 {
 			cardName := matches[2]
 			description := matches[3]
-			devices = append(devices, AudioDevice{
+			devices = append(devices, types.AudioDevice{
 				ID:   "default:CARD=" + cardName,
 				Name: description,
 			})
@@ -96,7 +92,7 @@ func listLinuxDevices() []AudioDevice {
 	}
 
 	if len(devices) == 0 {
-		devices = append(devices, AudioDevice{
+		devices = append(devices, types.AudioDevice{
 			ID:   "default",
 			Name: "Default Audio Device",
 		})
