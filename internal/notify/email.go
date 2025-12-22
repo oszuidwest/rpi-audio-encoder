@@ -78,12 +78,17 @@ func SendTestEmail(cfg EmailConfig) error {
 	return sendEmail(cfg, subject, body)
 }
 
-// sendEmail sends an email using go-mail with STARTTLS.
+// sendEmail sends an email using go-mail with port-appropriate TLS.
 func sendEmail(cfg EmailConfig, subject, body string) error {
-	// Parse recipients (comma-separated)
-	recipients := strings.Split(cfg.Recipients, ",")
-	for i := range recipients {
-		recipients[i] = strings.TrimSpace(recipients[i])
+	// Parse recipients (comma-separated), filtering empty entries
+	var recipients []string
+	for _, r := range strings.Split(cfg.Recipients, ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			recipients = append(recipients, r)
+		}
+	}
+	if len(recipients) == 0 {
+		return fmt.Errorf("no valid recipients")
 	}
 
 	m := mail.NewMsg()
@@ -105,7 +110,7 @@ func sendEmail(cfg EmailConfig, subject, body string) error {
 	// Build client options with port-appropriate TLS settings
 	opts := []mail.Option{
 		mail.WithPort(cfg.Port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithSMTPAuth(mail.SMTPAuthAutoDiscover),
 		mail.WithUsername(cfg.Username),
 		mail.WithPassword(cfg.Password),
 	}
