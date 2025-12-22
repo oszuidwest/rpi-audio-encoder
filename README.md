@@ -7,11 +7,11 @@ Audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radi
 ## Features
 
 - **Multi-output streaming** - Send to multiple SRT servers with different codecs simultaneously
-- **Real-time VU meters** - Peak hold (1.5s) with Peak/RMS toggle, clip detection, updated via WebSocket
+- **Real-time VU meters** - Peak hold (1.5 s) with peak/RMS toggle, clip detection, updated via WebSocket
 - **Silence detection** - Alerts via webhook, email, or file log when audio drops below threshold
 - **Web interface** - Configure outputs, select audio input, monitor levels
 - **Auto-recovery** - Automatic reconnection with configurable retry limits per output
-- **Multiple codecs** - MP3, MP2, OGG Vorbis, or uncompressed WAV per output
+- **Multiple codecs** - MP3, MP2, Ogg Vorbis, or uncompressed WAV per output
 - **Update notifications** - Alerts when new versions are available
 - **Single binary** - Web interface embedded, minimal runtime dependencies
 
@@ -20,8 +20,8 @@ Audio streaming software for [ZuidWest FM](https://www.zuidwestfm.nl/) and [Radi
 - Raspberry Pi 4 or 5
 - [HiFiBerry Digi+ I/O](https://www.hifiberry.com/shop/boards/hifiberry-digi-io/) or [HiFiBerry DAC+ ADC](https://www.hifiberry.com/shop/boards/dacplus-adc/)
 - Raspberry Pi OS Trixie Lite (64-bit)
-- FFmpeg (for encoding)
-- alsa-utils (for audio capture via arecord)
+- `ffmpeg` (for encoding)
+- `alsa-utils` (for audio capture via `arecord`)
 
 ## Installation
 
@@ -45,16 +45,17 @@ Connect the digital output of your audio processor to the HiFiBerry input.
 **Requirements:**
 - 48 kHz sample rate
 - 16-bit depth
-- SPDIF format preferred (AES/EBU may work but is not guaranteed)
+- Stereo (2 channels)
+- S/PDIF format preferred (AES/EBU compatibility not guaranteed)
 
 ## Codecs
 
-| Codec | Encoder | Bitrate |
-|-------|---------|---------|
-| MP3 | libmp3lame | 320 kbit/s |
-| MP2 | libtwolame | 384 kbit/s |
-| OGG | libvorbis | ~500 kbit/s (Q10) |
-| WAV | pcm_s16le | Uncompressed |
+| Codec | Encoder | Bitrate | Notes |
+|-------|---------|---------|-------|
+| MP3 | libmp3lame | 320 kbit/s | — |
+| MP2 | libtwolame | 384 kbit/s | Uses psymodel 4 |
+| Ogg | libvorbis | ~500 kbit/s (Q10) | — |
+| WAV | pcm_s16le | Uncompressed | — |
 
 ## Silence Detection
 
@@ -63,8 +64,8 @@ Monitors audio levels and sends alerts when silence is detected or recovered. Us
 | Setting | Default | Range | Description |
 |---------|---------|-------|-------------|
 | Threshold | -40 dB | -60 to 0 | Audio level below which silence is detected |
-| Duration | 15 s | 1-300 | Seconds of silence before alerting |
-| Recovery | 5 s | 1-60 | Seconds of audio before considering recovered |
+| Duration | 15 s | 1 to 300 | Seconds of silence before alerting |
+| Recovery | 5 s | 1 to 60 | Seconds of audio before recovery |
 
 **Alerting options** (can use multiple simultaneously):
 - **Webhook** - POST request to a URL on silence start and recovery
@@ -75,7 +76,7 @@ Configure via the web interface under Settings → Alerts.
 
 ## Configuration
 
-Configuration is stored in `/etc/encoder/config.json`:
+Configuration is stored in `/etc/encoder/config.json` on production systems. For development, use the `-config` flag to specify a custom path, or place `config.json` next to the binary.
 
 ```json
 {
