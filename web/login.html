@@ -8,42 +8,48 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="canonical" href="/login">
     <link rel="stylesheet" href="/style.css">
-</head>
-<body class="login-page">
     <script>
-        const mq = window.matchMedia('(prefers-color-scheme: dark)');
-        if (mq.matches) document.documentElement.classList.add('dark');
-        mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
+        (function() {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.matches) document.documentElement.classList.add('dark');
+            mq.addEventListener('change', e => document.documentElement.classList.toggle('dark', e.matches));
+        })();
     </script>
-
+</head>
+<body class="page page--login">
     <main class="container">
-        <section class="card">
-            <div class="card__header card__header--brand">
-                <h1>ZuidWest FM Encoder</h1>
-            </div>
+        <section class="card card--login">
             <div class="card__body">
-                <div class="login__logo">
-                    <span id="app-logo"></span>
+                <div class="login__header">
+                    <span id="login-logo" class="login__logo"></span>
+                    <h1 class="login__title">ZuidWest FM Encoder</h1>
+                    <p class="login__subtitle">Sign in to continue</p>
                 </div>
 
                 {{if .Error}}
-                <div class="login__error">
-                    <span id="warning-icon" class="icon-container"></span>
-                    <span>Invalid username or password</span>
+                <div class="alert alert--danger" role="alert" tabindex="-1" id="login-error">
+                    <span id="warning-icon" class="icon-container" aria-hidden="true"></span>
+                    <div>
+                        <strong>Sign in failed</strong>
+                        <p>Please check your username and password.</p>
+                    </div>
                 </div>
                 {{end}}
 
-                <form method="POST" action="/login" class="login__form">
+                <form method="POST" action="/login">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <div class="form__group">
                         <label for="username">Username</label>
                         <input type="text" id="username" name="username" autocomplete="username" required autofocus>
                     </div>
-                    <div class="form__group">
+                    <div class="form__group form__group--password">
                         <label for="password">Password</label>
                         <input type="password" id="password" name="password" autocomplete="current-password" required>
+                        <button type="button" class="icon-btn form__toggle" id="password-toggle" aria-label="Show password">
+                            <span id="eye-icon"></span>
+                        </button>
                     </div>
-                    <button type="submit" class="login__btn">Sign in</button>
+                    <button type="submit" class="btn btn--primary btn--block">Sign in</button>
                 </form>
             </div>
         </section>
@@ -63,10 +69,26 @@
 
     <script src="/icons.js"></script>
     <script>
-        document.getElementById('app-logo').innerHTML = window.icons.appLogo;
+        document.getElementById('login-logo').innerHTML = window.icons.appLogo;
         document.getElementById('github-icon').innerHTML = window.icons.github;
+        document.getElementById('eye-icon').innerHTML = window.icons.eye;
+
         const warningIcon = document.getElementById('warning-icon');
-        if (warningIcon) warningIcon.innerHTML = window.icons.warning;
+        if (warningIcon) {
+            warningIcon.innerHTML = window.icons.warning;
+            document.getElementById('login-error').focus();
+        }
+
+        const passwordInput = document.getElementById('password');
+        const toggleBtn = document.getElementById('password-toggle');
+        const eyeIcon = document.getElementById('eye-icon');
+
+        toggleBtn.addEventListener('click', function() {
+            const isPassword = passwordInput.type === 'password';
+            passwordInput.type = isPassword ? 'text' : 'password';
+            eyeIcon.innerHTML = isPassword ? window.icons.eyeSlash : window.icons.eye;
+            toggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+        });
     </script>
 </body>
 </html>
