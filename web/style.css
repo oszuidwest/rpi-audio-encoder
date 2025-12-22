@@ -74,6 +74,12 @@
     --shadow-sm: 0 1px 3px rgb(0 0 0 / 10%);
     --shadow-md: 0 4px 6px rgb(0 0 0 / 10%);
     --shadow-inset: inset 0 1px 3px rgb(0 0 0 / 10%);
+
+    /* Overlays - for elements on colored backgrounds */
+    --overlay-subtle: rgb(255 255 255 / 15%);
+    --overlay-light: rgb(255 255 255 / 20%);
+    --overlay-medium: rgb(255 255 255 / 25%);
+    --overlay-strong: rgb(255 255 255 / 30%);
     /* Transition timing scale:
        --transition-fast (0.2s): Standard UI transitions
        --transition-precise (0.15s): Animation timing for precise feel
@@ -114,6 +120,17 @@
 
 [x-cloak] { display: none !important; }
 
+.noscript-message {
+    padding: 1rem;
+    margin: 1rem;
+    text-align: center;
+    font-family: system-ui, sans-serif;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border-radius: var(--radius-lg);
+    font-weight: 500;
+}
+
 /* Icon Container - handles span > svg pattern from icons.js
    Apply to parent element, sets size on both span and nested svg
    Usage: class="icon-container" or use component-specific overrides */
@@ -142,6 +159,33 @@
 
 .list-item--hover:hover {
     background: var(--surface-elevated);
+}
+
+/* Focus Ring - Unified focus-visible style for interactive elements */
+.icon-btn:focus-visible,
+.card__add-btn:focus-visible,
+.vu__mode-btn:focus-visible,
+.nav-btn:focus-visible,
+.settings__tab:focus-visible,
+.icon-btn--close:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+}
+
+/* Spinner - Loading indicator animation */
+.spinner,
+.log__loading::before,
+.connection-overlay__spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.log__loading::before {
+    content: '';
 }
 
 /* Disabled state - applies to buttons and interactive elements */
@@ -194,12 +238,6 @@
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(var(--fade-offset, 0)); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes successBump {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
 }
 
 @keyframes connect-confirm {
@@ -274,21 +312,6 @@ body {
     height: 1.25rem;
 }
 
-.header__actions .icon-btn {
-    width: 2.25rem;
-    height: 2.25rem;
-    background: var(--surface-card);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-default);
-    box-shadow: var(--shadow-sm);
-}
-
-.header__actions .icon-btn:hover {
-    background: var(--surface-card);
-    border-color: var(--brand);
-    color: var(--brand);
-}
-
 .icon-btn--delete {
     padding: 0.25rem;
     background: none;
@@ -332,7 +355,7 @@ body {
     justify-content: center;
     background: var(--brand);
     border-radius: var(--radius-sm);
-    color: #fff;
+    color: var(--text-inverse);
 }
 
 .header__logo svg {
@@ -412,8 +435,8 @@ body {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    background: rgb(255 255 255 / 20%);
-    border: 1px solid rgb(255 255 255 / 30%);
+    background: var(--overlay-light);
+    border: 1px solid var(--overlay-strong);
     padding: 0.25rem 0.75rem;
     border-radius: var(--radius-full);
     font-size: 0.875rem;
@@ -424,16 +447,16 @@ body {
 }
 
 .card__add-btn:hover {
-    background: rgb(255 255 255 / 30%);
+    background: var(--overlay-strong);
 }
 
 .badge {
-    background: rgb(255 255 255 / 20%);
+    background: var(--overlay-light);
     padding: 0.25rem 0.75rem;
     border-radius: var(--radius-full);
     font-size: 0.875rem;
     font-weight: 500;
-    border: 1px solid rgb(255 255 255 / 30%);
+    border: 1px solid var(--overlay-strong);
 }
 
 .card__body {
@@ -487,7 +510,7 @@ input:focus, select:focus {
 }
 
 input::placeholder {
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 select {
@@ -606,7 +629,7 @@ select {
     border-radius: var(--radius-sm);
     border: none;
     background: var(--surface-card);
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: color var(--transition-fast);
 }
@@ -626,7 +649,7 @@ select {
     gap: 0.25rem;
     font-size: 0.6875rem;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 .vu__indicator-dot {
@@ -640,29 +663,29 @@ select {
 
 /* Silence indicator - escalating urgency based on configured threshold
    Thresholds are multiples of the "Alert after" setting (silenceDuration):
-   active (1x): Amber warning, slow pulse
-   warning (2x): Orange, faster pulse
-   critical (4x): Red, rapid pulse */
-.vu__indicator-dot.silence.active {
+   --silence-active (1x): Amber warning, slow pulse
+   --silence-warning (2x): Orange, faster pulse
+   --silence-critical (4x): Red, rapid pulse */
+.vu__indicator-dot--silence-active {
     background: var(--warning);
     box-shadow: 0 0 6px var(--warning);
     animation: pulse 2s infinite;
 }
 
-.vu__indicator-dot.silence.warning {
+.vu__indicator-dot--silence-warning {
     background: var(--warning-urgent);
     box-shadow: 0 0 8px var(--warning-urgent);
     animation: pulse 1s infinite;
 }
 
-.vu__indicator-dot.silence.critical {
+.vu__indicator-dot--silence-critical {
     background: var(--danger);
     box-shadow: 0 0 10px var(--danger);
     animation: pulse 0.4s infinite;
 }
 
 /* Clip indicator - rapid 0.15s flash for transient peak clipping */
-.vu__indicator-dot.clip.active {
+.vu__indicator-dot--clip-active {
     background: var(--danger);
     box-shadow: 0 0 4px var(--danger);
     --pulse-opacity: 0.4;
@@ -685,7 +708,7 @@ select {
     font-size: 0.6875rem;
     font-family: var(--font-mono);
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 .vu__track {
@@ -767,7 +790,7 @@ select {
     font-size: 0.6875rem;
     font-family: var(--font-mono);
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     text-align: right;
     white-space: nowrap;
 }
@@ -899,7 +922,7 @@ select {
     padding-bottom: 0.5rem;
 }
 
-.output__item.output__item--deleting {
+.output__item--deleting {
     animation: slide-out-right 0.3s ease forwards;
     pointer-events: none;
 }
@@ -1056,7 +1079,7 @@ select {
 .footer__copyright {
     margin-top: 0.5rem;
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 /* =============================================================================
@@ -1167,11 +1190,11 @@ select {
 }
 
 /* nth-child accounts for <template> element being child 1 */
-.settings__tabs:has(.settings__tab:nth-child(3).active)::before {
+.settings__tabs:has(.settings__tab--active:nth-child(3))::before {
     transform: translateX(calc(100% + 0.25rem));
 }
 
-.settings__tabs:has(.settings__tab:nth-child(4).active)::before {
+.settings__tabs:has(.settings__tab--active:nth-child(4))::before {
     transform: translateX(calc(200% + 0.5rem));
 }
 
@@ -1180,6 +1203,7 @@ select {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 2.75rem;
     padding: 0.625rem 0.75rem;
     background: transparent;
     border: none;
@@ -1208,7 +1232,7 @@ select {
     color: var(--text-secondary);
 }
 
-.settings__tab.active {
+.settings__tab--active {
     color: var(--brand);
     font-weight: 600;
 }
@@ -1233,10 +1257,6 @@ select {
 
 .settings__panel {
     animation: fadeIn var(--transition-precise);
-}
-
-.settings__panel[hidden] {
-    display: none;
 }
 
 /* Settings Sections - Card-like containers */
@@ -1274,7 +1294,7 @@ select {
 
 .settings__section-desc {
     font-size: 0.8125rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     line-height: 1.5;
     margin-bottom: 1rem;
 }
@@ -1287,7 +1307,7 @@ select {
     margin-bottom: 1.5rem;
 }
 
-.about__logo svg.app-logo {
+.about__logo .app-logo {
     width: 5rem;
     height: 5rem;
     color: var(--brand);
@@ -1443,12 +1463,12 @@ select {
 .icon-btn--close {
     width: 1.75rem;
     height: 1.75rem;
-    background: rgb(255 255 255 / 15%);
+    background: var(--overlay-subtle);
     color: var(--text-inverse);
 }
 
 .icon-btn--close:hover {
-    background: rgb(255 255 255 / 25%);
+    background: var(--overlay-medium);
 }
 
 .modal__body {
@@ -1488,16 +1508,6 @@ select {
     padding: 3rem 1rem; /* Override base padding */
 }
 
-.log__loading::before {
-    content: '';
-    width: 1.5rem;
-    height: 1.5rem;
-    border: 2px solid var(--border-default);
-    border-top-color: var(--brand);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
@@ -1532,11 +1542,11 @@ select {
     margin-top: 0.375rem;
 }
 
-.log__entry.log__entry--silence::before {
+.log__entry--silence::before {
     background: var(--warning);
 }
 
-.log__entry.log__entry--recovery::before {
+.log__entry--recovery::before {
     background: var(--success);
 }
 
@@ -1552,23 +1562,23 @@ select {
     margin-bottom: 0.125rem;
 }
 
-.log__entry.log__entry--silence .log__event {
+.log__entry--silence .log__event {
     color: var(--warning-text);
 }
 
-.dark .log__entry.log__entry--silence .log__event {
+.dark .log__entry--silence .log__event {
     color: var(--warning);
 }
 
-.log__entry.log__entry--recovery .log__event {
+.log__entry--recovery .log__event {
     color: var(--success);
 }
 
-.log__entry.log__entry--test::before {
+.log__entry--test::before {
     background: var(--text-muted);
 }
 
-.log__entry.log__entry--test .log__event {
+.log__entry--test .log__event {
     color: var(--text-secondary);
 }
 
@@ -1611,17 +1621,17 @@ select {
 
 .alert-banner--info {
     background: var(--brand);
-    color: #fff;
+    color: var(--text-inverse);
 }
 
 .alert-banner--warning {
     background: var(--warning);
-    color: #000;
+    color: var(--neutral-900);
 }
 
 .alert-banner--danger {
     background: var(--danger);
-    color: #fff;
+    color: var(--text-inverse);
 }
 
 .alert-banner__message {
@@ -1683,16 +1693,6 @@ select {
     box-shadow: 0 25px 50px -12px rgb(0 0 0 / 25%), 0 0 0 1px rgb(255 255 255 / 5%);
     position: relative;
     overflow: hidden;
-}
-
-/* Subtle spinner */
-.connection-overlay__spinner {
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 50%;
-    border: 2px solid var(--border-default);
-    border-top-color: var(--brand);
-    animation: spin 0.8s linear infinite;
 }
 
 .connection-overlay__text {

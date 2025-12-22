@@ -17,7 +17,7 @@
  * WebSocket Commands (outgoing):
  *   - start/stop: Control encoder
  *   - update_settings: Persist configuration changes
- *   - add_output/remove_output: Manage stream outputs
+ *   - add_output/delete_output: Manage stream outputs
  *   - test_<type>: Trigger notification test (webhook, log, email)
  *
  * Dependencies:
@@ -70,6 +70,7 @@ const SETTINGS_MAP = [
     { msgKey: 'silence_log_path', path: 'silenceLogPath', default: '' },
     { msgKey: 'email_smtp_host', path: 'email.host', default: '' },
     { msgKey: 'email_smtp_port', path: 'email.port', default: 587 },
+    { msgKey: 'email_from_name', path: 'email.fromName', default: 'ZuidWest FM Encoder' },
     { msgKey: 'email_username', path: 'email.username', default: '' },
     { msgKey: 'email_recipients', path: 'email.recipients', default: '' }
 ];
@@ -105,7 +106,7 @@ document.addEventListener('alpine:init', () => {
 
         settingsTabs: [
             { id: 'audio', label: 'Audio', icon: 'audio' },
-            { id: 'alerts', label: 'Alerts', icon: 'bell' },
+            { id: 'notifications', label: 'Notifications', icon: 'bell' },
             { id: 'about', label: 'About', icon: 'info' }
         ],
 
@@ -137,7 +138,7 @@ document.addEventListener('alpine:init', () => {
             silenceRecovery: 5,
             silenceWebhook: '',
             silenceLogPath: '',
-            email: { host: '', port: 587, username: '', password: '', recipients: '' },
+            email: { host: '', port: 587, fromName: 'ZuidWest FM Encoder', username: '', password: '', recipients: '' },
             platform: ''
         },
         originalSettings: null,
@@ -190,6 +191,70 @@ document.addEventListener('alpine:init', () => {
          */
         init() {
             this.connectWebSocket();
+            // Global keyboard handlers
+            document.addEventListener('keydown', (e) => this.handleGlobalKeydown(e));
+        },
+
+        /**
+         * Handles global keyboard events for navigation and actions.
+         * - Escape: Close settings/add-output views, close silence log modal
+         * - Enter: Save settings when on settings view (if dirty)
+         * - Arrow keys: Navigate between settings tabs
+         *
+         * @param {KeyboardEvent} event - The keyboard event
+         */
+        handleGlobalKeydown(event) {
+            // Don't handle if user is typing in an input field
+            const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName);
+
+            // Escape: Close views/modals
+            if (event.key === 'Escape') {
+                if (this.silenceLogModal.visible) {
+                    this.closeSilenceLog();
+                    event.preventDefault();
+                } else if (this.view === 'settings') {
+                    this.cancelSettings();
+                    event.preventDefault();
+                } else if (this.view === 'add-output') {
+                    this.showDashboard();
+                    event.preventDefault();
+                }
+                return;
+            }
+
+            // Enter: Save settings (works from input fields, but not textarea/select)
+            if (event.key === 'Enter' && this.view === 'settings' && this.settingsDirty) {
+                const isTextareaOrSelect = ['TEXTAREA', 'SELECT'].includes(event.target.tagName);
+                if (!isTextareaOrSelect) {
+                    this.saveSettings();
+                    event.preventDefault();
+                    return;
+                }
+            }
+
+            // Arrow keys: Navigate tabs in settings view
+            if (this.view === 'settings' && !isInput) {
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                    this.navigateTab(event.key === 'ArrowRight' ? 1 : -1);
+                    event.preventDefault();
+                } else if (event.key === 'Home') {
+                    this.showTab(this.settingsTabs[0].id);
+                    event.preventDefault();
+                } else if (event.key === 'End') {
+                    this.showTab(this.settingsTabs[this.settingsTabs.length - 1].id);
+                    event.preventDefault();
+                }
+            }
+        },
+
+        /**
+         * Navigates to adjacent tab in settings.
+         * @param {number} direction - 1 for next, -1 for previous
+         */
+        navigateTab(direction) {
+            const currentIndex = this.settingsTabs.findIndex(t => t.id === this.settingsTab);
+            const newIndex = (currentIndex + direction + this.settingsTabs.length) % this.settingsTabs.length;
+            this.showTab(this.settingsTabs[newIndex].id);
         },
 
         /**
@@ -257,9 +322,9 @@ document.addEventListener('alpine:init', () => {
             if (this.banner.visible && this.banner.type !== 'info' && levels.silence_duration) {
                 const duration = this.formatDuration(levels.silence_duration);
                 if (newSilenceClass === 'critical') {
-                    this.banner.message = `Silence detected: ${duration}`;
+                    this.banner.message = `Critical silence: ${duration}`;
                 } else if (newSilenceClass === 'warning') {
-                    this.banner.message = `Silence warning: ${duration}`;
+                    this.banner.message = `Silence detected: ${duration}`;
                 }
             }
 
@@ -279,9 +344,9 @@ document.addEventListener('alpine:init', () => {
         handleSilenceTransition(prev, next) {
             const duration = this.formatDuration(this.levels.silence_duration || 0);
             if (next === 'warning' && prev === 'active') {
-                this.showBanner(`Silence warning: ${duration}`, 'warning', false);
+                this.showBanner(`Silence detected: ${duration}`, 'warning', false);
             } else if (next === 'critical') {
-                this.showBanner(`Silence detected: ${duration}`, 'danger', true);
+                this.showBanner(`Critical silence: ${duration}`, 'danger', true);
             } else if (next === '' && prev !== '') {
                 // Silence recovered
                 this.hideBanner();
@@ -291,18 +356,18 @@ document.addEventListener('alpine:init', () => {
         /**
          * Returns escalating CSS class based on silence duration.
          * Thresholds are based on configured silenceDuration:
-         * - active: silenceDuration (alert triggered)
-         * - warning: silenceDuration * 2
-         * - critical: silenceDuration * 4
-         * @returns {string} CSS class: '' | 'active' | 'warning' | 'critical'
+         * - --silence-active: silenceDuration (alert triggered)
+         * - --silence-warning: silenceDuration * 2
+         * - --silence-critical: silenceDuration * 4
+         * @returns {string} BEM modifier class: '' | 'vu__indicator-dot--silence-active' | etc.
          */
         getSilenceClass() {
             if (!this.levels.silence_level) return '';
             const duration = this.levels.silence_duration || 0;
             const threshold = this.settings.silenceDuration || 15;
-            if (duration >= threshold * 4) return 'critical';
-            if (duration >= threshold * 2) return 'warning';
-            return 'active';
+            if (duration >= threshold * 4) return 'vu__indicator-dot--silence-critical';
+            if (duration >= threshold * 2) return 'vu__indicator-dot--silence-warning';
+            return 'vu__indicator-dot--silence-active';
         },
 
         /**
@@ -387,7 +452,7 @@ document.addEventListener('alpine:init', () => {
                 this.version = msg.version;
                 // Show banner once when update becomes available
                 if (msg.version.updateAvail && !wasUpdateAvail) {
-                    this.showBanner(`Update beschikbaar: ${msg.version.latest}`, 'info', false);
+                    this.showBanner(`Update available: ${msg.version.latest}`, 'info', false);
                 }
             }
         },
@@ -404,7 +469,7 @@ document.addEventListener('alpine:init', () => {
 
             this.testStates[type].pending = false;
             this.testStates[type].text = msg.success ? 'Sent!' : 'Failed';
-            if (!msg.success) alert(`${type} test failed: ${msg.error || 'Unknown error'}`);
+            if (!msg.success) alert(`${type.charAt(0).toUpperCase() + type.slice(1)} test failed: ${msg.error || 'Unknown error'}`);
             setTimeout(() => { this.testStates[type].text = 'Test'; }, EMAIL_FEEDBACK_MS);
         },
 
@@ -478,6 +543,7 @@ document.addEventListener('alpine:init', () => {
                 silence_log_path: this.settings.silenceLogPath,
                 email_smtp_host: this.settings.email.host,
                 email_smtp_port: this.settings.email.port,
+                email_from_name: this.settings.email.fromName,
                 email_username: this.settings.email.username,
                 email_recipients: this.settings.email.recipients
             };
@@ -496,7 +562,7 @@ document.addEventListener('alpine:init', () => {
 
         /**
          * Switches active settings tab.
-         * @param {string} tabId - Tab identifier (audio, alerts, about)
+         * @param {string} tabId - Tab identifier (audio, notifications, about)
          */
         showTab(tabId) {
             this.settingsTab = tabId;
@@ -528,7 +594,7 @@ document.addEventListener('alpine:init', () => {
          * @param {string} id - Output ID to delete
          */
         deleteOutput(id) {
-            if (!confirm('Delete this output?')) return;
+            if (!confirm('Delete this output? This action cannot be undone.')) return;
             const output = this.outputs.find(o => o.id === id);
             if (output) this.deletingOutputs[id] = output.created_at;
             this.send('delete_output', id, null);
@@ -573,7 +639,7 @@ document.addEventListener('alpine:init', () => {
          */
         getOutputStatusText(output) {
             const { status, isDeleting } = this.getOutputStatus(output);
-            if (isDeleting) return 'Stopping...';
+            if (isDeleting) return 'Deleting...';
             if (status.stable) return 'Connected';
             if (status.given_up) return 'Failed';
             if (status.retry_count > 0) return `Retry ${status.retry_count}/${status.max_retries}`;
@@ -706,14 +772,14 @@ document.addEventListener('alpine:init', () => {
             const isTest = entry.event === 'test';
 
             // For ended events, show duration prominently in the event name
-            let eventText = 'Unknown Event';
+            let eventText = 'Unknown event';
             if (isEnd) {
                 const dur = entry.duration_sec > 0 ? this.formatDuration(entry.duration_sec) : '';
-                eventText = dur ? `Silence Ended · ${dur}` : 'Silence Ended';
+                eventText = dur ? `Silence ended: ${dur}` : 'Silence ended';
             } else if (isStart) {
-                eventText = 'Silence Detected';
+                eventText = 'Silence detected';
             } else if (isTest) {
-                eventText = 'Test Entry';
+                eventText = 'Test entry';
             }
 
             return {
