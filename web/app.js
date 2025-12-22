@@ -171,17 +171,6 @@ document.addEventListener('alpine:init', () => {
 
         // Computed properties
         /**
-         * Computes CSS class for status pill based on encoder state.
-         * @returns {string} State class: 'state-success', 'state-danger', or 'state-warning'
-         */
-        get statusPillClass() {
-            const s = this.encoder.state;
-            if (s === 'running') return 'state-success';
-            if (s === 'stopped') return 'state-danger';
-            return 'state-warning';
-        },
-
-        /**
          * Checks if audio source has issues (no device or capture error).
          * @returns {boolean} True if source needs attention
          */
