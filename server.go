@@ -104,10 +104,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"silence_threshold": s.config.GetSilenceThreshold(),
 			"silence_duration":  s.config.GetSilenceDuration(),
 			"silence_recovery":  s.config.GetSilenceRecovery(),
-			"silence_webhook":   s.config.GetSilenceWebhook(),
-			"silence_log_path":  s.config.GetSilenceLogPath(),
+			"silence_webhook":   s.config.GetWebhookURL(),
+			"silence_log_path":  s.config.GetLogPath(),
 			"email_smtp_host":   s.config.GetEmailSMTPHost(),
 			"email_smtp_port":   s.config.GetEmailSMTPPort(),
+			"email_from_name":   s.config.GetEmailFromName(),
 			"email_username":    s.config.GetEmailUsername(),
 			"email_recipients":  s.config.GetEmailRecipients(),
 			"settings": map[string]interface{}{

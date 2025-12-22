@@ -16,29 +16,59 @@ import (
 
 // Default values.
 const (
+	DefaultWebPort          = 8080
+	DefaultWebUsername      = "admin"
+	DefaultWebPassword      = "encoder"
 	DefaultSilenceThreshold = -40.0
 	DefaultSilenceDuration  = 15.0 // seconds of silence before alerting
 	DefaultSilenceRecovery  = 5.0  // seconds of audio before considering recovered
 	DefaultEmailSMTPPort    = 587
+	DefaultEmailFromName    = "ZuidWest FM Encoder"
 )
+
+// WebConfig contains web server configuration.
+type WebConfig struct {
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// AudioConfig contains audio input configuration.
+type AudioConfig struct {
+	Input string `json:"input"`
+}
+
+// SilenceDetectionConfig contains silence detection configuration.
+type SilenceDetectionConfig struct {
+	ThresholdDB     float64 `json:"threshold_db,omitempty"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	RecoverySeconds float64 `json:"recovery_seconds,omitempty"`
+}
+
+// EmailConfig contains email notification configuration.
+type EmailConfig struct {
+	Host       string `json:"host,omitempty"`
+	Port       int    `json:"port,omitempty"`
+	FromName   string `json:"from_name,omitempty"`
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+	Recipients string `json:"recipients,omitempty"`
+}
+
+// NotificationsConfig contains all notification configuration.
+type NotificationsConfig struct {
+	WebhookURL string      `json:"webhook_url,omitempty"`
+	LogPath    string      `json:"log_path,omitempty"`
+	Email      EmailConfig `json:"email,omitempty"`
+}
 
 // Config holds all application configuration. It is safe for concurrent use.
 type Config struct {
-	WebPort          int            `json:"web_port"`
-	WebUser          string         `json:"web_user"`
-	WebPassword      string         `json:"web_password"`
-	AudioInput       string         `json:"audio_input"`
-	SilenceThreshold float64        `json:"silence_threshold,omitempty"`
-	SilenceDuration  float64        `json:"silence_duration,omitempty"`
-	SilenceRecovery  float64        `json:"silence_recovery,omitempty"`
-	SilenceWebhook   string         `json:"silence_webhook,omitempty"`
-	SilenceLogPath   string         `json:"silence_log_path,omitempty"`
-	EmailSMTPHost    string         `json:"email_smtp_host,omitempty"`
-	EmailSMTPPort    int            `json:"email_smtp_port,omitempty"`
-	EmailUsername    string         `json:"email_username,omitempty"`
-	EmailPassword    string         `json:"email_password,omitempty"`
-	EmailRecipients  string         `json:"email_recipients,omitempty"`
-	Outputs          []types.Output `json:"outputs"`
+	Web              WebConfig              `json:"web"`
+	Audio            AudioConfig            `json:"audio"`
+	SilenceDetection SilenceDetectionConfig `json:"silence_detection,omitempty"`
+	Notifications    NotificationsConfig    `json:"notifications,omitempty"`
+	Outputs          []types.Output         `json:"outputs"`
 
 	mu       sync.RWMutex
 	filePath string
@@ -47,12 +77,18 @@ type Config struct {
 // New creates a new Config with default values.
 func New(filePath string) *Config {
 	return &Config{
-		WebPort:     8080,
-		WebUser:     "admin",
-		WebPassword: "encoder",
-		AudioInput:  defaultAudioInput(),
-		Outputs:     []types.Output{},
-		filePath:    filePath,
+		Web: WebConfig{
+			Port:     DefaultWebPort,
+			Username: DefaultWebUsername,
+			Password: DefaultWebPassword,
+		},
+		Audio: AudioConfig{
+			Input: defaultAudioInput(),
+		},
+		SilenceDetection: SilenceDetectionConfig{},
+		Notifications:    NotificationsConfig{},
+		Outputs:          []types.Output{},
+		filePath:         filePath,
 	}
 }
 
@@ -81,7 +117,27 @@ func (c *Config) Load() error {
 		return util.WrapError("parse config", err)
 	}
 
-	// Migrate old configs
+	c.applyDefaults()
+	return nil
+}
+
+// applyDefaults sets default values for zero-value fields.
+func (c *Config) applyDefaults() {
+	if c.Web.Port == 0 {
+		c.Web.Port = DefaultWebPort
+	}
+	if c.Web.Username == "" {
+		c.Web.Username = DefaultWebUsername
+	}
+	if c.Web.Password == "" {
+		c.Web.Password = DefaultWebPassword
+	}
+	if c.Audio.Input == "" {
+		c.Audio.Input = defaultAudioInput()
+	}
+	if c.Outputs == nil {
+		c.Outputs = []types.Output{}
+	}
 	for i := range c.Outputs {
 		if c.Outputs[i].Codec == "" {
 			c.Outputs[i].Codec = "mp3"
@@ -90,12 +146,6 @@ func (c *Config) Load() error {
 			c.Outputs[i].CreatedAt = time.Now().UnixMilli()
 		}
 	}
-
-	if c.AudioInput == "" {
-		c.AudioInput = defaultAudioInput()
-	}
-
-	return nil
 }
 
 // Save writes the configuration to file.
@@ -132,6 +182,8 @@ func defaultIfZero[T comparable](val, def T) T {
 	}
 	return val
 }
+
+// === Output Management ===
 
 // GetOutputs returns a copy of all outputs.
 func (c *Config) GetOutputs() []types.Output {
@@ -213,33 +265,60 @@ func (c *Config) UpdateOutput(output types.Output) error {
 	return c.saveLocked()
 }
 
+// === Web Configuration ===
+
+// GetWebPort returns the web server port.
+func (c *Config) GetWebPort() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Web.Port
+}
+
+// GetWebUser returns the web authentication username.
+func (c *Config) GetWebUser() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Web.Username
+}
+
+// GetWebPassword returns the web authentication password.
+func (c *Config) GetWebPassword() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Web.Password
+}
+
+// === Audio Configuration ===
+
 // GetAudioInput returns the configured audio input device.
 func (c *Config) GetAudioInput() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.AudioInput
+	return c.Audio.Input
 }
 
 // SetAudioInput updates the audio input device and saves the configuration.
 func (c *Config) SetAudioInput(input string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.AudioInput = input
+	c.Audio.Input = input
 	return c.saveLocked()
 }
+
+// === Silence Detection Configuration ===
 
 // GetSilenceThreshold returns the configured silence threshold (default -40 dB).
 func (c *Config) GetSilenceThreshold() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceThreshold, DefaultSilenceThreshold)
+	return defaultIfZero(c.SilenceDetection.ThresholdDB, DefaultSilenceThreshold)
 }
 
 // SetSilenceThreshold updates the silence detection threshold and saves the configuration.
 func (c *Config) SetSilenceThreshold(threshold float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SilenceThreshold = threshold
+	c.SilenceDetection.ThresholdDB = threshold
 	return c.saveLocked()
 }
 
@@ -247,14 +326,14 @@ func (c *Config) SetSilenceThreshold(threshold float64) error {
 func (c *Config) GetSilenceDuration() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceDuration, DefaultSilenceDuration)
+	return defaultIfZero(c.SilenceDetection.DurationSeconds, DefaultSilenceDuration)
 }
 
 // SetSilenceDuration updates the silence duration and saves the configuration.
 func (c *Config) SetSilenceDuration(seconds float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SilenceDuration = seconds
+	c.SilenceDetection.DurationSeconds = seconds
 	return c.saveLocked()
 }
 
@@ -262,111 +341,105 @@ func (c *Config) SetSilenceDuration(seconds float64) error {
 func (c *Config) GetSilenceRecovery() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceRecovery, DefaultSilenceRecovery)
+	return defaultIfZero(c.SilenceDetection.RecoverySeconds, DefaultSilenceRecovery)
 }
 
 // SetSilenceRecovery updates the silence recovery time and saves the configuration.
 func (c *Config) SetSilenceRecovery(seconds float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SilenceRecovery = seconds
+	c.SilenceDetection.RecoverySeconds = seconds
 	return c.saveLocked()
 }
 
-// GetSilenceWebhook returns the configured silence webhook URL.
-func (c *Config) GetSilenceWebhook() string {
+// === Notifications Configuration ===
+
+// GetWebhookURL returns the configured webhook URL for notifications.
+func (c *Config) GetWebhookURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.SilenceWebhook
+	return c.Notifications.WebhookURL
 }
 
-// SetSilenceWebhook updates the silence webhook URL and saves the configuration.
-func (c *Config) SetSilenceWebhook(url string) error {
+// SetWebhookURL updates the webhook URL and saves the configuration.
+func (c *Config) SetWebhookURL(url string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SilenceWebhook = url
+	c.Notifications.WebhookURL = url
 	return c.saveLocked()
 }
 
-// GetSilenceLogPath returns the configured silence log file path.
-func (c *Config) GetSilenceLogPath() string {
+// GetLogPath returns the configured log file path for notifications.
+func (c *Config) GetLogPath() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.SilenceLogPath
+	return c.Notifications.LogPath
 }
 
-// SetSilenceLogPath updates the silence log file path and saves the configuration.
-func (c *Config) SetSilenceLogPath(path string) error {
+// SetLogPath updates the log file path and saves the configuration.
+func (c *Config) SetLogPath(path string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SilenceLogPath = path
+	c.Notifications.LogPath = path
 	return c.saveLocked()
 }
+
+// === Email Configuration ===
 
 // GetEmailSMTPHost returns the configured SMTP host.
 func (c *Config) GetEmailSMTPHost() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.EmailSMTPHost
+	return c.Notifications.Email.Host
 }
 
 // GetEmailSMTPPort returns the configured SMTP port (default 587).
 func (c *Config) GetEmailSMTPPort() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.EmailSMTPPort, DefaultEmailSMTPPort)
+	return defaultIfZero(c.Notifications.Email.Port, DefaultEmailSMTPPort)
+}
+
+// GetEmailFromName returns the configured email sender display name.
+func (c *Config) GetEmailFromName() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.Notifications.Email.FromName == "" {
+		return DefaultEmailFromName
+	}
+	return c.Notifications.Email.FromName
 }
 
 // GetEmailUsername returns the configured SMTP username.
 func (c *Config) GetEmailUsername() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.EmailUsername
+	return c.Notifications.Email.Username
 }
 
 // GetEmailPassword returns the configured SMTP password.
 func (c *Config) GetEmailPassword() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.EmailPassword
+	return c.Notifications.Email.Password
 }
 
 // GetEmailRecipients returns the configured email recipients.
 func (c *Config) GetEmailRecipients() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.EmailRecipients
+	return c.Notifications.Email.Recipients
 }
 
 // SetEmailConfig updates all email configuration fields and saves.
-func (c *Config) SetEmailConfig(host string, port int, username, password, recipients string) error {
+func (c *Config) SetEmailConfig(host string, port int, fromName, username, password, recipients string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.EmailSMTPHost = host
-	c.EmailSMTPPort = port
-	c.EmailUsername = username
-	c.EmailPassword = password
-	c.EmailRecipients = recipients
+	c.Notifications.Email.Host = host
+	c.Notifications.Email.Port = port
+	c.Notifications.Email.FromName = fromName
+	c.Notifications.Email.Username = username
+	c.Notifications.Email.Password = password
+	c.Notifications.Email.Recipients = recipients
 	return c.saveLocked()
-}
-
-// GetWebPort returns the web server port.
-func (c *Config) GetWebPort() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.WebPort
-}
-
-// GetWebUser returns the web authentication username.
-func (c *Config) GetWebUser() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.WebUser
-}
-
-// GetWebPassword returns the web authentication password.
-func (c *Config) GetWebPassword() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.WebPassword
 }
