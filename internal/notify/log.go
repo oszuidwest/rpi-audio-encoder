@@ -5,30 +5,22 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
-// SilenceLogEntry represents a single log entry for silence events.
-type SilenceLogEntry struct {
-	Timestamp   string  `json:"timestamp"`
-	Event       string  `json:"event"`
-	DurationSec float64 `json:"duration_sec,omitempty"` // Only set for silence_end events
-	ThresholdDB float64 `json:"threshold_db"`
-}
-
-// LogSilenceStart appends a silence start event to the log file.
-// Duration is not included because we don't know how long silence will last.
+// LogSilenceStart records the beginning of a silence event.
 func LogSilenceStart(logPath string, threshold float64) error {
-	return appendLogEntry(logPath, SilenceLogEntry{
+	return appendLogEntry(logPath, types.SilenceLogEntry{
 		Timestamp:   util.RFC3339Now(),
 		Event:       "silence_start",
 		ThresholdDB: threshold,
 	})
 }
 
-// LogSilenceEnd appends a silence end (recovery) event to the log file.
+// LogSilenceEnd records the end of a silence event with its total duration.
 func LogSilenceEnd(logPath string, silenceDuration, threshold float64) error {
-	return appendLogEntry(logPath, SilenceLogEntry{
+	return appendLogEntry(logPath, types.SilenceLogEntry{
 		Timestamp:   util.RFC3339Now(),
 		Event:       "silence_end",
 		DurationSec: silenceDuration,
@@ -42,7 +34,7 @@ func WriteTestLog(logPath string) error {
 		return fmt.Errorf("log file path not configured")
 	}
 
-	return appendLogEntry(logPath, SilenceLogEntry{
+	return appendLogEntry(logPath, types.SilenceLogEntry{
 		Timestamp:   util.RFC3339Now(),
 		Event:       "test",
 		DurationSec: 0,
@@ -51,7 +43,7 @@ func WriteTestLog(logPath string) error {
 }
 
 // appendLogEntry appends a JSON log entry to the file.
-func appendLogEntry(logPath string, entry SilenceLogEntry) error {
+func appendLogEntry(logPath string, entry types.SilenceLogEntry) error {
 	if !util.IsConfigured(logPath) {
 		return nil
 	}

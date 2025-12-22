@@ -11,11 +11,10 @@ import (
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		// Allow requests without Origin header (same-origin requests)
+		// Same-origin requests omit the Origin header.
 		if origin == "" {
 			return true
 		}
-		// Allow localhost and local network origins
 		host := r.Host
 		if strings.HasPrefix(origin, "http://"+host) || strings.HasPrefix(origin, "https://"+host) {
 			return true
@@ -23,7 +22,6 @@ var upgrader = websocket.Upgrader{
 		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 			return true
 		}
-		// Allow local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
 		if strings.Contains(origin, "192.168.") || strings.Contains(origin, "10.") {
 			return true
 		}

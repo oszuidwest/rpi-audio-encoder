@@ -6,6 +6,7 @@ package encoder
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -43,6 +44,7 @@ type Encoder struct {
 	retryCount      int
 	backoff         *util.Backoff
 	audioLevels     types.AudioLevels
+	lastKnownLevels types.AudioLevels // Cache for TryRLock fallback
 	silenceDetect   *audio.SilenceDetector
 	silenceNotifier *notify.SilenceNotifier
 	peakHolder      *audio.PeakHolder
@@ -70,8 +72,12 @@ func (e *Encoder) GetState() types.EncoderState {
 
 // GetAudioLevels returns the current audio levels.
 func (e *Encoder) GetAudioLevels() types.AudioLevels {
-	e.mu.RLock()
+	if !e.mu.TryRLock() {
+		// Return cached levels during lock contention (acceptable for VU meters)
+		return e.lastKnownLevels
+	}
 	defer e.mu.RUnlock()
+
 	if e.state != types.StateRunning {
 		return types.AudioLevels{Left: -60, Right: -60, PeakLeft: -60, PeakRight: -60}
 	}
@@ -151,13 +157,19 @@ func (e *Encoder) Stop() error {
 	sourceCancel := e.sourceCancel
 	e.mu.Unlock()
 
+	// Collect all shutdown errors
+	var errs []error
+
 	// Stop all outputs first
-	e.outputManager.StopAll()
+	if err := e.outputManager.StopAll(); err != nil {
+		errs = append(errs, fmt.Errorf("stop outputs: %w", err))
+	}
 
 	// Send SIGINT to source for graceful shutdown
 	if sourceProcess != nil && sourceProcess.Process != nil {
 		if err := sourceProcess.Process.Signal(syscall.SIGINT); err != nil {
 			slog.Warn("failed to send SIGINT to source", "error", err)
+			errs = append(errs, fmt.Errorf("signal source: %w", err))
 		}
 	}
 
@@ -175,6 +187,7 @@ func (e *Encoder) Stop() error {
 		if sourceCancel != nil {
 			sourceCancel()
 		}
+		errs = append(errs, fmt.Errorf("source shutdown timeout"))
 	}
 
 	e.mu.Lock()
@@ -183,7 +196,7 @@ func (e *Encoder) Stop() error {
 	e.sourceCancel = nil
 	e.mu.Unlock()
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // Restart stops and starts the encoder.
@@ -236,13 +249,14 @@ func (e *Encoder) StopOutput(outputID string) error {
 
 // buildEmailConfig constructs an EmailConfig from the current configuration.
 func (e *Encoder) buildEmailConfig() notify.EmailConfig {
+	cfg := e.config.Snapshot()
 	return notify.EmailConfig{
-		Host:       e.config.GetEmailSMTPHost(),
-		Port:       e.config.GetEmailSMTPPort(),
-		FromName:   e.config.GetEmailFromName(),
-		Username:   e.config.GetEmailUsername(),
-		Password:   e.config.GetEmailPassword(),
-		Recipients: e.config.GetEmailRecipients(),
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		FromName:   cfg.EmailFromName,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
 	}
 }
 
@@ -253,12 +267,12 @@ func (e *Encoder) TriggerTestEmail() error {
 
 // TriggerTestWebhook sends a test webhook to verify configuration.
 func (e *Encoder) TriggerTestWebhook() error {
-	return notify.SendTestWebhook(e.config.GetWebhookURL())
+	return notify.SendTestWebhook(e.config.Snapshot().WebhookURL)
 }
 
 // TriggerTestLog writes a test entry to verify log file configuration.
 func (e *Encoder) TriggerTestLog() error {
-	return notify.WriteTestLog(e.config.GetLogPath())
+	return notify.WriteTestLog(e.config.Snapshot().LogPath)
 }
 
 // runSourceLoop runs the audio capture process with auto-restart.
@@ -296,7 +310,9 @@ func (e *Encoder) runSourceLoop() {
 				e.state = types.StateStopped
 				e.lastError = fmt.Sprintf("Stopped after %d failed attempts: %s", types.MaxRetries, errMsg)
 				e.mu.Unlock()
-				e.outputManager.StopAll()
+				if err := e.outputManager.StopAll(); err != nil {
+					slog.Error("failed to stop outputs during source failure", "error", err)
+				}
 				return
 			}
 		} else {
@@ -325,12 +341,19 @@ func (e *Encoder) runSourceLoop() {
 
 // runSource executes the audio capture process.
 func (e *Encoder) runSource() (string, error) {
-	cmdName, args := GetSourceCommand(e.config.GetAudioInput())
+	audioInput := e.config.Snapshot().AudioInput
+	cmdName, args := GetSourceCommand(audioInput)
 
-	slog.Info("starting audio capture", "command", cmdName, "input", e.config.GetAudioInput())
+	slog.Info("starting audio capture", "command", cmdName, "input", audioInput)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, cmdName, args...)
+
+	// Go 1.20+: Declarative graceful shutdown - sends SIGINT first, waits, then SIGKILL
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGINT)
+	}
+	cmd.WaitDelay = types.ShutdownTimeout
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -388,10 +411,11 @@ func (e *Encoder) runDistributor() {
 	buf := make([]byte, 19200) // ~100ms of audio at 48kHz stereo
 
 	// Snapshot silence config once at startup (avoids mutex contention in hot path)
+	cfg := e.config.Snapshot()
 	silenceCfg := audio.SilenceConfig{
-		Threshold: e.config.GetSilenceThreshold(),
-		Duration:  e.config.GetSilenceDuration(),
-		Recovery:  e.config.GetSilenceRecovery(),
+		Threshold: cfg.SilenceThreshold,
+		Duration:  cfg.SilenceDuration,
+		Recovery:  cfg.SilenceRecovery,
 	}
 
 	distributor := NewDistributor(
@@ -436,20 +460,23 @@ func (e *Encoder) runDistributor() {
 	}
 }
 
-// updateAudioLevels updates audio levels from calculated values.
-func (e *Encoder) updateAudioLevels(rmsL, rmsR, peakL, peakR float64, silence bool, silenceDuration float64, silenceLevel types.SilenceLevel, clipL, clipR int) {
-	e.mu.Lock()
-	e.audioLevels = types.AudioLevels{
-		Left:            rmsL,
-		Right:           rmsR,
-		PeakLeft:        peakL,
-		PeakRight:       peakR,
-		Silence:         silence,
-		SilenceDuration: silenceDuration,
-		SilenceLevel:    silenceLevel,
-		ClipLeft:        clipL,
-		ClipRight:       clipR,
+// updateAudioLevels updates audio levels from calculated metrics.
+func (e *Encoder) updateAudioLevels(m types.AudioMetrics) {
+	levels := types.AudioLevels{
+		Left:            m.RMSL,
+		Right:           m.RMSR,
+		PeakLeft:        m.PeakL,
+		PeakRight:       m.PeakR,
+		Silence:         m.Silence,
+		SilenceDuration: m.SilenceDuration,
+		SilenceLevel:    m.SilenceLevel,
+		ClipLeft:        m.ClipL,
+		ClipRight:       m.ClipR,
 	}
+
+	e.mu.Lock()
+	e.audioLevels = levels
+	e.lastKnownLevels = levels // Update cache for TryRLock fallback
 	e.mu.Unlock()
 }
 

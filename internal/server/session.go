@@ -5,7 +5,8 @@ import (
 	cryptorand "crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
-	"math/rand"
+	"maps"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 	"time"
@@ -17,12 +18,12 @@ const (
 	csrfTokenDuration = 10 * time.Minute
 )
 
-// session represents an authenticated user session.
+// session is an authenticated user session.
 type session struct {
 	expiresAt time.Time
 }
 
-// csrfToken represents a CSRF token with expiration.
+// csrfToken is a CSRF token with expiration.
 type csrfToken struct {
 	expiresAt time.Time
 }
@@ -120,7 +121,6 @@ func (sm *SessionManager) AuthMiddleware(username, password string) func(http.Ha
 
 // Login validates credentials and creates a session if valid.
 // Returns true if login succeeded.
-// Uses constant-time comparison to prevent timing attacks.
 func (sm *SessionManager) Login(w http.ResponseWriter, r *http.Request, username, password, configUser, configPass string) bool {
 	userMatch := subtle.ConstantTimeCompare([]byte(username), []byte(configUser)) == 1
 	passMatch := subtle.ConstantTimeCompare([]byte(password), []byte(configPass)) == 1
@@ -174,13 +174,11 @@ func (sm *SessionManager) CreateCSRFToken() string {
 
 	now := time.Now()
 
-	// Only clean up occasionally (roughly 10% of calls)
-	if rand.Intn(10) == 0 {
-		for k, v := range sm.csrfTokens {
-			if now.After(v.expiresAt) {
-				delete(sm.csrfTokens, k)
-			}
-		}
+	// Periodically clean up expired tokens.
+	if rand.IntN(10) == 0 {
+		maps.DeleteFunc(sm.csrfTokens, func(_ string, v *csrfToken) bool {
+			return now.After(v.expiresAt)
+		})
 	}
 
 	sm.csrfTokens[token] = &csrfToken{

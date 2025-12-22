@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 	"golang.org/x/mod/semver"
 )
@@ -20,15 +21,6 @@ const (
 	versionMaxRetries    = 3                // Max retries per check cycle
 	versionRetryDelay    = 1 * time.Minute  // Delay between retries
 )
-
-// VersionInfo contains version comparison data for the frontend.
-type VersionInfo struct {
-	Current     string `json:"current"`
-	Latest      string `json:"latest,omitempty"`
-	UpdateAvail bool   `json:"update_available"`
-	Commit      string `json:"commit,omitempty"`
-	BuildTime   string `json:"build_time,omitempty"`
-}
 
 // VersionChecker periodically checks GitHub for new releases.
 type VersionChecker struct {
@@ -46,7 +38,6 @@ func NewVersionChecker() *VersionChecker {
 
 // run is the main loop that periodically checks for updates.
 func (vc *VersionChecker) run() {
-	// Delay first check to avoid blocking startup
 	time.Sleep(versionCheckDelay)
 	vc.checkWithRetry()
 
@@ -88,11 +79,10 @@ func (vc *VersionChecker) check() bool {
 		return false
 	}
 
-	// GitHub API best practices
+	// Set required GitHub API headers.
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "zwfm-encoder/"+Version)
 
-	// Conditional request to reduce bandwidth and avoid rate limits
 	vc.mu.RLock()
 	etag := vc.etag
 	vc.mu.RUnlock()
@@ -105,7 +95,6 @@ func (vc *VersionChecker) check() bool {
 		return false
 	}
 	defer func() {
-		// Intentionally ignoring close error - not actionable in version check
 		_ = resp.Body.Close() //nolint:errcheck
 	}()
 
@@ -153,19 +142,19 @@ func (vc *VersionChecker) check() bool {
 }
 
 // GetInfo returns the current version info for the frontend.
-func (vc *VersionChecker) GetInfo() VersionInfo {
+func (vc *VersionChecker) GetInfo() types.VersionInfo {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 
 	current := normalizeVersion(Version)
-	info := VersionInfo{
+	info := types.VersionInfo{
 		Current:   current,
 		Latest:    vc.latest,
 		Commit:    Commit,
 		BuildTime: util.FormatHumanTime(BuildTime),
 	}
 
-	// Only show update for non-dev builds with valid latest version
+	// Determine if an update is available.
 	if vc.latest != "" && current != "dev" && current != "unknown" {
 		info.UpdateAvail = isNewerVersion(vc.latest, current)
 	}

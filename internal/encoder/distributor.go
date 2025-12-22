@@ -8,8 +8,8 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 )
 
-// AudioLevelCallback is called when audio levels are updated.
-type AudioLevelCallback func(rmsL, rmsR, peakL, peakR float64, silence bool, silenceDuration float64, silenceLevel types.SilenceLevel, clipL, clipR int)
+// AudioLevelCallback is invoked with updated audio metrics.
+type AudioLevelCallback func(metrics types.AudioMetrics)
 
 // Distributor handles audio sample processing, level metering, and silence detection.
 // It encapsulates the audio processing pipeline separate from the distribution logic.
@@ -23,7 +23,6 @@ type Distributor struct {
 }
 
 // NewDistributor creates a new audio distributor with the given configuration and callback.
-// The silence config is snapshotted at creation to avoid mutex contention in the hot path.
 func NewDistributor(silenceDetect *audio.SilenceDetector, silenceNotifier *notify.SilenceNotifier, peakHolder *audio.PeakHolder, silenceCfg audio.SilenceConfig, callback AudioLevelCallback) *Distributor {
 	return &Distributor{
 		levelData:       &audio.LevelData{},
@@ -36,8 +35,6 @@ func NewDistributor(silenceDetect *audio.SilenceDetector, silenceNotifier *notif
 }
 
 // ProcessSamples processes a buffer of audio samples for level metering and silence detection.
-// It accumulates sample data and periodically calculates levels, updates peak hold,
-// runs silence detection, and triggers notifications.
 func (d *Distributor) ProcessSamples(buf []byte, n int) {
 	audio.ProcessSamples(buf, n, d.levelData)
 
@@ -55,9 +52,17 @@ func (d *Distributor) ProcessSamples(buf []byte, n int) {
 		d.silenceNotifier.HandleEvent(silenceEvent)
 
 		if d.callback != nil {
-			d.callback(levels.RMSL, levels.RMSR, heldPeakL, heldPeakR,
-				silenceEvent.InSilence, silenceEvent.Duration, silenceEvent.Level,
-				levels.ClipL, levels.ClipR)
+			d.callback(types.AudioMetrics{
+				RMSL:            levels.RMSL,
+				RMSR:            levels.RMSR,
+				PeakL:           heldPeakL,
+				PeakR:           heldPeakR,
+				Silence:         silenceEvent.InSilence,
+				SilenceDuration: silenceEvent.Duration,
+				SilenceLevel:    silenceEvent.Level,
+				ClipL:           levels.ClipL,
+				ClipR:           levels.ClipR,
+			})
 		}
 
 		audio.ResetLevelData(d.levelData)

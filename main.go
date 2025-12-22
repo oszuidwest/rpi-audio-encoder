@@ -53,13 +53,12 @@ func main() {
 
 	srv := NewServer(cfg, enc)
 
-	// Always start encoder automatically
 	slog.Info("starting encoder")
 	if err := enc.Start(); err != nil {
 		slog.Error("failed to start encoder", "error", err)
 	}
 
-	// Start web server (non-blocking, returns *http.Server)
+	// Start web server.
 	httpServer := srv.Start()
 
 	sigChan := make(chan os.Signal, 1)
@@ -68,7 +67,7 @@ func main() {
 
 	slog.Info("shutting down")
 
-	// Graceful HTTP server shutdown with timeout
+	// Shut down HTTP server.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

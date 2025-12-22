@@ -3,9 +3,13 @@ package output
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os/exec"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -22,14 +26,15 @@ type Manager struct {
 
 // Process tracks an individual output FFmpeg process.
 type Process struct {
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	stdin      io.WriteCloser
-	running    bool
-	lastError  string
-	startTime  time.Time
-	retryCount int
-	backoff    *util.Backoff
+	cmd         *exec.Cmd
+	ctx         context.Context
+	cancelCause context.CancelCauseFunc
+	stdin       io.WriteCloser
+	running     bool
+	lastError   string
+	startTime   time.Time
+	retryCount  int
+	backoff     *util.Backoff
 }
 
 // NewManager creates a new output manager.
@@ -40,7 +45,6 @@ func NewManager() *Manager {
 }
 
 // Start starts an output FFmpeg process.
-// If a process entry already exists, retry state (count and backoff) is preserved.
 func (m *Manager) Start(output *types.Output) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -65,12 +69,12 @@ func (m *Manager) Start(output *types.Output) error {
 
 	slog.Info("starting output", "output_id", output.ID, "host", output.Host, "port", output.Port)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelCause := context.WithCancelCause(context.Background())
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		cancel()
+		cancelCause(errors.New("failed to create stdin pipe"))
 		return err
 	}
 
@@ -78,19 +82,20 @@ func (m *Manager) Start(output *types.Output) error {
 	cmd.Stderr = &stderr
 
 	proc := &Process{
-		cmd:        cmd,
-		cancel:     cancel,
-		stdin:      stdinPipe,
-		running:    true,
-		startTime:  time.Now(),
-		retryCount: retryCount,
-		backoff:    backoff,
+		cmd:         cmd,
+		ctx:         ctx,
+		cancelCause: cancelCause,
+		stdin:       stdinPipe,
+		running:     true,
+		startTime:   time.Now(),
+		retryCount:  retryCount,
+		backoff:     backoff,
 	}
 
 	m.processes[output.ID] = proc
 
 	if err := cmd.Start(); err != nil {
-		cancel()
+		cancelCause(fmt.Errorf("failed to start: %w", err))
 		if closeErr := stdinPipe.Close(); closeErr != nil {
 			slog.Warn("failed to close stdin pipe", "error", closeErr)
 		}
@@ -101,7 +106,7 @@ func (m *Manager) Start(output *types.Output) error {
 	return nil
 }
 
-// Stop stops an output with graceful shutdown.
+// Stop stops an output process.
 func (m *Manager) Stop(outputID string) error {
 	m.mu.Lock()
 	proc, exists := m.processes[outputID]
@@ -119,7 +124,7 @@ func (m *Manager) Stop(outputID string) error {
 	proc.running = false
 	stdin := proc.stdin
 	process := proc.cmd.Process
-	cancel := proc.cancel
+	cancelCause := proc.cancelCause
 	proc.stdin = nil
 	m.mu.Unlock()
 
@@ -132,8 +137,8 @@ func (m *Manager) Stop(outputID string) error {
 	}
 
 	if process != nil {
-		if err := process.Signal(syscall.SIGINT); err != nil && cancel != nil {
-			cancel()
+		if err := process.Signal(syscall.SIGINT); err != nil && cancelCause != nil {
+			cancelCause(errors.New("user requested stop"))
 		}
 	}
 
@@ -147,20 +152,25 @@ func (m *Manager) Stop(outputID string) error {
 	return nil
 }
 
-// StopAll stops all outputs.
-func (m *Manager) StopAll() {
+// StopAll stops all outputs and returns any errors that occurred.
+func (m *Manager) StopAll() error {
 	m.mu.RLock()
-	ids := make([]string, 0, len(m.processes))
-	for id := range m.processes {
-		ids = append(ids, id)
-	}
+	ids := slices.Collect(maps.Keys(m.processes))
 	m.mu.RUnlock()
 
+	var errs []error
 	for _, id := range ids {
 		if err := m.Stop(id); err != nil {
 			slog.Error("failed to stop output", "output_id", id, "error", err)
+			errs = append(errs, err)
 		}
 	}
+
+	m.mu.Lock()
+	clear(m.processes)
+	m.mu.Unlock()
+
+	return errors.Join(errs...)
 }
 
 // WriteAudio writes audio data to a specific output.
@@ -208,15 +218,14 @@ func (m *Manager) GetAllStatuses(getMaxRetries func(string) int) map[string]type
 }
 
 // GetProcess returns process info for monitoring.
-// The returned backoff pointer is safe to use directly since only MonitorAndRetry accesses it.
-func (m *Manager) GetProcess(outputID string) (cmd *exec.Cmd, retryCount int, backoff *util.Backoff, exists bool) {
+func (m *Manager) GetProcess(outputID string) (cmd *exec.Cmd, ctx context.Context, retryCount int, backoff *util.Backoff, exists bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	proc, exists := m.processes[outputID]
 	if !exists {
-		return nil, 0, nil, false
+		return nil, nil, 0, nil, false
 	}
-	return proc.cmd, proc.retryCount, proc.backoff, true
+	return proc.cmd, proc.ctx, proc.retryCount, proc.backoff, true
 }
 
 // SetError sets the last error for an output.
@@ -265,8 +274,7 @@ func (m *Manager) Remove(outputID string) {
 	delete(m.processes, outputID)
 }
 
-// MonitorAndRetry monitors an output process and handles retry logic with exponential backoff.
-// It runs in a loop until the output is stopped, removed, or exceeds max retries.
+// MonitorAndRetry monitors an output process and handles automatic retry with exponential backoff.
 func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Output, stopChan <-chan struct{}, encoderRunning func() bool) {
 	for {
 		select {
@@ -276,8 +284,7 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 		default:
 		}
 
-		// Get the process to monitor (backoff is stored in Process, no recreation needed)
-		cmd, retryCount, backoff, exists := m.GetProcess(outputID)
+		cmd, ctx, retryCount, backoff, exists := m.GetProcess(outputID)
 		if !exists || cmd == nil || backoff == nil {
 			return
 		}
@@ -296,10 +303,13 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			if errMsg == "" {
 				errMsg = err.Error()
 			}
+			if cause := context.Cause(ctx); cause != nil {
+				slog.Error("output error", "output_id", outputID, "error", errMsg, "cause", cause)
+			} else {
+				slog.Error("output error", "output_id", outputID, "error", errMsg)
+			}
 			m.SetError(outputID, errMsg)
-			slog.Error("output error", "output_id", outputID, "error", errMsg)
 
-			// Update retry state with exponential backoff
 			if runDuration >= types.SuccessThreshold {
 				m.ResetRetry(outputID)
 				retryCount = 0
@@ -354,7 +364,6 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			return
 		}
 
-		// Start the output (retry state is preserved automatically)
 		if err := m.Start(out); err != nil {
 			slog.Error("failed to restart output", "output_id", outputID, "error", err)
 			m.Remove(outputID)

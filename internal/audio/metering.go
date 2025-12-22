@@ -6,7 +6,6 @@ import (
 	"math"
 )
 
-// Metering constants.
 const (
 	// MinDB is the minimum dB level (silence).
 	MinDB = -60.0

@@ -25,8 +25,7 @@ func GetSourceCommand(input string) (string, []string) {
 		if input == "" {
 			input = "default:CARD=sndrpihifiberry"
 		}
-		// arecord: minimal ALSA capture tool, much lower overhead than FFmpeg
-		// ALSA plug layer handles sample rate conversion if source differs from 48kHz
+		// arecord provides ALSA capture with automatic sample rate conversion.
 		return "arecord", []string{
 			"-D", input,
 			"-f", "S16_LE",

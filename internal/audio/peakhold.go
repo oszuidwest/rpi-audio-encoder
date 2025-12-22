@@ -22,10 +22,7 @@ func NewPeakHolder() *PeakHolder {
 }
 
 // Update updates held peaks based on current peaks and time.
-// Returns the held peak values.
 func (p *PeakHolder) Update(peakL, peakR float64, now time.Time) (heldL, heldR float64) {
-	// Update held peak if current is higher, or hold time expired
-	// Each channel has independent hold timing
 	if peakL >= p.heldPeakL || now.Sub(p.peakHoldTimeL) > PeakHoldDuration {
 		p.heldPeakL = peakL
 		p.peakHoldTimeL = now

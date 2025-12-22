@@ -14,7 +14,6 @@ func WrapError(operation string, err error) error {
 }
 
 // ExtractLastError returns the last meaningful line from FFmpeg stderr output.
-// Truncates lines longer than 200 characters.
 func ExtractLastError(stderr string) string {
 	lines := strings.Split(strings.TrimSpace(stderr), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {

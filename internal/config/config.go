@@ -2,6 +2,7 @@
 package config
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,14 +15,14 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
-// Default values.
+// Configuration defaults.
 const (
 	DefaultWebPort          = 8080
 	DefaultWebUsername      = "admin"
 	DefaultWebPassword      = "encoder"
 	DefaultSilenceThreshold = -40.0
-	DefaultSilenceDuration  = 15.0 // seconds of silence before alerting
-	DefaultSilenceRecovery  = 5.0  // seconds of audio before considering recovered
+	DefaultSilenceDuration  = 15.0
+	DefaultSilenceRecovery  = 5.0
 	DefaultEmailSMTPPort    = 587
 	DefaultEmailFromName    = "ZuidWest FM Encoder"
 )
@@ -155,7 +156,7 @@ func (c *Config) Save() error {
 	return c.saveLocked()
 }
 
-// saveLocked writes config to file. Caller must hold c.mu.
+// saveLocked persists configuration. Caller must hold c.mu.
 func (c *Config) saveLocked() error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
@@ -173,17 +174,6 @@ func (c *Config) saveLocked() error {
 
 	return nil
 }
-
-// defaultIfZero returns def if val equals the zero value of type T, otherwise returns val.
-func defaultIfZero[T comparable](val, def T) T {
-	var zero T
-	if val == zero {
-		return def
-	}
-	return val
-}
-
-// === Output Management ===
 
 // GetOutputs returns a copy of all outputs.
 func (c *Config) GetOutputs() []types.Output {
@@ -265,8 +255,6 @@ func (c *Config) UpdateOutput(output types.Output) error {
 	return c.saveLocked()
 }
 
-// === Web Configuration ===
-
 // GetWebPort returns the web server port.
 func (c *Config) GetWebPort() int {
 	c.mu.RLock()
@@ -288,8 +276,6 @@ func (c *Config) GetWebPassword() string {
 	return c.Web.Password
 }
 
-// === Audio Configuration ===
-
 // GetAudioInput returns the configured audio input device.
 func (c *Config) GetAudioInput() string {
 	c.mu.RLock()
@@ -305,13 +291,11 @@ func (c *Config) SetAudioInput(input string) error {
 	return c.saveLocked()
 }
 
-// === Silence Detection Configuration ===
-
-// GetSilenceThreshold returns the configured silence threshold (default -40 dB).
+// GetSilenceThreshold returns the configured silence threshold in decibels.
 func (c *Config) GetSilenceThreshold() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceDetection.ThresholdDB, DefaultSilenceThreshold)
+	return cmp.Or(c.SilenceDetection.ThresholdDB, DefaultSilenceThreshold)
 }
 
 // SetSilenceThreshold updates the silence detection threshold and saves the configuration.
@@ -322,11 +306,11 @@ func (c *Config) SetSilenceThreshold(threshold float64) error {
 	return c.saveLocked()
 }
 
-// GetSilenceDuration returns seconds of silence before alerting (default 15s).
+// GetSilenceDuration returns the silence duration before alerting.
 func (c *Config) GetSilenceDuration() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceDetection.DurationSeconds, DefaultSilenceDuration)
+	return cmp.Or(c.SilenceDetection.DurationSeconds, DefaultSilenceDuration)
 }
 
 // SetSilenceDuration updates the silence duration and saves the configuration.
@@ -337,11 +321,11 @@ func (c *Config) SetSilenceDuration(seconds float64) error {
 	return c.saveLocked()
 }
 
-// GetSilenceRecovery returns seconds of audio before considering recovered (default 5s).
+// GetSilenceRecovery returns the audio duration before considering silence recovered.
 func (c *Config) GetSilenceRecovery() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.SilenceDetection.RecoverySeconds, DefaultSilenceRecovery)
+	return cmp.Or(c.SilenceDetection.RecoverySeconds, DefaultSilenceRecovery)
 }
 
 // SetSilenceRecovery updates the silence recovery time and saves the configuration.
@@ -351,8 +335,6 @@ func (c *Config) SetSilenceRecovery(seconds float64) error {
 	c.SilenceDetection.RecoverySeconds = seconds
 	return c.saveLocked()
 }
-
-// === Notifications Configuration ===
 
 // GetWebhookURL returns the configured webhook URL for notifications.
 func (c *Config) GetWebhookURL() string {
@@ -384,8 +366,6 @@ func (c *Config) SetLogPath(path string) error {
 	return c.saveLocked()
 }
 
-// === Email Configuration ===
-
 // GetEmailSMTPHost returns the configured SMTP host.
 func (c *Config) GetEmailSMTPHost() string {
 	c.mu.RLock()
@@ -393,11 +373,11 @@ func (c *Config) GetEmailSMTPHost() string {
 	return c.Notifications.Email.Host
 }
 
-// GetEmailSMTPPort returns the configured SMTP port (default 587).
+// GetEmailSMTPPort returns the configured SMTP port.
 func (c *Config) GetEmailSMTPPort() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return defaultIfZero(c.Notifications.Email.Port, DefaultEmailSMTPPort)
+	return cmp.Or(c.Notifications.Email.Port, DefaultEmailSMTPPort)
 }
 
 // GetEmailFromName returns the configured email sender display name.
@@ -442,4 +422,91 @@ func (c *Config) SetEmailConfig(host string, port int, fromName, username, passw
 	c.Notifications.Email.Password = password
 	c.Notifications.Email.Recipients = recipients
 	return c.saveLocked()
+}
+
+// Snapshot contains a point-in-time copy of all configuration values.
+// Use this instead of multiple individual getters to reduce mutex contention.
+type Snapshot struct {
+	// Web
+	WebPort     int
+	WebUser     string
+	WebPassword string
+
+	// Audio
+	AudioInput string
+
+	// Silence Detection
+	SilenceThreshold float64
+	SilenceDuration  float64
+	SilenceRecovery  float64
+
+	// Notifications
+	WebhookURL string
+	LogPath    string
+
+	// Email
+	EmailSMTPHost   string
+	EmailSMTPPort   int
+	EmailFromName   string
+	EmailUsername   string
+	EmailPassword   string
+	EmailRecipients string
+
+	// Outputs (copy)
+	Outputs []types.Output
+}
+
+// Snapshot returns a point-in-time copy of all configuration values.
+func (c *Config) Snapshot() Snapshot {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Copy outputs slice
+	outputs := make([]types.Output, len(c.Outputs))
+	copy(outputs, c.Outputs)
+
+	return Snapshot{
+		// Web
+		WebPort:     c.Web.Port,
+		WebUser:     c.Web.Username,
+		WebPassword: c.Web.Password,
+
+		// Audio
+		AudioInput: c.Audio.Input,
+
+		// Silence Detection (with defaults)
+		SilenceThreshold: cmp.Or(c.SilenceDetection.ThresholdDB, DefaultSilenceThreshold),
+		SilenceDuration:  cmp.Or(c.SilenceDetection.DurationSeconds, DefaultSilenceDuration),
+		SilenceRecovery:  cmp.Or(c.SilenceDetection.RecoverySeconds, DefaultSilenceRecovery),
+
+		// Notifications
+		WebhookURL: c.Notifications.WebhookURL,
+		LogPath:    c.Notifications.LogPath,
+
+		// Email (with defaults)
+		EmailSMTPHost:   c.Notifications.Email.Host,
+		EmailSMTPPort:   cmp.Or(c.Notifications.Email.Port, DefaultEmailSMTPPort),
+		EmailFromName:   cmp.Or(c.Notifications.Email.FromName, DefaultEmailFromName),
+		EmailUsername:   c.Notifications.Email.Username,
+		EmailPassword:   c.Notifications.Email.Password,
+		EmailRecipients: c.Notifications.Email.Recipients,
+
+		// Outputs
+		Outputs: outputs,
+	}
+}
+
+// HasWebhook returns true if a webhook URL is configured.
+func (s Snapshot) HasWebhook() bool {
+	return s.WebhookURL != ""
+}
+
+// HasEmail returns true if email notifications are configured.
+func (s Snapshot) HasEmail() bool {
+	return s.EmailSMTPHost != "" && s.EmailRecipients != ""
+}
+
+// HasLogPath returns true if a log path is configured.
+func (s Snapshot) HasLogPath() bool {
+	return s.LogPath != ""
 }
