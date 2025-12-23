@@ -64,6 +64,9 @@ jobs:
       - name: Check for dead code
         run: go run golang.org/x/tools/cmd/deadcode@latest ./...
 
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

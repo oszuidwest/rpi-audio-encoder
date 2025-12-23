@@ -1,0 +1,14 @@
+version: "2"
+
+linters:
+  enable:
+    - gocritic
+    - gocyclo
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    gocyclo:
+      min-complexity: 20
