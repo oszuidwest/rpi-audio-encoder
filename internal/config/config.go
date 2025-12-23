@@ -164,11 +164,11 @@ func (c *Config) saveLocked() error {
 	}
 
 	dir := filepath.Dir(c.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return util.WrapError("create config directory", err)
 	}
 
-	if err := os.WriteFile(c.filePath, data, 0600); err != nil {
+	if err := os.WriteFile(c.filePath, data, 0o600); err != nil {
 		return util.WrapError("write config", err)
 	}
 
@@ -211,7 +211,7 @@ func (c *Config) findOutputIndex(id string) int {
 }
 
 // AddOutput adds a new output and saves the configuration.
-func (c *Config) AddOutput(output types.Output) error {
+func (c *Config) AddOutput(output *types.Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -223,7 +223,7 @@ func (c *Config) AddOutput(output types.Output) error {
 	}
 	output.CreatedAt = time.Now().UnixMilli()
 
-	c.Outputs = append(c.Outputs, output)
+	c.Outputs = append(c.Outputs, *output)
 	return c.saveLocked()
 }
 
@@ -242,7 +242,7 @@ func (c *Config) RemoveOutput(id string) error {
 }
 
 // UpdateOutput updates an existing output and saves the configuration.
-func (c *Config) UpdateOutput(output types.Output) error {
+func (c *Config) UpdateOutput(output *types.Output) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -251,7 +251,7 @@ func (c *Config) UpdateOutput(output types.Output) error {
 		return fmt.Errorf("output not found: %s", output.ID)
 	}
 
-	c.Outputs[i] = output
+	c.Outputs[i] = *output
 	return c.saveLocked()
 }
 
@@ -497,16 +497,16 @@ func (c *Config) Snapshot() Snapshot {
 }
 
 // HasWebhook returns true if a webhook URL is configured.
-func (s Snapshot) HasWebhook() bool {
+func (s *Snapshot) HasWebhook() bool {
 	return s.WebhookURL != ""
 }
 
 // HasEmail returns true if email notifications are configured.
-func (s Snapshot) HasEmail() bool {
+func (s *Snapshot) HasEmail() bool {
 	return s.EmailSMTPHost != "" && s.EmailRecipients != ""
 }
 
 // HasLogPath returns true if a log path is configured.
-func (s Snapshot) HasLogPath() bool {
+func (s *Snapshot) HasLogPath() bool {
 	return s.LogPath != ""
 }

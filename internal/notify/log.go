@@ -53,7 +53,7 @@ func appendLogEntry(logPath string, entry types.SilenceLogEntry) error {
 		return util.WrapError("marshal log entry", err)
 	}
 
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return util.WrapError("open log file", err)
 	}

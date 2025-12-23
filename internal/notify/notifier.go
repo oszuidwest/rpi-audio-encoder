@@ -148,7 +148,7 @@ func (n *SilenceNotifier) sendSilenceEmail(duration float64) {
 		Recipients: cfg.EmailRecipients,
 	}
 	util.NotifyResultf(
-		func() error { return SendSilenceAlert(emailCfg, duration, cfg.SilenceThreshold) },
+		func() error { return SendSilenceAlert(&emailCfg, duration, cfg.SilenceThreshold) },
 		"Silence email",
 		true,
 	)
@@ -164,7 +164,7 @@ func (n *SilenceNotifier) sendRecoveryEmail(duration float64) {
 		Recipients: cfg.EmailRecipients,
 	}
 	util.NotifyResultf(
-		func() error { return SendRecoveryAlert(emailCfg, duration) },
+		func() error { return SendRecoveryAlert(&emailCfg, duration) },
 		"Recovery email",
 		true,
 	)

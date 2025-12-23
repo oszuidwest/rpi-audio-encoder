@@ -17,22 +17,22 @@ func ValidateRequired(field, value string) *ValidationError {
 }
 
 // ValidateRange checks that an integer is within bounds.
-func ValidateRange(field string, value, min, max int) *ValidationError {
-	if value < min || value > max {
+func ValidateRange(field string, value, minVal, maxVal int) *ValidationError {
+	if value < minVal || value > maxVal {
 		return &ValidationError{
 			Field:   field,
-			Message: fmt.Sprintf("%s must be between %d and %d, got %d", field, min, max, value),
+			Message: fmt.Sprintf("%s must be between %d and %d, got %d", field, minVal, maxVal, value),
 		}
 	}
 	return nil
 }
 
 // ValidateRangeFloat checks that a float64 is within bounds.
-func ValidateRangeFloat(field string, value, min, max float64) *ValidationError {
-	if value < min || value > max {
+func ValidateRangeFloat(field string, value, minVal, maxVal float64) *ValidationError {
+	if value < minVal || value > maxVal {
 		return &ValidationError{
 			Field:   field,
-			Message: fmt.Sprintf("%s must be between %.1f and %.1f, got %.1f", field, min, max, value),
+			Message: fmt.Sprintf("%s must be between %.1f and %.1f, got %.1f", field, minVal, maxVal, value),
 		}
 	}
 	return nil

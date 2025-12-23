@@ -107,7 +107,7 @@ func (h *CommandHandler) handleAddOutput(cmd WSCommand) {
 	if output.Codec == "" {
 		output.Codec = "mp3"
 	}
-	if err := h.cfg.AddOutput(output); err != nil {
+	if err := h.cfg.AddOutput(&output); err != nil {
 		slog.Error("add_output: failed to add", "error", err)
 		return
 	}
@@ -139,12 +139,12 @@ func (h *CommandHandler) handleDeleteOutput(cmd WSCommand) {
 }
 
 // updateFloatSetting validates and updates a float64 setting.
-func updateFloatSetting(value *float64, min, max float64, name string, setter func(float64) error) {
+func updateFloatSetting(value *float64, minVal, maxVal float64, name string, setter func(float64) error) {
 	if value == nil {
 		return
 	}
 	v := *value
-	if err := util.ValidateRangeFloat(name, v, min, max); err != nil {
+	if err := util.ValidateRangeFloat(name, v, minVal, maxVal); err != nil {
 		slog.Warn("update_settings: validation failed", "setting", name, "error", err.Message)
 		return
 	}

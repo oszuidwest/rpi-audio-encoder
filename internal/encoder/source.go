@@ -3,7 +3,7 @@ package encoder
 import "runtime"
 
 // GetSourceCommand returns the platform-specific command and arguments for audio capture.
-func GetSourceCommand(input string) (string, []string) {
+func GetSourceCommand(input string) (cmd string, args []string) {
 	switch runtime.GOOS {
 	case "darwin":
 		if input == "" {

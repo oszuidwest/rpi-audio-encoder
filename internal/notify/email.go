@@ -20,7 +20,7 @@ type EmailConfig struct {
 }
 
 // SendSilenceAlert sends an email notification for critical silence.
-func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
+func SendSilenceAlert(cfg *EmailConfig, duration, threshold float64) error {
 	if !util.IsConfigured(cfg.Host, cfg.Username, cfg.Recipients) {
 		return nil // Silently skip if not configured
 	}
@@ -39,7 +39,7 @@ func SendSilenceAlert(cfg EmailConfig, duration, threshold float64) error {
 }
 
 // SendRecoveryAlert sends an email notification when audio recovers from silence.
-func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
+func SendRecoveryAlert(cfg *EmailConfig, silenceDuration float64) error {
 	if !util.IsConfigured(cfg.Host, cfg.Username, cfg.Recipients) {
 		return nil // Silently skip if not configured
 	}
@@ -56,7 +56,7 @@ func SendRecoveryAlert(cfg EmailConfig, silenceDuration float64) error {
 }
 
 // SendTestEmail sends a test email to verify SMTP configuration.
-func SendTestEmail(cfg EmailConfig) error {
+func SendTestEmail(cfg *EmailConfig) error {
 	if cfg.Host == "" {
 		return fmt.Errorf("SMTP host not configured")
 	}
@@ -79,7 +79,7 @@ func SendTestEmail(cfg EmailConfig) error {
 }
 
 // sendEmail delivers an email message to configured recipients.
-func sendEmail(cfg EmailConfig, subject, body string) error {
+func sendEmail(cfg *EmailConfig, subject, body string) error {
 	var recipients []string
 	for _, r := range strings.Split(cfg.Recipients, ",") {
 		if r = strings.TrimSpace(r); r != "" {

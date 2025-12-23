@@ -4,26 +4,26 @@ import "time"
 
 // Backoff calculates exponential backoff delays with a configurable factor and maximum.
 type Backoff struct {
-	current time.Duration
-	initial time.Duration
-	max     time.Duration
-	factor  float64
+	current  time.Duration
+	initial  time.Duration
+	maxDelay time.Duration
+	factor   float64
 }
 
 // NewBackoff creates a backoff calculator with sensible defaults.
-func NewBackoff(initial, max time.Duration) *Backoff {
+func NewBackoff(initial, maxDelay time.Duration) *Backoff {
 	return &Backoff{
-		current: initial,
-		initial: initial,
-		max:     max,
-		factor:  2.0,
+		current:  initial,
+		initial:  initial,
+		maxDelay: maxDelay,
+		factor:   2.0,
 	}
 }
 
 // Next returns the current delay and advances to the next value.
 func (b *Backoff) Next() time.Duration {
 	current := b.current
-	b.current = min(time.Duration(float64(b.current)*b.factor), b.max)
+	b.current = min(time.Duration(float64(b.current)*b.factor), b.maxDelay)
 	return current
 }
 

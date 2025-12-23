@@ -74,7 +74,7 @@ func (vc *VersionChecker) check() bool {
 	defer cancel()
 
 	url := "https://api.github.com/repos/" + githubRepo + "/releases/latest"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return false
 	}
@@ -95,7 +95,7 @@ func (vc *VersionChecker) check() bool {
 		return false
 	}
 	defer func() {
-		_ = resp.Body.Close() //nolint:errcheck
+		_ = resp.Body.Close() //nolint:errcheck // Best-effort cleanup; error doesn't affect caller
 	}()
 
 	switch resp.StatusCode {

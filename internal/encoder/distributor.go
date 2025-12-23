@@ -9,7 +9,7 @@ import (
 )
 
 // AudioLevelCallback is invoked with updated audio metrics.
-type AudioLevelCallback func(metrics types.AudioMetrics)
+type AudioLevelCallback func(metrics *types.AudioMetrics)
 
 // Distributor handles audio sample processing, level metering, and silence detection.
 // It encapsulates the audio processing pipeline separate from the distribution logic.
@@ -52,7 +52,7 @@ func (d *Distributor) ProcessSamples(buf []byte, n int) {
 		d.silenceNotifier.HandleEvent(silenceEvent)
 
 		if d.callback != nil {
-			d.callback(types.AudioMetrics{
+			d.callback(&types.AudioMetrics{
 				RMSL:            levels.RMSL,
 				RMSR:            levels.RMSR,
 				PeakL:           heldPeakL,

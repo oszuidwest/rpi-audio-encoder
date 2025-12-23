@@ -248,9 +248,9 @@ func (e *Encoder) StopOutput(outputID string) error {
 }
 
 // buildEmailConfig constructs an EmailConfig from the current configuration.
-func (e *Encoder) buildEmailConfig() notify.EmailConfig {
+func (e *Encoder) buildEmailConfig() *notify.EmailConfig {
 	cfg := e.config.Snapshot()
-	return notify.EmailConfig{
+	return &notify.EmailConfig{
 		Host:       cfg.EmailSMTPHost,
 		Port:       cfg.EmailSMTPPort,
 		FromName:   cfg.EmailFromName,
@@ -455,13 +455,13 @@ func (e *Encoder) runDistributor() {
 
 		for _, out := range e.config.GetOutputs() {
 			// WriteAudio logs errors internally and marks output as stopped
-			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck
+			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck // Errors logged internally by WriteAudio
 		}
 	}
 }
 
 // updateAudioLevels updates audio levels from calculated metrics.
-func (e *Encoder) updateAudioLevels(m types.AudioMetrics) {
+func (e *Encoder) updateAudioLevels(m *types.AudioMetrics) {
 	levels := types.AudioLevels{
 		Left:            m.RMSL,
 		Right:           m.RMSR,
