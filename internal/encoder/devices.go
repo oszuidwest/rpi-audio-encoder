@@ -15,6 +15,8 @@ func ListAudioDevices() []types.AudioDevice {
 	switch runtime.GOOS {
 	case "darwin":
 		return listMacOSDevices()
+	case "windows":
+		return listWindowsDevices()
 	default:
 		return listLinuxDevices()
 	}
@@ -98,5 +100,56 @@ func listLinuxDevices() []types.AudioDevice {
 		})
 	}
 
+	return devices
+}
+
+// listWindowsDevices returns available audio input devices on Windows.
+func listWindowsDevices() []types.AudioDevice {
+	cmd := exec.Command("ffmpeg", "-f", "dshow", "-list_devices", "true", "-i", "dummy")
+	// Note: ffmpeg -list_devices always returns non-zero exit code, so we ignore the error.
+	// The device list is still in the output even though the command "fails".
+	output, err := cmd.CombinedOutput()
+	if err != nil && len(output) == 0 {
+		slog.Error("failed to list Windows audio devices", "error", err)
+		return nil
+	}
+
+	var devices []types.AudioDevice
+	lines := strings.Split(string(output), "\n")
+	inAudioSection := false
+
+	// Pattern: [dshow ...] "Device Name" (audio)
+	// or: [dshow ...]  "Device Name"
+	devicePattern := regexp.MustCompile(`\[dshow[^\]]*\]\s*"([^"]+)"`)
+
+	for _, line := range lines {
+		// Detect audio devices section.
+		if strings.Contains(line, "DirectShow audio devices") {
+			inAudioSection = true
+			continue
+		}
+		// Stop at video devices section.
+		if strings.Contains(line, "DirectShow video devices") {
+			inAudioSection = false
+			continue
+		}
+		// Skip alternative name lines.
+		if strings.Contains(line, "Alternative name") {
+			continue
+		}
+		if inAudioSection {
+			matches := devicePattern.FindStringSubmatch(line)
+			if len(matches) == 2 {
+				deviceName := strings.TrimSpace(matches[1])
+				devices = append(devices, types.AudioDevice{
+					ID:   "audio=" + deviceName,
+					Name: deviceName,
+				})
+			}
+		}
+	}
+
+	// No fallback - return actual devices only.
+	// Config will use first detected device or prompt user to configure.
 	return devices
 }

@@ -21,6 +21,25 @@ func GetSourceCommand(input string) (cmd string, args []string) {
 			"-ar", "48000",
 			"pipe:1",
 		}
+	case "windows":
+		if input == "" {
+			// Auto-detect first available audio device.
+			if devices := ListAudioDevices(); len(devices) > 0 {
+				input = devices[0].ID
+			}
+		}
+		return "ffmpeg", []string{
+			"-f", "dshow",
+			"-i", input,
+			"-nostdin",
+			"-hide_banner",
+			"-loglevel", "warning",
+			"-vn",
+			"-f", "s16le",
+			"-ac", "2",
+			"-ar", "48000",
+			"pipe:1",
+		}
 	default: // linux
 		if input == "" {
 			input = "default:CARD=sndrpihifiberry"
