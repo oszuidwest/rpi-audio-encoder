@@ -1,9 +1,16 @@
 package encoder
 
-import "runtime"
+import (
+	"errors"
+	"runtime"
+)
+
+// ErrNoAudioDevice is returned when no audio input device is available.
+var ErrNoAudioDevice = errors.New("no audio input device found")
 
 // GetSourceCommand returns the platform-specific command and arguments for audio capture.
-func GetSourceCommand(input string) (cmd string, args []string) {
+// Returns ErrNoAudioDevice if no device is configured or detected.
+func GetSourceCommand(input string) (string, []string, error) {
 	switch runtime.GOOS {
 	case "darwin":
 		if input == "" {
@@ -20,12 +27,14 @@ func GetSourceCommand(input string) (cmd string, args []string) {
 			"-ac", "2",
 			"-ar", "48000",
 			"pipe:1",
-		}
+		}, nil
 	case "windows":
 		if input == "" {
 			// Auto-detect first available audio device.
 			if devices := ListAudioDevices(); len(devices) > 0 {
 				input = devices[0].ID
+			} else {
+				return "", nil, ErrNoAudioDevice
 			}
 		}
 		return "ffmpeg", []string{
@@ -39,7 +48,7 @@ func GetSourceCommand(input string) (cmd string, args []string) {
 			"-ac", "2",
 			"-ar", "48000",
 			"pipe:1",
-		}
+		}, nil
 	default: // linux
 		if input == "" {
 			input = "default:CARD=sndrpihifiberry"
@@ -53,6 +62,6 @@ func GetSourceCommand(input string) (cmd string, args []string) {
 			"-t", "raw",
 			"-q",
 			"-",
-		}
+		}, nil
 	}
 }
