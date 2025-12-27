@@ -16,11 +16,11 @@ import (
 
 // Validation limits for output configuration.
 const (
-	MaxHostLength     = 253   // RFC 1035 hostname limit
-	MaxStreamIDLength = 256   // SRT stream ID limit
-	MaxOutputs        = 10    // Maximum concurrent outputs
-	MaxRetriesLimit   = 9999  // Upper bound for retry configuration
-	MaxLogEntries     = 100   // Maximum silence log entries to return
+	MaxHostLength     = 253  // RFC 1035 hostname limit
+	MaxStreamIDLength = 256  // SRT stream ID limit
+	MaxOutputs        = 10   // Maximum concurrent outputs
+	MaxRetriesLimit   = 9999 // Upper bound for retry configuration
+	MaxLogEntries     = 100  // Maximum silence log entries to return
 )
 
 // WSCommand is a command received from a WebSocket client.
