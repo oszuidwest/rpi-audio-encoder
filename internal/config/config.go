@@ -75,15 +75,6 @@ type Config struct {
 	filePath string
 }
 
-// ConfigSnapshot provides read-only access to configuration via point-in-time snapshots.
-// This is the preferred interface for components that only need to read configuration.
-type ConfigSnapshot interface {
-	Snapshot() Snapshot
-}
-
-// Compile-time verification that *Config implements ConfigSnapshot.
-var _ ConfigSnapshot = (*Config)(nil)
-
 // New creates a new Config with default values.
 func New(filePath string) *Config {
 	return &Config{
