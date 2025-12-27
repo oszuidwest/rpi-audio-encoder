@@ -16,7 +16,7 @@ import (
 // This separates notification concerns from the SilenceDetector,
 // which only handles pure audio level detection.
 type SilenceNotifier struct {
-	cfg *config.Config
+	cfg config.ConfigSnapshot
 
 	// mu protects the notification state fields below
 	mu sync.Mutex
@@ -28,7 +28,7 @@ type SilenceNotifier struct {
 }
 
 // NewSilenceNotifier returns a SilenceNotifier configured with the given config.
-func NewSilenceNotifier(cfg *config.Config) *SilenceNotifier {
+func NewSilenceNotifier(cfg config.ConfigSnapshot) *SilenceNotifier {
 	return &SilenceNotifier{cfg: cfg}
 }
 
