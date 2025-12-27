@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/types"
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
@@ -12,7 +13,7 @@ import (
 // LogSilenceStart records the beginning of a silence event.
 func LogSilenceStart(logPath string, threshold float64) error {
 	return appendLogEntry(logPath, types.SilenceLogEntry{
-		Timestamp:   util.RFC3339Now(),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 		Event:       "silence_start",
 		ThresholdDB: threshold,
 	})
@@ -21,7 +22,7 @@ func LogSilenceStart(logPath string, threshold float64) error {
 // LogSilenceEnd records the end of a silence event with its total duration.
 func LogSilenceEnd(logPath string, silenceDuration, threshold float64) error {
 	return appendLogEntry(logPath, types.SilenceLogEntry{
-		Timestamp:   util.RFC3339Now(),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 		Event:       "silence_end",
 		DurationSec: silenceDuration,
 		ThresholdDB: threshold,
@@ -35,7 +36,7 @@ func WriteTestLog(logPath string) error {
 	}
 
 	return appendLogEntry(logPath, types.SilenceLogEntry{
-		Timestamp:   util.RFC3339Now(),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 		Event:       "test",
 		DurationSec: 0,
 		ThresholdDB: 0,
@@ -59,8 +60,11 @@ func appendLogEntry(logPath string, entry types.SilenceLogEntry) error {
 	}
 	defer util.SafeCloseFunc(f, "log file")()
 
-	if _, err := f.Write(append(jsonData, '\n')); err != nil {
+	if _, err := f.Write(jsonData); err != nil {
 		return util.WrapError("write log entry", err)
+	}
+	if _, err := f.WriteString("\n"); err != nil {
+		return util.WrapError("write newline", err)
 	}
 
 	return nil

@@ -109,8 +109,7 @@ func (e *Encoder) Status() types.EncoderStatus {
 
 	uptime := ""
 	if e.state == types.StateRunning {
-		d := time.Since(e.startTime)
-		uptime = fmt.Sprintf("%dh %dm %ds", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+		uptime = time.Since(e.startTime).Truncate(time.Second).String()
 	}
 
 	return types.EncoderStatus{
@@ -259,8 +258,14 @@ func (e *Encoder) StopOutput(outputID string) error {
 // buildEmailConfig constructs an EmailConfig from the current configuration.
 func (e *Encoder) buildEmailConfig() *notify.EmailConfig {
 	cfg := e.config.Snapshot()
-	return notify.EmailConfigFromValues(cfg.EmailSMTPHost, cfg.EmailSMTPPort, cfg.EmailFromName,
-		cfg.EmailUsername, cfg.EmailPassword, cfg.EmailRecipients)
+	return &notify.EmailConfig{
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		FromName:   cfg.EmailFromName,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
+	}
 }
 
 // TriggerTestEmail sends a test email to verify configuration.
