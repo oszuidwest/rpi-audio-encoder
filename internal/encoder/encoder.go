@@ -69,6 +69,20 @@ func (e *Encoder) GetState() types.EncoderState {
 	return e.state
 }
 
+// GetOutput returns the output configuration for the given ID.
+// Implements output.OutputContext.
+func (e *Encoder) GetOutput(outputID string) *types.Output {
+	return e.config.GetOutput(outputID)
+}
+
+// IsRunning returns true if the encoder is in running state.
+// Implements output.OutputContext.
+func (e *Encoder) IsRunning() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.state == types.StateRunning
+}
+
 // GetAudioLevels returns the current audio levels.
 func (e *Encoder) GetAudioLevels() types.AudioLevels {
 	if !e.mu.TryRLock() {
@@ -227,16 +241,7 @@ func (e *Encoder) StartOutput(outputID string) error {
 		return fmt.Errorf("failed to start output: %w", err)
 	}
 
-	go e.outputManager.MonitorAndRetry(
-		outputID,
-		func() *types.Output { return e.config.GetOutput(outputID) },
-		stopChan,
-		func() bool {
-			e.mu.RLock()
-			defer e.mu.RUnlock()
-			return e.state == types.StateRunning
-		},
-	)
+	go e.outputManager.MonitorAndRetry(outputID, e, stopChan)
 
 	return nil
 }

@@ -39,18 +39,7 @@ type Server struct {
 // NewServer returns a new Server configured with the provided config and encoder.
 func NewServer(cfg *config.Config, enc *encoder.Encoder) *Server {
 	sessions := server.NewSessionManager()
-	commands := server.NewCommandHandler(
-		cfg,
-		enc.GetState,
-		enc.StartOutput,
-		enc.StopOutput,
-		enc.Restart,
-		map[string]func() error{
-			"webhook": enc.TriggerTestWebhook,
-			"log":     enc.TriggerTestLog,
-			"email":   enc.TriggerTestEmail,
-		},
-	)
+	commands := server.NewCommandHandler(cfg, enc)
 
 	return &Server{
 		config:   cfg,

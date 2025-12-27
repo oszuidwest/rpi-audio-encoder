@@ -17,6 +17,15 @@ import (
 	"github.com/oszuidwest/zwfm-encoder/internal/util"
 )
 
+// OutputContext provides encoder state for monitoring and retry decisions.
+// This interface breaks the closure dependency by making the contract explicit.
+type OutputContext interface {
+	// GetOutput returns the output configuration, or nil if removed.
+	GetOutput(outputID string) *types.Output
+	// IsRunning returns true if the encoder is in running state.
+	IsRunning() bool
+}
+
 // Manager manages multiple output FFmpeg processes.
 type Manager struct {
 	processes map[string]*Process
@@ -274,7 +283,7 @@ func (m *Manager) Remove(outputID string) {
 }
 
 // MonitorAndRetry monitors an output process and handles automatic retry with exponential backoff.
-func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Output, stopChan <-chan struct{}, encoderRunning func() bool) {
+func (m *Manager) MonitorAndRetry(outputID string, ctx OutputContext, stopChan <-chan struct{}) {
 	for {
 		select {
 		case <-stopChan:
@@ -283,7 +292,7 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 		default:
 		}
 
-		cmd, ctx, retryCount, backoff, exists := m.GetProcess(outputID)
+		cmd, procCtx, retryCount, backoff, exists := m.GetProcess(outputID)
 		if !exists || cmd == nil || backoff == nil {
 			return
 		}
@@ -302,7 +311,7 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			if errMsg == "" {
 				errMsg = err.Error()
 			}
-			if cause := context.Cause(ctx); cause != nil {
+			if cause := context.Cause(procCtx); cause != nil {
 				slog.Error("output error", "output_id", outputID, "error", errMsg, "cause", cause)
 			} else {
 				slog.Error("output error", "output_id", outputID, "error", errMsg)
@@ -322,12 +331,12 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 			retryCount = 0
 		}
 
-		if !encoderRunning() {
+		if !ctx.IsRunning() {
 			m.Remove(outputID)
 			return
 		}
 
-		out := getOutput()
+		out := ctx.GetOutput(outputID)
 		if out == nil {
 			m.Remove(outputID)
 			return
@@ -351,14 +360,14 @@ func (m *Manager) MonitorAndRetry(outputID string, getOutput func() *types.Outpu
 		case <-time.After(retryDelay):
 		}
 
-		out = getOutput()
+		out = ctx.GetOutput(outputID)
 		if out == nil {
 			slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
 			m.Remove(outputID)
 			return
 		}
 
-		if !encoderRunning() {
+		if !ctx.IsRunning() {
 			m.Remove(outputID)
 			return
 		}
