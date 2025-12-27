@@ -10,8 +10,8 @@ import (
 
 // BuildFFmpegArgs returns the FFmpeg arguments for an output.
 func BuildFFmpegArgs(output *types.Output) []string {
-	codecArgs := output.GetCodecArgs()
-	format := output.GetOutputFormat()
+	codecArgs := output.CodecArgs()
+	format := output.Format()
 	srtURL := BuildSRTURL(output)
 
 	args := []string{

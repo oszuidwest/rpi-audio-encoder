@@ -63,10 +63,16 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	done := make(chan bool)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in WebSocket reader", "panic", r)
+			}
+			close(done)
+		}()
+
 		for {
 			var cmd server.WSCommand
 			if err := conn.ReadJSON(&cmd); err != nil {
-				close(done)
 				return
 			}
 			s.commands.Handle(cmd, conn, func() {
@@ -85,14 +91,14 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	sendStatus := func() error {
 		cfg := s.config.Snapshot()
-		status := s.encoder.GetStatus()
+		status := s.encoder.Status()
 		status.OutputCount = len(cfg.Outputs)
 
 		return conn.WriteJSON(types.WSStatusResponse{
 			Type:             "status",
 			Encoder:          status,
 			Outputs:          cfg.Outputs,
-			OutputStatus:     s.encoder.GetAllOutputStatuses(),
+			OutputStatus:     s.encoder.AllOutputStatuses(),
 			Devices:          audio.ListDevices(),
 			SilenceThreshold: cfg.SilenceThreshold,
 			SilenceDuration:  cfg.SilenceDuration,
@@ -108,7 +114,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				AudioInput: cfg.AudioInput,
 				Platform:   runtime.GOOS,
 			},
-			Version: s.version.GetInfo(),
+			Version: s.version.Info(),
 		})
 	}
 
@@ -127,7 +133,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case <-levelsTicker.C:
 			if err := conn.WriteJSON(types.WSLevelsResponse{
 				Type:   "levels",
-				Levels: s.encoder.GetAudioLevels(),
+				Levels: s.encoder.AudioLevels(),
 			}); err != nil {
 				return
 			}
@@ -173,15 +179,22 @@ func securityHeaders(next http.Handler) http.Handler {
 
 // handlePublicStatic serves static files without authentication.
 func (s *Server) handlePublicStatic(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	if file, ok := staticFiles[path]; ok {
-		w.Header().Set("Content-Type", file.contentType)
-		if _, err := w.Write([]byte(file.content)); err != nil {
-			slog.Error("failed to write static file", "file", file.name, "error", err)
-		}
-		return
+	if !serveStaticFile(w, r.URL.Path) {
+		http.NotFound(w, r)
 	}
-	http.NotFound(w, r)
+}
+
+// serveStaticFile serves a static file by path. Returns true if file was found.
+func serveStaticFile(w http.ResponseWriter, path string) bool {
+	file, ok := staticFiles[path]
+	if !ok {
+		return false
+	}
+	w.Header().Set("Content-Type", file.contentType)
+	if _, err := w.Write([]byte(file.content)); err != nil {
+		slog.Error("failed to write static file", "file", file.name, "error", err)
+	}
+	return true
 }
 
 // handleLogin serves the login page (GET) and processes login form submissions (POST).
@@ -285,11 +298,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if file, ok := staticFiles[path]; ok {
-		w.Header().Set("Content-Type", file.contentType)
-		if _, err := w.Write([]byte(file.content)); err != nil {
-			slog.Error("failed to write static file", "file", file.name, "error", err)
-		}
+	if serveStaticFile(w, path) {
 		return
 	}
 

@@ -9,6 +9,8 @@ import (
 const (
 	// MinDB is the minimum dB level (silence).
 	MinDB = -60.0
+	// MaxSampleValue is the maximum absolute value for 16-bit signed audio.
+	MaxSampleValue = 32768.0
 	// ClipThreshold is slightly below max to catch near-clips.
 	ClipThreshold int16 = 32760
 )
@@ -76,11 +78,11 @@ func CalculateLevels(data *LevelData) Levels {
 	rmsL := math.Sqrt(data.SumSquaresL / float64(data.SampleCount))
 	rmsR := math.Sqrt(data.SumSquaresR / float64(data.SampleCount))
 
-	// Convert to dB (reference: 32768 for 16-bit audio)
-	dbL := 20 * math.Log10(rmsL/32768.0)
-	dbR := 20 * math.Log10(rmsR/32768.0)
-	peakDbL := 20 * math.Log10(data.PeakL/32768.0)
-	peakDbR := 20 * math.Log10(data.PeakR/32768.0)
+	// Convert to dB (reference: MaxSampleValue for 16-bit audio)
+	dbL := 20 * math.Log10(rmsL/MaxSampleValue)
+	dbR := 20 * math.Log10(rmsR/MaxSampleValue)
+	peakDbL := 20 * math.Log10(data.PeakL/MaxSampleValue)
+	peakDbR := 20 * math.Log10(data.PeakR/MaxSampleValue)
 
 	return Levels{
 		RMSL:  max(dbL, MinDB),
