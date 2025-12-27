@@ -17,15 +17,6 @@ const (
 	StateStopping EncoderState = "stopping"
 )
 
-// IsValid returns true if the EncoderState is a known valid value.
-func (s EncoderState) IsValid() bool {
-	switch s {
-	case StateStopped, StateStarting, StateRunning, StateStopping:
-		return true
-	}
-	return false
-}
-
 // Retry configuration constants.
 const (
 	InitialRetryDelay = 3 * time.Second
@@ -81,12 +72,6 @@ var CodecPresets = map[string]CodecPreset{
 // DefaultCodec is used when an unknown codec is specified.
 const DefaultCodec = "mp3"
 
-// IsValidCodec returns true if the codec name is supported.
-func IsValidCodec(codec string) bool {
-	_, ok := CodecPresets[codec]
-	return ok
-}
-
 // CodecArgs returns FFmpeg codec arguments for this output's codec.
 func (o *Output) CodecArgs() []string {
 	if preset, ok := CodecPresets[o.Codec]; ok {
@@ -130,15 +115,6 @@ const (
 	SilenceLevelNone   SilenceLevel = ""       // No silence detected
 	SilenceLevelActive SilenceLevel = "active" // Silence confirmed (duration threshold exceeded)
 )
-
-// IsValid returns true if the SilenceLevel is a known valid value.
-func (l SilenceLevel) IsValid() bool {
-	switch l {
-	case SilenceLevelNone, SilenceLevelActive:
-		return true
-	}
-	return false
-}
 
 // AudioLevels contains current audio level measurements.
 type AudioLevels struct {
