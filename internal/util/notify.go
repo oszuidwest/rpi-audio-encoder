@@ -2,8 +2,8 @@ package util
 
 import "log/slog"
 
-// NotifyResultf executes a notification function and logs the result.
-func NotifyResultf(fn func() error, notifyType string, enabled bool) {
+// LogNotifyResult executes a notification function and logs the result.
+func LogNotifyResult(fn func() error, notifyType string, enabled bool) {
 	err := fn()
 	if err != nil {
 		slog.Error("notification failed", "type", notifyType, "error", err)

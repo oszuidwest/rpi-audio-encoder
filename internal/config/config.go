@@ -184,8 +184,8 @@ func (c *Config) saveLocked() error {
 	return nil
 }
 
-// GetOutputs returns a copy of all outputs.
-func (c *Config) GetOutputs() []types.Output {
+// ConfiguredOutputs returns a copy of all outputs.
+func (c *Config) ConfiguredOutputs() []types.Output {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -194,8 +194,8 @@ func (c *Config) GetOutputs() []types.Output {
 	return outputs
 }
 
-// GetOutput returns a copy of the output with the given ID, or nil if not found.
-func (c *Config) GetOutput(id string) *types.Output {
+// Output returns a copy of the output with the given ID, or nil if not found.
+func (c *Config) Output(id string) *types.Output {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -360,8 +360,8 @@ func (c *Config) SetWebhookURL(url string) error {
 	return c.saveLocked()
 }
 
-// GetLogPath returns the configured log file path for notifications.
-func (c *Config) GetLogPath() string {
+// LogPath returns the configured log file path for notifications.
+func (c *Config) LogPath() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.LogPath

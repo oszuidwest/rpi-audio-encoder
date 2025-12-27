@@ -21,8 +21,8 @@ import (
 // OutputContext provides encoder state for monitoring and retry decisions.
 // This interface breaks the closure dependency by making the contract explicit.
 type OutputContext interface {
-	// GetOutput returns the output configuration, or nil if removed.
-	GetOutput(outputID string) *types.Output
+	// Output returns the output configuration, or nil if removed.
+	Output(outputID string) *types.Output
 	// IsRunning returns true if the encoder is in running state.
 	IsRunning() bool
 }
@@ -84,7 +84,7 @@ func (m *Manager) Start(output *types.Output) error {
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		cancelCause(errors.New("failed to create stdin pipe"))
-		return err
+		return fmt.Errorf("stdin pipe: %w", err)
 	}
 
 	var stderr bytes.Buffer
@@ -109,7 +109,7 @@ func (m *Manager) Start(output *types.Output) error {
 			slog.Warn("failed to close stdin pipe", "error", closeErr)
 		}
 		delete(m.processes, output.ID)
-		return err
+		return fmt.Errorf("start ffmpeg: %w", err)
 	}
 
 	return nil
@@ -201,13 +201,13 @@ func (m *Manager) WriteAudio(outputID string, data []byte) error {
 			}
 			proc.stdin = nil
 		}
-		return err
+		return fmt.Errorf("write audio: %w", err)
 	}
 	return nil
 }
 
-// GetAllStatuses returns status for all tracked outputs.
-func (m *Manager) GetAllStatuses(getMaxRetries func(string) int) map[string]types.OutputStatus {
+// AllStatuses returns status for all tracked outputs.
+func (m *Manager) AllStatuses(getMaxRetries func(string) int) map[string]types.OutputStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -226,8 +226,8 @@ func (m *Manager) GetAllStatuses(getMaxRetries func(string) int) map[string]type
 	return statuses
 }
 
-// GetProcess returns process info for monitoring.
-func (m *Manager) GetProcess(outputID string) (cmd *exec.Cmd, ctx context.Context, retryCount int, backoff *util.Backoff, exists bool) {
+// Process returns process info for monitoring.
+func (m *Manager) Process(outputID string) (cmd *exec.Cmd, ctx context.Context, retryCount int, backoff *util.Backoff, exists bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	proc, exists := m.processes[outputID]
@@ -283,6 +283,16 @@ func (m *Manager) Remove(outputID string) {
 	delete(m.processes, outputID)
 }
 
+// RetryCount returns the current retry count for an output.
+func (m *Manager) RetryCount(outputID string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if proc, exists := m.processes[outputID]; exists {
+		return proc.retryCount
+	}
+	return 0
+}
+
 // MonitorAndRetry monitors an output process and handles automatic retry with exponential backoff.
 func (m *Manager) MonitorAndRetry(outputID string, ctx OutputContext, stopChan <-chan struct{}) {
 	for {
@@ -293,7 +303,7 @@ func (m *Manager) MonitorAndRetry(outputID string, ctx OutputContext, stopChan <
 		default:
 		}
 
-		cmd, procCtx, retryCount, backoff, exists := m.GetProcess(outputID)
+		cmd, procCtx, _, backoff, exists := m.Process(outputID)
 		if !exists || cmd == nil || backoff == nil {
 			return
 		}
@@ -321,29 +331,29 @@ func (m *Manager) MonitorAndRetry(outputID string, ctx OutputContext, stopChan <
 
 			if runDuration >= types.SuccessThreshold {
 				m.ResetRetry(outputID)
-				retryCount = 0
 			} else {
 				m.IncrementRetry(outputID)
-				retryCount++
 				backoff.Next() // Advance to next delay
 			}
 		} else {
 			m.ResetRetry(outputID)
-			retryCount = 0
 		}
+
+		// Re-read retryCount after state changes to avoid stale data
+		retryCount := m.RetryCount(outputID)
 
 		if !ctx.IsRunning() {
 			m.Remove(outputID)
 			return
 		}
 
-		out := ctx.GetOutput(outputID)
+		out := ctx.Output(outputID)
 		if out == nil {
 			m.Remove(outputID)
 			return
 		}
 
-		maxRetries := out.GetMaxRetries()
+		maxRetries := out.MaxRetriesOrDefault()
 		if retryCount > maxRetries {
 			slog.Warn("output gave up after retries", "output_id", outputID, "retries", maxRetries)
 			return // Keep in processes for status reporting
@@ -361,7 +371,7 @@ func (m *Manager) MonitorAndRetry(outputID string, ctx OutputContext, stopChan <
 		case <-time.After(retryDelay):
 		}
 
-		out = ctx.GetOutput(outputID)
+		out = ctx.Output(outputID)
 		if out == nil {
 			slog.Info("output was removed during retry wait, not restarting", "output_id", outputID)
 			m.Remove(outputID)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -38,6 +39,12 @@ func NewVersionChecker() *VersionChecker {
 
 // run is the main loop that periodically checks for updates.
 func (vc *VersionChecker) run() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in version checker", "panic", r)
+		}
+	}()
+
 	time.Sleep(versionCheckDelay)
 	vc.checkWithRetry()
 
@@ -141,8 +148,8 @@ func (vc *VersionChecker) check() bool {
 	return true
 }
 
-// GetInfo returns the current version info for the frontend.
-func (vc *VersionChecker) GetInfo() types.VersionInfo {
+// Info returns the current version info for the frontend.
+func (vc *VersionChecker) Info() types.VersionInfo {
 	vc.mu.RLock()
 	defer vc.mu.RUnlock()
 

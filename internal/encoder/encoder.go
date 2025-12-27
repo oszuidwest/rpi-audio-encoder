@@ -63,17 +63,17 @@ func New(cfg *config.Config) *Encoder {
 	}
 }
 
-// GetState returns the current encoder state.
-func (e *Encoder) GetState() types.EncoderState {
+// State returns the current encoder state.
+func (e *Encoder) State() types.EncoderState {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.state
 }
 
-// GetOutput returns the output configuration for the given ID.
+// Output returns the output configuration for the given ID.
 // Implements output.OutputContext.
-func (e *Encoder) GetOutput(outputID string) *types.Output {
-	return e.config.GetOutput(outputID)
+func (e *Encoder) Output(outputID string) *types.Output {
+	return e.config.Output(outputID)
 }
 
 // IsRunning returns true if the encoder is in running state.
@@ -84,10 +84,14 @@ func (e *Encoder) IsRunning() bool {
 	return e.state == types.StateRunning
 }
 
-// GetAudioLevels returns the current audio levels.
-func (e *Encoder) GetAudioLevels() types.AudioLevels {
+// AudioLevels returns the current audio levels.
+//
+// This method uses TryRLock to avoid blocking the 10 fps WebSocket level updates
+// during encoder state changes (start/stop) that hold the write lock. Stale cached
+// levels are acceptable for VU meter display purposes where visual smoothness
+// matters more than sub-100ms accuracy.
+func (e *Encoder) AudioLevels() types.AudioLevels {
 	if !e.mu.TryRLock() {
-		// Return cached levels during lock contention (acceptable for VU meters)
 		return e.lastKnownLevels
 	}
 	defer e.mu.RUnlock()
@@ -98,8 +102,8 @@ func (e *Encoder) GetAudioLevels() types.AudioLevels {
 	return e.audioLevels
 }
 
-// GetStatus returns the current encoder status.
-func (e *Encoder) GetStatus() types.EncoderStatus {
+// Status returns the current encoder status.
+func (e *Encoder) Status() types.EncoderStatus {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -118,11 +122,11 @@ func (e *Encoder) GetStatus() types.EncoderStatus {
 	}
 }
 
-// GetAllOutputStatuses returns status for all tracked outputs.
-func (e *Encoder) GetAllOutputStatuses() map[string]types.OutputStatus {
-	return e.outputManager.GetAllStatuses(func(id string) int {
-		if o := e.config.GetOutput(id); o != nil {
-			return o.GetMaxRetries()
+// AllOutputStatuses returns status for all tracked outputs.
+func (e *Encoder) AllOutputStatuses() map[string]types.OutputStatus {
+	return e.outputManager.AllStatuses(func(id string) int {
+		if o := e.config.Output(id); o != nil {
+			return o.MaxRetriesOrDefault()
 		}
 		return types.DefaultMaxRetries
 	})
@@ -216,7 +220,7 @@ func (e *Encoder) Stop() error {
 // Restart stops and starts the encoder.
 func (e *Encoder) Restart() error {
 	if err := e.Stop(); err != nil {
-		return err
+		return fmt.Errorf("stop: %w", err)
 	}
 	time.Sleep(1 * time.Second)
 	return e.Start()
@@ -232,7 +236,7 @@ func (e *Encoder) StartOutput(outputID string) error {
 	stopChan := e.stopChan
 	e.mu.RUnlock()
 
-	out := e.config.GetOutput(outputID)
+	out := e.config.Output(outputID)
 	if out == nil {
 		return fmt.Errorf("output not found: %s", outputID)
 	}
@@ -255,14 +259,8 @@ func (e *Encoder) StopOutput(outputID string) error {
 // buildEmailConfig constructs an EmailConfig from the current configuration.
 func (e *Encoder) buildEmailConfig() *notify.EmailConfig {
 	cfg := e.config.Snapshot()
-	return &notify.EmailConfig{
-		Host:       cfg.EmailSMTPHost,
-		Port:       cfg.EmailSMTPPort,
-		FromName:   cfg.EmailFromName,
-		Username:   cfg.EmailUsername,
-		Password:   cfg.EmailPassword,
-		Recipients: cfg.EmailRecipients,
-	}
+	return notify.EmailConfigFromValues(cfg.EmailSMTPHost, cfg.EmailSMTPPort, cfg.EmailFromName,
+		cfg.EmailUsername, cfg.EmailPassword, cfg.EmailRecipients)
 }
 
 // TriggerTestEmail sends a test email to verify configuration.
@@ -404,7 +402,7 @@ func (e *Encoder) runSource() (string, error) {
 func (e *Encoder) startEnabledOutputs() {
 	go e.runDistributor()
 
-	for _, out := range e.config.GetOutputs() {
+	for _, out := range e.config.ConfiguredOutputs() {
 		if err := e.StartOutput(out.ID); err != nil {
 			slog.Error("failed to start output", "output_id", out.ID, "error", err)
 		}
@@ -458,7 +456,7 @@ func (e *Encoder) runDistributor() {
 
 		distributor.ProcessSamples(buf, n)
 
-		for _, out := range e.config.GetOutputs() {
+		for _, out := range e.config.ConfiguredOutputs() {
 			// WriteAudio logs errors internally and marks output as stopped
 			_ = e.outputManager.WriteAudio(out.ID, buf[:n]) //nolint:errcheck // Errors logged internally by WriteAudio
 		}

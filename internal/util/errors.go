@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// MaxErrorLineLength is the maximum length for extracted error messages.
+const MaxErrorLineLength = 200
+
 // WrapError wraps an error with a descriptive operation context.
 func WrapError(operation string, err error) error {
 	if err == nil {
@@ -19,8 +22,8 @@ func ExtractLastError(stderr string) string {
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
 		if line != "" {
-			if len(line) > 200 {
-				return line[:200] + "..."
+			if len(line) > MaxErrorLineLength {
+				return line[:MaxErrorLineLength] + "..."
 			}
 			return line
 		}
