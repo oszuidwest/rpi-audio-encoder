@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
@@ -17,12 +16,18 @@ import (
 )
 
 var loginTmpl = template.Must(template.New("login").Parse(loginHTML))
+var indexTmpl = template.Must(template.New("index").Parse(indexHTML))
 
 type loginData struct {
 	Error     bool
 	CSRFToken string
 	Version   string
 	Year      int
+}
+
+type indexData struct {
+	Version string
+	Year    int
 }
 
 // Server is an HTTP server that provides the web interface for the audio encoder.
@@ -288,9 +293,10 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	// Serve index.html with dynamic placeholders.
 	if path == "/index.html" {
 		w.Header().Set("Content-Type", "text/html")
-		html := strings.Replace(indexHTML, "{{VERSION}}", Version, 1)
-		html = strings.ReplaceAll(html, "{{YEAR}}", fmt.Sprintf("%d", time.Now().Year()))
-		if _, err := w.Write([]byte(html)); err != nil {
+		if err := indexTmpl.Execute(w, indexData{
+			Version: Version,
+			Year:    time.Now().Year(),
+		}); err != nil {
 			slog.Error("failed to write index.html", "error", err)
 		}
 		return

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -179,10 +180,7 @@ func (c *Config) saveLocked() error {
 func (c *Config) ConfiguredOutputs() []types.Output {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
-	outputs := make([]types.Output, len(c.Outputs))
-	copy(outputs, c.Outputs)
-	return outputs
+	return slices.Clone(c.Outputs)
 }
 
 // Output returns a copy of the output with the given ID, or nil if not found.
@@ -384,10 +382,7 @@ func (c *Config) EmailSMTPPort() int {
 func (c *Config) EmailFromName() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.Notifications.Email.FromName == "" {
-		return DefaultEmailFromName
-	}
-	return c.Notifications.Email.FromName
+	return cmp.Or(c.Notifications.Email.FromName, DefaultEmailFromName)
 }
 
 // EmailUsername returns the configured SMTP username.
@@ -461,10 +456,6 @@ func (c *Config) Snapshot() Snapshot {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Copy outputs slice
-	outputs := make([]types.Output, len(c.Outputs))
-	copy(outputs, c.Outputs)
-
 	return Snapshot{
 		// Web
 		WebPort:     c.Web.Port,
@@ -492,7 +483,7 @@ func (c *Config) Snapshot() Snapshot {
 		EmailRecipients: c.Notifications.Email.Recipients,
 
 		// Outputs
-		Outputs: outputs,
+		Outputs: slices.Clone(c.Outputs),
 	}
 }
 

@@ -25,7 +25,7 @@ func SendSilenceWebhook(webhookURL string, duration, threshold float64) error {
 		Event:           "silence_detected",
 		SilenceDuration: duration,
 		Threshold:       threshold,
-		Timestamp:       util.RFC3339Now(),
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -34,7 +34,7 @@ func SendRecoveryWebhook(webhookURL string, silenceDuration float64) error {
 	return sendWebhook(webhookURL, WebhookPayload{
 		Event:           "silence_recovered",
 		SilenceDuration: silenceDuration,
-		Timestamp:       util.RFC3339Now(),
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -47,7 +47,7 @@ func SendTestWebhook(webhookURL string) error {
 	return sendWebhook(webhookURL, WebhookPayload{
 		Event:     "test",
 		Message:   "This is a test notification from ZuidWest FM Encoder",
-		Timestamp: util.RFC3339Now(),
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	})
 }
 

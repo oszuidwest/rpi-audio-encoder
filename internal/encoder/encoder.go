@@ -109,8 +109,7 @@ func (e *Encoder) Status() types.EncoderStatus {
 
 	uptime := ""
 	if e.state == types.StateRunning {
-		d := time.Since(e.startTime)
-		uptime = fmt.Sprintf("%dh %dm %ds", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+		uptime = time.Since(e.startTime).Truncate(time.Second).String()
 	}
 
 	return types.EncoderStatus{

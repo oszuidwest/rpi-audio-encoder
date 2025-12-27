@@ -5,11 +5,6 @@ import "time"
 // humanTimeFormat is the layout for human-readable timestamps.
 const humanTimeFormat = "2 Jan 2006 15:04 UTC"
 
-// RFC3339Now returns the current UTC time formatted as RFC3339.
-func RFC3339Now() string {
-	return time.Now().UTC().Format(time.RFC3339)
-}
-
 // HumanTime returns the current UTC time in a human-readable format.
 func HumanTime() string {
 	return time.Now().UTC().Format(humanTimeFormat)
