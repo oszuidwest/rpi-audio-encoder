@@ -19,6 +19,19 @@ type EmailConfig struct {
 	Recipients string
 }
 
+// EmailConfigFromValues constructs an EmailConfig from individual values.
+// This provides a single point of construction to reduce duplication.
+func EmailConfigFromValues(host string, port int, fromName, username, password, recipients string) *EmailConfig {
+	return &EmailConfig{
+		Host:       host,
+		Port:       port,
+		FromName:   fromName,
+		Username:   username,
+		Password:   password,
+		Recipients: recipients,
+	}
+}
+
 // SendSilenceAlert sends an email notification for critical silence.
 func SendSilenceAlert(cfg *EmailConfig, duration, threshold float64) error {
 	if !util.IsConfigured(cfg.Host, cfg.Username, cfg.Recipients) {

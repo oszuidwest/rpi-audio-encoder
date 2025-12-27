@@ -1,12 +1,7 @@
 // Package types provides shared type definitions used across the encoder.
 package types
 
-import (
-	"context"
-	"io"
-	"os/exec"
-	"time"
-)
+import "time"
 
 // EncoderState represents the current state of the encoder.
 type EncoderState string
@@ -21,6 +16,15 @@ const (
 	// StateStopping indicates the encoder is shutting down.
 	StateStopping EncoderState = "stopping"
 )
+
+// IsValid returns true if the EncoderState is a known valid value.
+func (s EncoderState) IsValid() bool {
+	switch s {
+	case StateStopped, StateStarting, StateRunning, StateStopping:
+		return true
+	}
+	return false
+}
 
 // Retry configuration constants.
 const (
@@ -52,8 +56,8 @@ type Output struct {
 // DefaultMaxRetries is the default number of retry attempts for outputs.
 const DefaultMaxRetries = 99
 
-// GetMaxRetries returns the configured max retries or the default value.
-func (o *Output) GetMaxRetries() int {
+// MaxRetriesOrDefault returns the configured max retries or the default value.
+func (o *Output) MaxRetriesOrDefault() int {
 	if o.MaxRetries <= 0 {
 		return DefaultMaxRetries
 	}
@@ -77,32 +81,26 @@ var CodecPresets = map[string]CodecPreset{
 // DefaultCodec is used when an unknown codec is specified.
 const DefaultCodec = "mp3"
 
-// GetCodecArgs returns FFmpeg codec arguments for this output's codec.
-func (o *Output) GetCodecArgs() []string {
+// IsValidCodec returns true if the codec name is supported.
+func IsValidCodec(codec string) bool {
+	_, ok := CodecPresets[codec]
+	return ok
+}
+
+// CodecArgs returns FFmpeg codec arguments for this output's codec.
+func (o *Output) CodecArgs() []string {
 	if preset, ok := CodecPresets[o.Codec]; ok {
 		return preset.Args
 	}
 	return CodecPresets[DefaultCodec].Args
 }
 
-// GetOutputFormat returns the FFmpeg output format for this output's codec.
-func (o *Output) GetOutputFormat() string {
+// Format returns the FFmpeg output format for this output's codec.
+func (o *Output) Format() string {
 	if preset, ok := CodecPresets[o.Codec]; ok {
 		return preset.Format
 	}
 	return CodecPresets[DefaultCodec].Format
-}
-
-// OutputProcess tracks an individual output FFmpeg process.
-type OutputProcess struct {
-	Cmd        *exec.Cmd
-	Cancel     context.CancelFunc
-	Stdin      io.WriteCloser // Audio data input
-	Running    bool
-	LastError  string
-	StartTime  time.Time
-	RetryCount int
-	RetryDelay time.Duration
 }
 
 // OutputStatus contains runtime status for an output.
@@ -132,6 +130,15 @@ const (
 	SilenceLevelNone   SilenceLevel = ""       // No silence detected
 	SilenceLevelActive SilenceLevel = "active" // Silence confirmed (duration threshold exceeded)
 )
+
+// IsValid returns true if the SilenceLevel is a known valid value.
+func (l SilenceLevel) IsValid() bool {
+	switch l {
+	case SilenceLevelNone, SilenceLevelActive:
+		return true
+	}
+	return false
+}
 
 // AudioLevels contains current audio level measurements.
 type AudioLevels struct {

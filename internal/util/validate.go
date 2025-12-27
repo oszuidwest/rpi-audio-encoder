@@ -3,9 +3,15 @@ package util
 import "fmt"
 
 // ValidationError represents a field validation failure.
+// It implements the error interface for idiomatic error handling.
 type ValidationError struct {
 	Field   string
 	Message string
+}
+
+// Error implements the error interface.
+func (v *ValidationError) Error() string {
+	return fmt.Sprintf("%s: %s", v.Field, v.Message)
 }
 
 // ValidateRequired checks that a string field is not empty.
