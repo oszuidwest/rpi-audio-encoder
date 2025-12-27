@@ -16,7 +16,7 @@ import (
 // This separates notification concerns from the SilenceDetector,
 // which only handles pure audio level detection.
 type SilenceNotifier struct {
-	cfg config.ConfigSnapshot
+	cfg *config.Config
 
 	// mu protects the notification state fields below
 	mu sync.Mutex
@@ -28,7 +28,7 @@ type SilenceNotifier struct {
 }
 
 // NewSilenceNotifier returns a SilenceNotifier configured with the given config.
-func NewSilenceNotifier(cfg config.ConfigSnapshot) *SilenceNotifier {
+func NewSilenceNotifier(cfg *config.Config) *SilenceNotifier {
 	return &SilenceNotifier{cfg: cfg}
 }
 
@@ -125,8 +125,14 @@ func (n *SilenceNotifier) sendRecoveryWebhook(duration float64) {
 
 func (n *SilenceNotifier) sendSilenceEmail(duration float64) {
 	cfg := n.cfg.Snapshot()
-	emailCfg := EmailConfigFromValues(cfg.EmailSMTPHost, cfg.EmailSMTPPort, cfg.EmailFromName,
-		cfg.EmailUsername, cfg.EmailPassword, cfg.EmailRecipients)
+	emailCfg := &EmailConfig{
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		FromName:   cfg.EmailFromName,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
+	}
 	util.LogNotifyResult(
 		func() error { return SendSilenceAlert(emailCfg, duration, cfg.SilenceThreshold) },
 		"Silence email",
@@ -136,8 +142,14 @@ func (n *SilenceNotifier) sendSilenceEmail(duration float64) {
 
 func (n *SilenceNotifier) sendRecoveryEmail(duration float64) {
 	cfg := n.cfg.Snapshot()
-	emailCfg := EmailConfigFromValues(cfg.EmailSMTPHost, cfg.EmailSMTPPort, cfg.EmailFromName,
-		cfg.EmailUsername, cfg.EmailPassword, cfg.EmailRecipients)
+	emailCfg := &EmailConfig{
+		Host:       cfg.EmailSMTPHost,
+		Port:       cfg.EmailSMTPPort,
+		FromName:   cfg.EmailFromName,
+		Username:   cfg.EmailUsername,
+		Password:   cfg.EmailPassword,
+		Recipients: cfg.EmailRecipients,
+	}
 	util.LogNotifyResult(
 		func() error { return SendRecoveryAlert(emailCfg, duration) },
 		"Recovery email",

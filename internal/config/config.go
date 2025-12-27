@@ -75,15 +75,6 @@ type Config struct {
 	filePath string
 }
 
-// ConfigSnapshot provides read-only access to configuration via point-in-time snapshots.
-// This is the preferred interface for components that only need to read configuration.
-type ConfigSnapshot interface {
-	Snapshot() Snapshot
-}
-
-// Compile-time verification that *Config implements ConfigSnapshot.
-var _ ConfigSnapshot = (*Config)(nil)
-
 // New creates a new Config with default values.
 func New(filePath string) *Config {
 	return &Config{
@@ -264,29 +255,29 @@ func (c *Config) UpdateOutput(output *types.Output) error {
 	return c.saveLocked()
 }
 
-// GetWebPort returns the web server port.
-func (c *Config) GetWebPort() int {
+// WebPort returns the web server port.
+func (c *Config) WebPort() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Web.Port
 }
 
-// GetWebUser returns the web authentication username.
-func (c *Config) GetWebUser() string {
+// WebUser returns the web authentication username.
+func (c *Config) WebUser() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Web.Username
 }
 
-// GetWebPassword returns the web authentication password.
-func (c *Config) GetWebPassword() string {
+// WebPassword returns the web authentication password.
+func (c *Config) WebPassword() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Web.Password
 }
 
-// GetAudioInput returns the configured audio input device.
-func (c *Config) GetAudioInput() string {
+// AudioInput returns the configured audio input device.
+func (c *Config) AudioInput() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Audio.Input
@@ -300,8 +291,8 @@ func (c *Config) SetAudioInput(input string) error {
 	return c.saveLocked()
 }
 
-// GetSilenceThreshold returns the configured silence threshold in decibels.
-func (c *Config) GetSilenceThreshold() float64 {
+// SilenceThreshold returns the configured silence threshold in decibels.
+func (c *Config) SilenceThreshold() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cmp.Or(c.SilenceDetection.ThresholdDB, DefaultSilenceThreshold)
@@ -315,8 +306,8 @@ func (c *Config) SetSilenceThreshold(threshold float64) error {
 	return c.saveLocked()
 }
 
-// GetSilenceDuration returns the silence duration before alerting.
-func (c *Config) GetSilenceDuration() float64 {
+// SilenceDuration returns the silence duration before alerting.
+func (c *Config) SilenceDuration() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cmp.Or(c.SilenceDetection.DurationSeconds, DefaultSilenceDuration)
@@ -330,8 +321,8 @@ func (c *Config) SetSilenceDuration(seconds float64) error {
 	return c.saveLocked()
 }
 
-// GetSilenceRecovery returns the audio duration before considering silence recovered.
-func (c *Config) GetSilenceRecovery() float64 {
+// SilenceRecovery returns the audio duration before considering silence recovered.
+func (c *Config) SilenceRecovery() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cmp.Or(c.SilenceDetection.RecoverySeconds, DefaultSilenceRecovery)
@@ -345,8 +336,8 @@ func (c *Config) SetSilenceRecovery(seconds float64) error {
 	return c.saveLocked()
 }
 
-// GetWebhookURL returns the configured webhook URL for notifications.
-func (c *Config) GetWebhookURL() string {
+// WebhookURL returns the configured webhook URL for notifications.
+func (c *Config) WebhookURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.WebhookURL
@@ -375,22 +366,22 @@ func (c *Config) SetLogPath(path string) error {
 	return c.saveLocked()
 }
 
-// GetEmailSMTPHost returns the configured SMTP host.
-func (c *Config) GetEmailSMTPHost() string {
+// EmailSMTPHost returns the configured SMTP host.
+func (c *Config) EmailSMTPHost() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.Email.Host
 }
 
-// GetEmailSMTPPort returns the configured SMTP port.
-func (c *Config) GetEmailSMTPPort() int {
+// EmailSMTPPort returns the configured SMTP port.
+func (c *Config) EmailSMTPPort() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cmp.Or(c.Notifications.Email.Port, DefaultEmailSMTPPort)
 }
 
-// GetEmailFromName returns the configured email sender display name.
-func (c *Config) GetEmailFromName() string {
+// EmailFromName returns the configured email sender display name.
+func (c *Config) EmailFromName() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.Notifications.Email.FromName == "" {
@@ -399,22 +390,22 @@ func (c *Config) GetEmailFromName() string {
 	return c.Notifications.Email.FromName
 }
 
-// GetEmailUsername returns the configured SMTP username.
-func (c *Config) GetEmailUsername() string {
+// EmailUsername returns the configured SMTP username.
+func (c *Config) EmailUsername() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.Email.Username
 }
 
-// GetEmailPassword returns the configured SMTP password.
-func (c *Config) GetEmailPassword() string {
+// EmailPassword returns the configured SMTP password.
+func (c *Config) EmailPassword() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.Email.Password
 }
 
-// GetEmailRecipients returns the configured email recipients.
-func (c *Config) GetEmailRecipients() string {
+// EmailRecipients returns the configured email recipients.
+func (c *Config) EmailRecipients() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Notifications.Email.Recipients

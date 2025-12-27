@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/oszuidwest/zwfm-encoder/internal/config"
 	"github.com/oszuidwest/zwfm-encoder/internal/encoder"
 	"github.com/oszuidwest/zwfm-encoder/internal/server"
@@ -323,6 +322,3 @@ func (s *Server) Start() *http.Server {
 
 	return srv
 }
-
-// Conn is an alias for websocket.Conn to avoid import in other packages.
-type Conn = websocket.Conn
